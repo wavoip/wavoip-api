@@ -1,0 +1,54 @@
+<!doctype HTML>
+<html>
+
+<head>
+  <script type="text/javascript" src="../lib/index.js"></script>
+</head>
+
+<body>
+  <input type="text" id="whatsappid" placeholder="Exemplo: 5511973951769">
+  <button onclick="startCall()">Call Start</button>
+  <button onclick="endCall()">End Call</button>
+  <button onclick="acceptCall()">Accept Call</button>
+  <button onclick="rejectCall()">Reject Call</button>
+  <button onclick="mute();">Mute Call</button>
+  <button onclick="unMute();">Unmute Call</button>
+
+  <script>
+    const device = new Wavoip;
+    const wavoipInstance = device.connect("b8018d84-dfed-45a0-9513-1877596ac8c6");
+    
+
+    window.wavoipInstance = wavoipInstance;
+    wavoipInstance.socket.on('connect', () => {
+      // console.log('Successfully connected!', wavoipInstance);
+    });
+
+    var startCall = () => {
+      wavoipInstance.callStart({
+        whatsappid: document.getElementById("whatsappid").value
+      });
+    }
+
+    var endCall = () => {
+      wavoipInstance.endCall();
+    }
+
+    var acceptCall = () => {
+      wavoipInstance.acceptCall();
+    }
+
+    var rejectCall = () => {
+      wavoipInstance.rejectCall();
+    }
+
+    var mute = () => {
+      wavoipInstance.mute();
+    }
+
+    var unMute = () => {
+      wavoipInstance.unMute();
+    }
+  </script>
+</body>
+</html>

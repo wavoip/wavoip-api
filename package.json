@@ -1,0 +1,79 @@
+{
+  "name": "wavoip-api",
+  "version": "2.0.0",
+  "description": "Biblioteca JavaScript para facilitar chamadas de áudio via WhatsApp em projetos web.",
+  "main": "./lib/index.js",
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "test": "jest",
+    "build": "set NODE_OPTIONS=--openssl-legacy-provider && webpack",
+    "start": "webpack-dev-server"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rs-company-project/rs-voip-api.git"
+  },
+  "keywords": [
+    "wavoip",
+    "wav",
+    "wa voip",
+    "voip wav",
+    "wavoip",
+    "whatsapp",
+    "whatsapp voip",
+    "voip",
+    "wavoip",
+    "ligações",
+    "ligações whatsapp",
+    "ligações do whatsapp",
+    "licacoes whatsapp",
+    "whatsapp licacoes",
+    "whatsapp licações",
+    "chamadas whatsapp",
+    "chamadas do whatsapp",
+    "whatsapp api",
+    "whatsapp pabx",
+    "pabx",
+    "webrtc",
+    "webrtc whatsapp",
+    "whatsapp whatsapp",
+    "ligação",
+    "whatsapp api",
+    "whatsapp calls",
+    "calls whatsapp"
+  ],
+  "author": "wavoip",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rs-company-project/rs-voip-api/issues"
+  },
+  "homepage": "https://github.com/rs-company-project/rs-voip-api#readme",
+  "dependencies": {
+    "audio-recorder-worklet-processor": "^0.0.2",
+    "axios": "^1.2.0",
+    "inline-worker": "^1.1.0",
+    "path": "^0.12.7",
+    "socket.io-client": "^4.6.0",
+    "socket.io-p2p": "^2.2.0",
+    "worklet-loader": "^2.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.3.4",
+    "@babel/plugin-proposal-class-properties": "^7.3.4",
+    "@babel/preset-env": "^7.3.4",
+    "babel-eslint": "^10.0.1",
+    "babel-jest": "^24.1.0",
+    "babel-loader": "^8.0.5",
+    "eslint": "^5.15.0",
+    "eslint-config-standard": "^12.0.0",
+    "eslint-plugin-import": "^2.16.0",
+    "eslint-plugin-node": "^8.0.1",
+    "eslint-plugin-promise": "^4.0.1",
+    "eslint-plugin-standard": "^4.0.0",
+    "jest": "^24.1.0",
+    "prettier": "1.16.4",
+    "webpack-cli": "^4.0.0"
+  }
+}
