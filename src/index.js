@@ -11,6 +11,8 @@ class Wavoip {
     const CallModel = new Call(SocketInstance.socket);
     const DeviceModel = new Device(SocketInstance.socket);
 
+    Microphone.init(SocketInstance, 16000);
+    
     SocketInstance.socket.on('connect', () => {});
 
     SocketInstance.socket.on('disconnect', reason => {});
@@ -22,7 +24,7 @@ class Wavoip {
       ({ room, sampleRate }) => {
         AudioInstance.start(16000, room);
 
-        Microphone.init(SocketInstance, 16000);
+        
         Microphone.start();
       }
     );

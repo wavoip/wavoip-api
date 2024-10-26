@@ -33,7 +33,7 @@ class Audio {
 
   stop() {
     console.info('[*] - Audio stream stopped');
-    this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
     this.Socket.socket_audio_transport.off('audio_buffer');
   }

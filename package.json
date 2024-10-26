@@ -51,6 +51,7 @@
   },
   "homepage": "https://github.com/rs-company-project/rs-voip-api#readme",
   "dependencies": {
+    "@alexanderolsen/libsamplerate-js": "^2.1.2",
     "audio-recorder-worklet-processor": "^0.0.2",
     "axios": "^1.2.0",
     "inline-worker": "^1.1.0",
