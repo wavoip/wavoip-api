@@ -33,9 +33,7 @@ const start = async () => {
 
   // Adiciona um listener para capturar os buffers enviados pelo Audio Worklet
   resampleNode.port.onmessage = (event) => {
-    socket.socket_audio_transport.volatile
-      .timeout(250)
-      .emit('microphone_buffer', event.data);
+    socket.socket_audio_transport.send(event.data);
   };
 
   micSource.connect(resampleNode);
