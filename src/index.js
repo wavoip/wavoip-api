@@ -9,7 +9,7 @@ class Wavoip {
     const SocketInstance = new Socket(deviceToken);
     const AudioInstance = new Audio(SocketInstance);
     const CallModel = new Call(SocketInstance.socket);
-    const DeviceModel = new Device(SocketInstance.socket);
+    const DeviceModel = new Device(SocketInstance.socket, deviceToken);
 
     Microphone.init(SocketInstance, 16000);
     
@@ -24,7 +24,7 @@ class Wavoip {
       ({ room, sampleRate }) => {
         AudioInstance.start(16000, room);
 
-        
+        Microphone.init(SocketInstance, 16000);
         Microphone.start();
       }
     );
@@ -41,6 +41,9 @@ class Wavoip {
       },
       getCurrentQRCode: function() {
         return DeviceModel.getCurrentQRCode();
+      },
+      getAllInfo: function() {
+        return DeviceModel.getAllInfo();
       },
       callStart: function(params) {
         return CallModel.callStart(params);

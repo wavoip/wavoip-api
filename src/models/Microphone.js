@@ -1,5 +1,6 @@
-import Recorder from 'audio-recorder-worklet-processor';
-import noiseGeneratorUrl from './Microphone/AudioWorklet.js';
+// import Recorder from 'audio-recorder-worklet-processor';
+import noiseGeneratorUrl from './Microphone/AudioWorkletMic.js';
+
 let recorder;
 let socket;
 let audioContext;
@@ -33,7 +34,9 @@ const start = async () => {
 
   // Adiciona um listener para capturar os buffers enviados pelo Audio Worklet
   resampleNode.port.onmessage = (event) => {
-    socket.socket_audio_transport.send(event.data);
+    socket.socket_audio_transport.volatile
+      .timeout(250)
+      .emit('microphone_buffer', event.data);
   };
 
   micSource.connect(resampleNode);
@@ -44,19 +47,19 @@ const stop = async () => {
     micSource.disconnect(); // Desconecta o mediaStreamSource
     micSource = null;
   }
-  
+
   if (micStream) {
     micStream.getTracks().forEach(track => track.stop()); // Para todos os tracks de áudio
     micStream = null;
   }
-  
+
   if (audioContext) {
     audioContext.close(); // Fecha o AudioContext
     audioContext = null;
   }
 
   console.log('Microfone desconectado e stream parado.');
- 
+
   if (recorder) {
 
     // const duration = await recorder.stop();

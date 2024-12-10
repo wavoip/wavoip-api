@@ -19,14 +19,12 @@ class Socket {
 
     this.socket.on('audio_transport:create', ({ room, ip, port }) => {
       console.info('[*] creating audio transport');
-
-      this.socket_audio_transport = new WebSocket(`${ip}:${port}?token=${this.device_token}`);
-
-      // this.socket_audio_transport = io(`${ip}:${port}/call-${room}`, {
-      //   transports: ['websocket'],
-      //   path: `/${this.device_token}/websocket`,
-      //   forceNew: true,
-      // });
+      
+      this.socket_audio_transport = io(`${ip}:${port}/call-${room}`, {
+        transports: ['websocket'],
+        path: `/${this.device_token}/websocket`,
+        forceNew: true,
+      });
     });
 
     this.socket.on('audio_transport:terminate', ({ room }) => {

@@ -1,11 +1,14 @@
+import axios from "axios";
 class Device {
   qrcode;
   device_status;
 
-  constructor(Socket) {
+  constructor(Socket, token) {
     this.Socket = Socket;
     this.qrcode;
     this.device_status;
+    this.all_info;
+    this.token = token;
 
     this.Socket.on('qrcode', qrcode => {
       this.qrcode = qrcode;
@@ -39,6 +42,33 @@ class Device {
         });
       } catch (error) {
         console.error('Error to get current device status', error);
+        reject(error);
+      }
+    });
+  }
+
+  getAllInfo() {
+    return new Promise((resolve, reject) => {
+      try {
+        const url = `https://devices.wavoip.com/${this.token}/whatsapp/all_info`;
+
+        const config = {
+          headers: {
+            'Authorization': 'Bearer SEU_TOKEN_AQUI', // Adicione o token se necessário
+            'Content-Type': 'application/json'
+          },
+        };
+
+        axios.get(url, config)
+          .then(response => {
+            resolve(response.data);
+          })
+          .catch(error => {
+            reject(error)
+          });
+
+      } catch (error) {
+        console.error('Error to get current all infos', error);
         reject(error);
       }
     });

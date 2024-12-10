@@ -1,6 +1,6 @@
 {
   "name": "wavoip-api",
-  "version": "3.0.0",
+  "version": "3.1.11",
   "description": "Biblioteca JavaScript para facilitar chamadas de áudio via WhatsApp em projetos web.",
   "main": "./lib/index.js",
   "files": [
@@ -52,12 +52,9 @@
   "homepage": "https://github.com/rs-company-project/rs-voip-api#readme",
   "dependencies": {
     "@alexanderolsen/libsamplerate-js": "^2.1.2",
-    "audio-recorder-worklet-processor": "^0.0.2",
     "axios": "^1.2.0",
-    "inline-worker": "^1.1.0",
     "path": "^0.12.7",
     "socket.io-client": "^4.6.0",
-    "socket.io-p2p": "^2.2.0",
     "worklet-loader": "^2.0.0"
   },
   "devDependencies": {

@@ -24,7 +24,16 @@ module.exports = {
             options: { name: 'AudioWorklet.js', inline: true  }
           },
         ],
-      }
+      },
+      {
+        test: /AudioWorkletMic\.js$/,
+        use: [
+          {
+            loader: 'worklet-loader',
+            options: { name: 'AudioWorkletMic.js', inline: true  }
+          },
+        ],
+      },
     ],
   },
   devServer: {
