@@ -16,13 +16,26 @@
 
   <script>
     const device = new Wavoip;
-    const wavoipInstance = device.connect("b0d3785b-2ef2-43e3-8d57-fbce592bfb3a");
+    const wavoipInstance = device.connect("AF34C92C-2381-4871-B790-14CE8437F645");
     
 
     window.wavoipInstance = wavoipInstance;
     wavoipInstance.socket.on('connect', () => {
       // console.log('Successfully connected!', wavoipInstance);
+
+      // wavoipInstance.callStart({
+      //   whatsappid: "5511973951769"
+      // });
     });
+
+    wavoipInstance.deviceEmitter.on('audio_audioctx_change_state', () => {
+     alert("audio ctx")
+    });
+
+    wavoipInstance.deviceEmitter.on('microphone_audioctx_change_state', () => {
+     alert("microphone ctx")
+    });
+
 
     var startCall = () => {
       wavoipInstance.callStart({

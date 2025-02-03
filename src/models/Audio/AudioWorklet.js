@@ -50,6 +50,11 @@ class AudioDataWorkletStream extends AudioWorkletProcessor {
       channels[0][i] = float;
     }
 
+    // Atraso de 25k bytes de pacotes, não vou zerar a quantidade de pacotes mas apenas diminuir o atraso
+    if(this.uint8.length - this.offset > 25000) {
+      this.offset += 10000
+    }
+
     // Retorna true para indicar que o processamento foi bem-sucedido.
     return true;
   }

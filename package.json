@@ -1,6 +1,6 @@
 {
   "name": "wavoip-api",
-  "version": "3.1.11",
+  "version": "3.1.24",
   "description": "Biblioteca JavaScript para facilitar chamadas de áudio via WhatsApp em projetos web.",
   "main": "./lib/index.js",
   "files": [

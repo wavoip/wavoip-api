@@ -3,15 +3,18 @@ import Call from './models/Call.js';
 import Audio from './models/AudioClass.js';
 import Device from './models/Device.js';
 import Microphone from './models/Microphone.js';
+import DeviceEmitter from "./models/DeviceEmitter.js";
 
 class Wavoip {
   connect = deviceToken => {
     const SocketInstance = new Socket(deviceToken);
-    const AudioInstance = new Audio(SocketInstance);
+    const deviceEmitter = new DeviceEmitter();
+
+    const AudioInstance = new Audio(SocketInstance, deviceEmitter);
     const CallModel = new Call(SocketInstance.socket);
     const DeviceModel = new Device(SocketInstance.socket, deviceToken);
 
-    Microphone.init(SocketInstance, 16000);
+    Microphone.init(SocketInstance, 16000, deviceEmitter);
     
     SocketInstance.socket.on('connect', () => {});
 
@@ -24,7 +27,7 @@ class Wavoip {
       ({ room, sampleRate }) => {
         AudioInstance.start(16000, room);
 
-        Microphone.init(SocketInstance, 16000);
+        Microphone.init(SocketInstance, 16000, deviceEmitter);
         Microphone.start();
       }
     );
@@ -34,7 +37,7 @@ class Wavoip {
       Microphone.stop();
     });
 
-    return {
+    const wavoip_api = {
       socket: SocketInstance.socket,
       getCurrentDeviceStatus: function() {
         return DeviceModel.getCurrentDeviceStatus();
@@ -46,6 +49,7 @@ class Wavoip {
         return DeviceModel.getAllInfo();
       },
       callStart: function(params) {
+        AudioInstance.checkError();
         return CallModel.callStart(params);
       },
       endCall: () => {
@@ -63,7 +67,18 @@ class Wavoip {
       unMute: () => {
         return CallModel.unMute();
       },
+      Microphone: Microphone,
+      Audio: AudioInstance,
+      deviceEmitter: deviceEmitter
     };
+
+    if(!window.wavoip_api) {
+      window.wavoip_api = {};
+    }
+
+    window.wavoip_api[deviceToken] = wavoip_api;
+
+    return wavoip_api;
   };
 }
 

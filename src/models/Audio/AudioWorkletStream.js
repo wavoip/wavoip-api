@@ -2,6 +2,7 @@ import noiseGeneratorUrl from './AudioWorklet.js';
 
 class AudioWorkletStream {
   aw;
+  ac;
 
   constructor({
     sampleRate,
@@ -20,11 +21,11 @@ class AudioWorkletStream {
 
       await ac.suspend();
       ac.onstatechange = ev => {
-        // console.log(ev, "ac.onstatechange");
+        console.log(ev, "ac.onstatechange");
       };
 
       await ac.audioWorklet.addModule(noiseGeneratorUrl);
-      resolve();
+    
       const aw = new AudioWorkletNode(
         ac,
         'audio-data-worklet-stream',
@@ -33,6 +34,9 @@ class AudioWorkletStream {
       aw.connect(ac.destination);
       ac.resume();
       this.aw = aw;
+      this.ac = ac;
+
+      resolve();
     });
   }
 }
