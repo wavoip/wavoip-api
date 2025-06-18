@@ -11,14 +11,15 @@ let micStream;
 let micSource;
 let deviceEmitter;
 
-document.addEventListener("click", () => {
-  if(audioContext) {
-    audioContext.resume()
-    .catch(() => {
-      console.error("[*] - Error to get microphone access");
-    })
-  }
-})
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener("click", () => {
+    if (audioContext) {
+      audioContext.resume().catch(() => {
+        console.error("[*] - Error to get microphone access");
+      });
+    }
+  });
+}
 
 async function init(io, sampleRate, deviceEmitterInstance) {
   socket = io;
@@ -38,13 +39,13 @@ const start = async () => {
   deviceEmitter.emit("microphone_audioctx_change_state", {
     audio_context: audioContext,
     state: audioContext?.state
-  })
+  });
   
   audioContext.onstatechange = () => {
     deviceEmitter.emit("microphone_audioctx_change_state", {
       audio_context: audioContext,
       state: audioContext?.state
-    })
+    });
   };
   
   micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -160,38 +161,49 @@ async function checkMicrophonePermission() {
 
 async function checkError() {
   let permission = await checkMicrophonePermission();
-  
-  if(microphonesDevicesList.length === 0) {
+
+  if (microphonesDevicesList.length === 0) {
     return {
       type: "no_microphone_available",
       message: "Não há microfone disponivel para uso"
-    }
+    };
   } else if (permission !== "granted") {
     return {
       type: "no_microphone_permission",
       message: "Sem permissão para acessar o microfone"
-    }
-  } else if(audioContext && audioContext.state !== "running") {
+    };
+  } else if (audioContext && audioContext.state !== "running") {
     return {
       type: "audio_context",
       message: "Não foi possível obter acesso ao microfone"
-    }
-  } else if (navigator.userActivation.hasBeenActive && audioContext?.state !== "running") {
+    };
+  } else if (navigator.userActivation?.hasBeenActive && audioContext?.state !== "running") {
     return {
       type: "audio_context",
       message: "Você precisa interagir com a página para liberar a permissão do microfone"
-    }
-  }  
-  else {
+    };
+  } else {
     console.log("[MICROPHONE] - Permission success to access microphone device");
-
-    return false
+    return false;
   }
 }
 
-fetchMicrophones();
+// ✅ Protegido para Jest o navegador
+if (
+  typeof navigator !== 'undefined' &&
+  navigator.mediaDevices &&
+  typeof navigator.mediaDevices.addEventListener === 'function'
+) {
+  navigator.mediaDevices.addEventListener('devicechange', fetchMicrophones);
+}
 
-navigator.mediaDevices.addEventListener('devicechange', fetchMicrophones);
+if (
+  typeof navigator !== 'undefined' &&
+  navigator.mediaDevices &&
+  typeof navigator.mediaDevices.enumerateDevices === 'function'
+) {
+  fetchMicrophones();
+}
 
 export default {
   init,
