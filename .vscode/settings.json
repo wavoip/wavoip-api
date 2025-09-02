@@ -1,6 +1,10 @@
 {
-    "cSpell.words": [
-        "disponiveis",
-        "whatsappid"
-    ]
+    "editor.defaultFormatter": "biomejs.biome",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.biome": "explicit",
+        "source.organizeImports.biome": "explicit",
+        "source.addMissingImports.ts": "explicit"
+    },
+    "typescript.preferences.importModuleSpecifier": "non-relative"
 }

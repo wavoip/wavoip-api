@@ -1,77 +1,39 @@
 {
-  "name": "wavoip-api",
-  "version": "3.1.24",
-  "description": "Biblioteca JavaScript para facilitar chamadas de áudio via WhatsApp em projetos web.",
-  "main": "./lib/index.js",
-  "files": [
-    "lib"
-  ],
-  "scripts": {
-    "test": "jest",
-    "build": "set NODE_OPTIONS=--openssl-legacy-provider && webpack",
-    "start": "webpack-dev-server"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/rs-company-project/rs-voip-api.git"
-  },
-  "keywords": [
-    "wavoip",
-    "wav",
-    "wa voip",
-    "voip wav",
-    "wavoip",
-    "whatsapp",
-    "whatsapp voip",
-    "voip",
-    "wavoip",
-    "ligações",
-    "ligações whatsapp",
-    "ligações do whatsapp",
-    "licacoes whatsapp",
-    "whatsapp licacoes",
-    "whatsapp licações",
-    "chamadas whatsapp",
-    "chamadas do whatsapp",
-    "whatsapp api",
-    "whatsapp pabx",
-    "pabx",
-    "webrtc",
-    "webrtc whatsapp",
-    "whatsapp whatsapp",
-    "ligação",
-    "whatsapp api",
-    "whatsapp calls",
-    "calls whatsapp"
-  ],
-  "author": "wavoip",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/rs-company-project/rs-voip-api/issues"
-  },
-  "homepage": "https://github.com/rs-company-project/rs-voip-api#readme",
-  "dependencies": {
-    "@alexanderolsen/libsamplerate-js": "^2.1.2",
-    "axios": "^1.2.0",
-    "path": "^0.12.7",
-    "socket.io-client": "^4.6.0",
-    "worklet-loader": "^2.0.0"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.3.4",
-    "@babel/plugin-proposal-class-properties": "^7.3.4",
-    "@babel/preset-env": "^7.3.4",
-    "babel-eslint": "^10.0.1",
-    "babel-jest": "^24.1.0",
-    "babel-loader": "^8.0.5",
-    "eslint": "^5.15.0",
-    "eslint-config-standard": "^12.0.0",
-    "eslint-plugin-import": "^2.16.0",
-    "eslint-plugin-node": "^8.0.1",
-    "eslint-plugin-promise": "^4.0.1",
-    "eslint-plugin-standard": "^4.0.0",
-    "jest": "^24.1.0",
-    "prettier": "1.16.4",
-    "webpack-cli": "^4.0.0"
-  }
+    "name": "wavoip-api",
+    "version": "2.0.0",
+    "main": "dist/wavoip-api.cjs.js",
+    "types": "dist/types/index.d.ts",
+    "module": "dist/wavoip-api.es.js",
+    "files": ["dist"],
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "import": "./dist/index.es.js",
+            "require": "./dist/index.cjs.js"
+        }
+    },
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build --config vite.config.ts",
+        "build:multimedia": "pnpm build:audio && pnpm build:mic",
+        "build:audio": "vite build --config vite.config.audio-worklet.ts",
+        "build:mic": "vite build --config vite.config.mic-audio-worklet.ts"
+    },
+    "packageManager": "pnpm@10.7.1",
+    "devDependencies": {
+        "@biomejs/biome": "1.9.4",
+        "@types/node": "^22.14.0",
+        "ts-node": "^10.9.2",
+        "typescript": "~5.7.2",
+        "vite": "^6.2.0",
+        "vite-plugin-dts": "^4.5.3",
+        "vite-plugin-externalize-deps": "^0.9.0",
+        "vite-plugin-static-copy": "^3.1.2",
+        "vite-tsconfig-paths": "^5.1.4"
+    },
+    "dependencies": {
+        "@alexanderolsen/libsamplerate-js": "^2.1.2",
+        "axios": "^1.8.4",
+        "socket.io-client": "^4.8.1"
+    }
 }
