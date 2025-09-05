@@ -19,7 +19,7 @@ export class Wavoip {
         tokens: string[];
     }) {
         this.calls = new Map<string, Call>();
-        this.devices = params.tokens.map((token) => new DeviceManager(token));
+        this.devices = [...new Set(params.tokens)].map((token) => new DeviceManager(token));
         this.callbacks = {};
         this.multimedia = new Multimedia({ onError: (error) => this.callbacks.onMultimediaError?.(error) });
 
@@ -103,6 +103,9 @@ export class Wavoip {
     addDevices(tokens: string[] = []): Device[] {
         const devices = [];
         for (const token of tokens) {
+            if(this.devices.find((device) => tokens.includes(device.token))) {
+                continue
+            }
             const device = new DeviceManager(token);
             this.devices.push(device);
             devices.push(device);
