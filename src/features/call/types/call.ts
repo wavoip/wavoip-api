@@ -35,6 +35,8 @@ export type Call = {
     status: CallStatus;
     peer: string;
     callbacks: CallCallbacks;
+    muted: boolean;
+    peerMuted: boolean;
 };
 
 export type CallOffer = Omit<Call, "callbacks"> & {

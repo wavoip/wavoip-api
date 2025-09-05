@@ -28,11 +28,15 @@ export class Audio {
             },
         });
 
-        socket.addEventListener("message", (event) =>
+        socket.addEventListener("message", (event) => {
+            if (new Uint8Array(event.data).length === 4) {
+                return;
+            }
+
             this.playback_node?.port.postMessage({
                 buffer: new Uint8Array(event.data),
-            }),
-        );
+            });
+        });
 
         this.playback_node.connect(this.audio_context.destination);
     }

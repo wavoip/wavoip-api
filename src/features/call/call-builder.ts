@@ -8,7 +8,14 @@ export const CallBuilder = {
         return {
             ...rest,
             accept: () => device.acceptCall(call.id).then(() => CallBuilder.buildActiveCall(call, device)),
-            reject: () => device.rejectCall(call.id),
+            reject: () =>
+                device.rejectCall(call.id).then(({ err }) => {
+                    if (!err) {
+                        call.callbacks.onEnd?.();
+                    }
+
+                    return { err };
+                }),
             onAcceptedElsewhere: (cb) => {
                 call.callbacks.onAcceptedElsewhere = cb;
             },
@@ -41,9 +48,30 @@ export const CallBuilder = {
             onEnd: (cb) => {
                 call.callbacks.onEnd = cb;
             },
-            end: () => device.endCall(),
-            mute: () => device.mute(),
-            unmute: () => device.unMute(),
+            end: () =>
+                device.endCall().then(({ err }) => {
+                    if (!err) {
+                        call.callbacks.onEnd?.();
+                    }
+
+                    return { err };
+                }),
+            mute: () =>
+                device.mute().then(({ err }) => {
+                    if (!err) {
+                        call.muted = true;
+                    }
+
+                    return { err };
+                }),
+            unmute: () =>
+                device.unMute().then(({ err }) => {
+                    if (!err) {
+                        call.muted = false;
+                    }
+
+                    return { err };
+                }),
         };
     },
 
@@ -52,9 +80,30 @@ export const CallBuilder = {
 
         return {
             ...rest,
-            end: () => device.endCall(),
-            mute: () => device.mute(),
-            unmute: () => device.unMute(),
+            end: () =>
+                device.endCall().then(({ err }) => {
+                    if (!err) {
+                        call.callbacks.onEnd?.();
+                    }
+
+                    return { err };
+                }),
+            mute: () =>
+                device.mute().then(({ err }) => {
+                    if (!err) {
+                        call.muted = true;
+                    }
+
+                    return { err };
+                }),
+            unmute: () =>
+                device.unMute().then(({ err }) => {
+                    if (!err) {
+                        call.muted = false;
+                    }
+
+                    return { err };
+                }),
             onError: (cb) => {
                 call.callbacks.onError = cb;
             },
