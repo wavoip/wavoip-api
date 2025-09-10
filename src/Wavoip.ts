@@ -126,6 +126,9 @@ export class Wavoip {
                 onQRCode: (cb) => {
                     device.callbacks.onQRCode = cb;
                 },
+                powerOn: async () => {
+                    await device.getInfos();
+                },
             };
         });
     }

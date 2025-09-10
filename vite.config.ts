@@ -7,11 +7,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 export default defineConfig({
     plugins: [
         tsconfigPaths(),
-        dts({
-            entryRoot: "src",
-            outDir: "dist/types",
-            insertTypesEntry: true,
-        }),
+        dts({ rollupTypes: true }),
         viteStaticCopy({
             targets: [
                 { src: "src/features/multimedia/audio/AudioWorklet.js", dest: "" },
@@ -24,18 +20,16 @@ export default defineConfig({
             "@": path.resolve(__dirname, "src"),
         },
     },
-    publicDir: "public",
     build: {
         lib: {
             entry: "src/index.ts",
-            name: "wavoip-api",
-            formats: ["es", "cjs"],
+            name: "WavoipAPI",
+            formats: ["es", "umd"],
             fileName: (format) => `index.${format}.js`,
         },
-        outDir: "dist",
-        rollupOptions: {
-            external: ["socket.io-client"],
-        },
         emptyOutDir: true,
+        rollupOptions: {
+            external: ["socket_ioClient"],
+        },
     },
 });
