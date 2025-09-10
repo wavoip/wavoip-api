@@ -7,7 +7,14 @@ export const CallBuilder = {
 
         return {
             ...rest,
-            accept: () => device.acceptCall(call.id).then(() => CallBuilder.buildActiveCall(call, device)),
+            accept: () =>
+                device.acceptCall(call.id).then(({ err }) => {
+                    if (err) {
+                        return { call: null, err };
+                    }
+
+                    return { call: CallBuilder.buildActiveCall(call, device), err: null };
+                }),
             reject: () =>
                 device.rejectCall(call.id).then(({ err }) => {
                     if (!err) {

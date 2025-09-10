@@ -40,7 +40,7 @@ export type Call = {
 };
 
 export type CallOffer = Omit<Call, "callbacks"> & {
-    accept(): Promise<CallActive | null>;
+    accept(): Promise<{ call: CallActive; err: null } | { call: null; err: string }>;
     reject(): Promise<{ err: string | null }>;
     onAcceptedElsewhere(callback: () => void): void;
     onRejectedElsewhere(callback: () => void): void;
