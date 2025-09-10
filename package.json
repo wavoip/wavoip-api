@@ -12,6 +12,7 @@
             "require": "./dist/index.umd.js"
         }
     },
+    "files": ["dist", "LICENSE"],
     "sideEffects": false,
     "scripts": {
         "dev": "vite",
