@@ -1,0 +1,7 @@
+# .npmignore
+src/
+node_modules/
+*.ts
+*.js
+tsconfig.json
+
