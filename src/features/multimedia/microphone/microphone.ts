@@ -26,7 +26,12 @@ export class Microphone {
         }
 
         this.mic_stream = stream;
-        this.audio_context = new AudioContext({ latencyHint: "interactive" });
+        try {
+            this.audio_context = new AudioContext({ latencyHint: "interactive" });
+        } catch (err) {
+            this.onError((err as Error).name as MicError);
+            return;
+        }
         const mic_source = this.audio_context.createMediaStreamSource(this.mic_stream);
 
         await this.audio_context.audioWorklet.addModule(new URL("./AudioWorkletMic.js", import.meta.url));

@@ -5,7 +5,6 @@ export type CallStatus = "RINGING" | "ACTIVE" | "ENDED" | "REJECTED" | "FAILED";
 export type CallStats = {
     rtt: {
         client: {
-            count: number;
             min: number;
             max: number;
             avg: number;

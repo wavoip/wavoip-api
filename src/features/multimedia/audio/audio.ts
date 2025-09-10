@@ -4,18 +4,25 @@ import type { MultimediaDevice } from "@/features/multimedia/types/multimedia-de
 export class Audio {
     private playback_node: AudioWorkletNode | null;
     private audio_context: AudioContext | null;
+    private onError: (err: AudioError) => void;
 
     public speakers: MultimediaDevice[];
 
-    constructor(_params: { onError(err: AudioError): void }) {
+    constructor(params: { onError(err: AudioError): void }) {
         this.audio_context = null;
         this.playback_node = null;
         this.audio_context = null;
         this.speakers = [];
+        this.onError = params.onError;
     }
 
     async start(socket: WebSocket) {
-        this.audio_context = new AudioContext({ sampleRate: 16000, latencyHint: 0 });
+        try {
+            this.audio_context = new AudioContext({ sampleRate: 16000, latencyHint: 0 });
+        } catch (err) {
+            this.onError((err as Error).name as AudioError);
+            return;
+        }
 
         await this.audio_context.audioWorklet.addModule(new URL("./AudioWorklet.js", import.meta.url));
 

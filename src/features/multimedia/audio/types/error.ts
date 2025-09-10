@@ -1,1 +1,1 @@
-export type AudioError = unknown;
+export type AudioError = "NotAllowedError";

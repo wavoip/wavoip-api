@@ -1,1 +1,7 @@
-export type MicError = "NotAllowedError" | "NotFoundError" | "NotReadableError";
+export type MicError =
+    | "NotAllowedError"
+    | "NotFoundError"
+    | "NotReadableError"
+    | "OverconstrainedError"
+    | "SecurityError"
+    | "AbortError";
