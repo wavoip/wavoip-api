@@ -1,14 +1,12 @@
 export type DeviceStatus =
-    | "CONNECTED"
-    | "DISCONNECTED"
-    | "BUILDING"
-    | "open"
+    | "disconnected"
     | "close"
     | "connecting"
-    | "no_status"
+    | "open"
     | "error"
     | "restarting"
     | "hibernating"
+    | "BUILDING"
     | "WAITING_PAYMENT"
     | "EXTERNAL_INTEGRATION_ERROR";
 
@@ -18,4 +16,5 @@ export type Device = {
     qrcode: string | null;
     onStatus(cb: (status: DeviceStatus | null) => void): void;
     onQRCode(cb: (qrcode: string) => void): void;
+    powerOn: () => void;
 };

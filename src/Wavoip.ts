@@ -97,14 +97,17 @@ export class Wavoip {
             onQRCode: (cb) => {
                 device.callbacks.onQRCode = cb;
             },
+            powerOn: () => {
+                device.getInfos();
+            },
         }));
     }
 
     addDevices(tokens: string[] = []): Device[] {
         const devices = [];
         for (const token of tokens) {
-            if(this.devices.find((device) => tokens.includes(device.token))) {
-                continue
+            if (this.devices.find((device) => tokens.includes(device.token))) {
+                continue;
             }
             const device = new DeviceManager(token);
             this.devices.push(device);

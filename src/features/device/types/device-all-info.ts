@@ -1,7 +1,9 @@
+import type { DeviceStatus } from "@/features/device/types/device";
+
 export type DeviceAllInfo = {
     name: string;
     profile_picture: string;
-    status: string;
+    status: DeviceStatus;
     phone: string;
     integrations: {
         baileys: unknown[];

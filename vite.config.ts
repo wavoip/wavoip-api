@@ -34,7 +34,7 @@ export default defineConfig({
         },
         outDir: "dist",
         rollupOptions: {
-            external: ["axios", "socket.io-client"],
+            external: ["socket.io-client"],
         },
         emptyOutDir: true,
     },

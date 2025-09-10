@@ -1,4 +1,3 @@
-import axios from "axios";
 import { io } from "socket.io-client";
 import type { DeviceStatus } from "@/features/device/types/device";
 import type { DeviceAllInfo } from "@/features/device/types/device-all-info";
@@ -9,7 +8,7 @@ export class DeviceManager {
     public readonly socket: DeviceSocket;
     public readonly token: string;
     public qrcode: string | null = null;
-    public status: DeviceStatus | null = null;
+    public status: DeviceStatus = "disconnected";
 
     public callbacks: DeviceCallbacks = {};
 
@@ -33,13 +32,34 @@ export class DeviceManager {
         });
 
         this.socket.on("disconnect", () => {
-            if (!this.socket.active) {
-                this.status = "close";
-                this.callbacks.onStatus?.("close");
+            if (this.socket.active) {
+                return;
             }
+
+            this.status = "disconnected";
+            this.callbacks.onStatus?.("disconnected");
+
+            this.getInfos().then((infos) => {
+                if (!infos) {
+                    return;
+                }
+
+                this.status = infos.status;
+                this.callbacks.onStatus?.(infos.status);
+            });
         });
 
-        this.getInfos().then(() => this.socket.connect());
+        this.getInfos().then((infos) => {
+            if (!infos) {
+                this.status = "error";
+                this.callbacks.onStatus?.("error");
+                return;
+            }
+
+            this.status = infos.status;
+            this.callbacks.onStatus?.(infos.status);
+            this.socket.connect();
+        });
     }
 
     canCall() {
@@ -131,9 +151,12 @@ export class DeviceManager {
     }
 
     async getInfos() {
-        return axios
-            .get<DeviceAllInfo>(`https://devices.wavoip.com/${this.token}/whatsapp/all_info`)
-            .then((res) => res.data)
-            .catch(() => null);
+        return fetch(`https://devices.wavoip.com/${this.token}/whatsapp/all_info`).then((res) => {
+            if (res.status >= 400) {
+                return null;
+            }
+
+            return res.json().then((info) => info.result as DeviceAllInfo);
+        });
     }
 }

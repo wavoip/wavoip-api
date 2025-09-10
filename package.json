@@ -4,7 +4,9 @@
     "main": "dist/wavoip-api.cjs.js",
     "types": "dist/types/index.d.ts",
     "module": "dist/wavoip-api.es.js",
-    "files": ["dist"],
+    "files": [
+        "dist"
+    ],
     "exports": {
         ".": {
             "types": "./dist/types/index.d.ts",
@@ -33,7 +35,6 @@
     },
     "dependencies": {
         "@alexanderolsen/libsamplerate-js": "^2.1.2",
-        "axios": "^1.8.4",
         "socket.io-client": "^4.8.1"
     }
 }
