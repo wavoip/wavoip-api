@@ -189,6 +189,11 @@ export class Wavoip {
                 return;
             }
 
+            if (packet.tag === "accept") {
+                call.status = "ACTIVE";
+                call.callbacks.onAccept?.();
+            }
+
             if (packet.tag === "reject") {
                 call.callbacks.onReject?.();
                 call.callbacks.onEnd?.();
