@@ -36,6 +36,9 @@ export const CallBuilder = {
             onEnd: (cb) => {
                 call.callbacks.onEnd = cb;
             },
+            onStatus: (cb) => {
+                call.callbacks.onStatus = cb;
+            },
         };
     },
 
@@ -44,6 +47,9 @@ export const CallBuilder = {
 
         return {
             ...rest,
+            onStatus: (cb) => {
+                call.callbacks.onStatus = cb;
+            },
             onPeerAccept: (cb) => {
                 call.callbacks.onAccept = () => cb(CallBuilder.buildActiveCall(call, device, multimedia));
             },
@@ -137,6 +143,9 @@ export const CallBuilder = {
             },
             onVolume: (cb) => {
                 multimedia.callbacks.onVolume = cb;
+            },
+            onStatus: (cb) => {
+                call.callbacks.onStatus = cb;
             },
         };
     },

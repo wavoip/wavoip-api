@@ -189,13 +189,7 @@ export class Wavoip {
                 return;
             }
 
-            if (packet.tag === "accept") {
-                call.status = "ACTIVE";
-                call.callbacks.onAccept?.();
-            }
-
             if (packet.tag === "reject") {
-                call.status = "REJECTED";
                 call.callbacks.onReject?.();
                 call.callbacks.onEnd?.();
                 this.calls.delete(call.id);
@@ -205,7 +199,6 @@ export class Wavoip {
                 if (call.status !== "ACTIVE") {
                     call.callbacks.onUnanswered?.();
                 }
-                call.status = "ENDED";
                 call.callbacks.onEnd?.();
                 this.calls.delete(call.id);
             }
@@ -274,6 +267,17 @@ export class Wavoip {
             call.callbacks.onError?.(err);
             call.callbacks.onEnd?.();
             this.calls.delete(call.id);
+        });
+
+        device.socket.on("calls:status", (call_id, status) => {
+            const call = this.calls.get(call_id);
+
+            if (!call) {
+                return;
+            }
+
+            call.status = status;
+            call.callbacks.onStatus?.(status);
         });
 
         device.socket.on("disconnect", () => {

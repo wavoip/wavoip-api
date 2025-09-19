@@ -1,5 +1,5 @@
 import type { Socket } from "socket.io-client";
-import type { CallStats } from "@/features/call/types/call";
+import type { CallStats, CallStatus } from "@/features/call/types/call";
 import type { DeviceStatus } from "@/features/device/types/device";
 import type { AcceptContent } from "@/features/device/types/whatsapp/accept";
 import type { MuteV2Content } from "@/features/device/types/whatsapp/mute_v2";
@@ -34,6 +34,7 @@ export type DeviceSocketServerToClientEvents = {
     "peer:rejected_elsewhere": (call_id: string) => void;
     "calls:error": (call_id: string, error: string) => void;
     stats: (call_id: string, stats: CallStats) => void;
+    "calls:status": (call_id: string, status: CallStatus) => void;
 };
 
 export type DeviceSocketClientToServerEvents = {
