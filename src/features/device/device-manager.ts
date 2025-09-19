@@ -19,6 +19,7 @@ export class DeviceManager {
             transports: ["websocket"],
             path: `/${device_token}/websocket`,
             autoConnect: false,
+            reconnectionAttempts: 3,
         });
 
         this.socket.on("qrcode", (qrcode) => {

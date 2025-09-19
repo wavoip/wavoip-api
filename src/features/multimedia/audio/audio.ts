@@ -4,23 +4,26 @@ import type { MultimediaDevice } from "@/features/multimedia/types/multimedia-de
 export class Audio {
     private playback_node: AudioWorkletNode | null;
     private audio_context: AudioContext | null;
-    private onError: (err: AudioError) => void;
+    private callbacks: {
+        onError: (err: AudioError) => void;
+        onVolume?: (volume: number) => void;
+    };
 
     public speakers: MultimediaDevice[];
 
-    constructor(params: { onError(err: AudioError): void }) {
+    constructor(callbacks: { onError(err: AudioError): void; onVolume(volume: number): void }) {
         this.audio_context = null;
         this.playback_node = null;
         this.audio_context = null;
         this.speakers = [];
-        this.onError = params.onError;
+        this.callbacks = callbacks;
     }
 
     async start(socket: WebSocket) {
         try {
             this.audio_context = new AudioContext({ sampleRate: 16000, latencyHint: 0 });
         } catch (err) {
-            this.onError((err as Error).name as AudioError);
+            this.callbacks.onError((err as Error).name as AudioError);
             return;
         }
 
@@ -46,6 +49,11 @@ export class Audio {
         });
 
         this.playback_node.connect(this.audio_context.destination);
+
+        this.playback_node.port.onmessage = (event) => {
+            const { volume } = event.data;
+            this.callbacks.onVolume?.(volume);
+        };
     }
 
     stop() {

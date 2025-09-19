@@ -15,13 +15,19 @@ export class Microphone {
         this.resample_node = null;
         this.microphones = [];
         this.onError = params.onError;
+
+        this.requestMicPermission().then(({ stream, err }) => {
+            if (!stream) {
+                this.onError(err);
+            }
+        });
     }
 
     async start(socket: WebSocket) {
         const { stream, err } = await this.requestMicPermission();
 
         if (!stream) {
-            this.onError(err.name as MicError);
+            this.onError(err);
             return;
         }
 
@@ -72,7 +78,9 @@ export class Microphone {
         return navigator.mediaDevices
             .getUserMedia({ audio: true })
             .then((stream) => ({ stream, err: null }))
-            .catch((err: Error) => ({ stream: null, err }));
+            .catch((err: Error) => {
+                return { stream: null, err: err.name as MicError };
+            });
     }
 
     togglePlayback() {

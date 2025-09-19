@@ -34,6 +34,8 @@ class AudioDataWorkletStream extends AudioWorkletProcessor {
         }
         const uint16 = new Uint16Array(uint8.buffer);
 
+        let sum = 0; // for volume
+
         for (let i = 0; i < uint16.length; i++) {
             const int = uint16[i];
             // If the high bit is on, then it is a negative number, and actually counts backwards.
@@ -41,7 +43,14 @@ class AudioDataWorkletStream extends AudioWorkletProcessor {
             // interleave
 
             channels[0][i] = float;
+
+            // Volume calculation
+            sum += float * float;
         }
+
+        const volume = Math.sqrt(sum / uint16.length);
+
+        this.port.postMessage({ volume });
 
         // Atraso de 25k bytes de pacotes, não vou zerar a quantidade de pacotes mas apenas diminuir o atraso
         if (this.uint8.length - this.offset > 25000) {

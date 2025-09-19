@@ -11,12 +11,21 @@ export class Multimedia {
     public audio: Audio;
     public microphone: Microphone;
 
+    public callbacks: {
+        onConnectionStatus?: (socket_status: MultimediaSocketStatus) => void;
+        onVolume?: (volume: number) => void;
+    } = {};
+
     constructor(params: { onError?: (err: MultimediaError) => void }) {
         this.socket = null;
-        this.audio = new Audio({ onError: (err) => params.onError?.({ type: "audio", reason: err }) });
-        this.microphone = new Microphone({ onError: (err) => params.onError?.({ type: "audio", reason: err }) });
+        this.microphone = new Microphone({ onError: (err) => params.onError?.({ type: "microphone", reason: err }) });
+        this.audio = new Audio({
+            onError: (err) => params.onError?.({ type: "audio", reason: err }),
+            onVolume: (volume) => this.callbacks.onVolume?.(volume),
+        });
 
         this.socket_status = "CLOSED";
+        this.callbacks.onConnectionStatus?.(this.socket_status);
 
         this.fetchDevices();
         navigator.mediaDevices?.addEventListener("devicechange", () => {
@@ -28,18 +37,22 @@ export class Multimedia {
         this.socket = new WebSocket(`wss://${server.ip}:${server.port}?token=${token}`);
         this.socket.binaryType = "arraybuffer";
         this.socket_status = "CONNECTING";
+        this.callbacks.onConnectionStatus?.(this.socket_status);
 
         this.socket.addEventListener("open", () => {
             this.socket_status = "CONNECTED";
+            this.callbacks.onConnectionStatus?.(this.socket_status);
         });
 
         this.socket.addEventListener("error", () => {
             this.socket_status = "ERROR";
+            this.callbacks.onConnectionStatus?.(this.socket_status);
             this.audio.stop();
         });
 
         this.socket.addEventListener("close", (event) => {
             this.socket_status = "CLOSED";
+            this.callbacks.onConnectionStatus?.(this.socket_status);
 
             if (!this.SOCKET_RECONNECT_CODES.includes(event.code)) {
                 this.stop();

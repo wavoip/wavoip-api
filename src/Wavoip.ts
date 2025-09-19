@@ -80,7 +80,7 @@ export class Wavoip {
             };
 
             this.calls.set(call.id, call);
-            return { call: CallBuilder.buildOutgoing(call, device), err: null };
+            return { call: CallBuilder.buildOutgoing(call, device, this.multimedia), err: null };
         }
 
         return { call: null, err: { message: "Não foi possível realizar a chamada", devices: device_errors } };
@@ -160,6 +160,10 @@ export class Wavoip {
         return { microphones, speakers };
     }
 
+    requestMicrophonePermission() {
+        this.multimedia.microphone.requestMicPermission();
+    }
+
     private bindDeviceEvents(device: DeviceManager) {
         device.socket.on("signaling", (packet, call_id) => {
             if (packet.tag === "offer") {
@@ -175,7 +179,7 @@ export class Wavoip {
                 };
 
                 this.calls.set(call.id, call);
-                this.callbacks.onOffer?.(CallBuilder.buildOffer(call, device));
+                this.callbacks.onOffer?.(CallBuilder.buildOffer(call, device, this.multimedia));
                 return;
             }
 

@@ -1,8 +1,9 @@
 import type { Call, CallActive, CallOffer, CallOutgoing } from "@/features/call/types/call";
 import type { DeviceManager } from "@/features/device/device-manager";
+import type { Multimedia } from "@/features/multimedia/multimedia";
 
 export const CallBuilder = {
-    buildOffer(call: Call, device: DeviceManager): CallOffer {
+    buildOffer(call: Call, device: DeviceManager, multimedia: Multimedia): CallOffer {
         const { callbacks: _callbacks, ...rest } = call;
 
         return {
@@ -13,7 +14,7 @@ export const CallBuilder = {
                         return { call: null, err };
                     }
 
-                    return { call: CallBuilder.buildActiveCall(call, device), err: null };
+                    return { call: CallBuilder.buildActiveCall(call, device, multimedia), err: null };
                 }),
             reject: () =>
                 device.rejectCall(call.id).then(({ err }) => {
@@ -38,13 +39,13 @@ export const CallBuilder = {
         };
     },
 
-    buildOutgoing(call: Call, device: DeviceManager): CallOutgoing {
+    buildOutgoing(call: Call, device: DeviceManager, multimedia: Multimedia): CallOutgoing {
         const { callbacks: _callbacks, ...rest } = call;
 
         return {
             ...rest,
             onPeerAccept: (cb) => {
-                call.callbacks.onAccept = () => cb(CallBuilder.buildActiveCall(call, device));
+                call.callbacks.onAccept = () => cb(CallBuilder.buildActiveCall(call, device, multimedia));
             },
             onPeerReject: (cb) => {
                 call.callbacks.onReject = cb;
@@ -82,15 +83,17 @@ export const CallBuilder = {
         };
     },
 
-    buildActiveCall(call: Call, device: DeviceManager): CallActive {
+    buildActiveCall(call: Call, device: DeviceManager, multimedia: Multimedia): CallActive {
         const { callbacks: _callbacks, ...rest } = call;
 
         return {
             ...rest,
+            connection_status: multimedia.socket_status,
             end: () =>
                 device.endCall().then(({ err }) => {
                     if (!err) {
                         call.callbacks.onEnd?.();
+                        multimedia.callbacks.onConnectionStatus = undefined;
                     }
 
                     return { err };
@@ -122,9 +125,18 @@ export const CallBuilder = {
             },
             onEnd: (cb) => {
                 call.callbacks.onEnd = cb;
+                multimedia.callbacks.onConnectionStatus = undefined;
+                multimedia.callbacks.onVolume = undefined;
             },
             onStats: (cb) => {
                 call.callbacks.onStats = cb;
+            },
+            onConnectionStatus: (cb) => {
+                multimedia.callbacks.onConnectionStatus = cb;
+                cb(multimedia.socket_status);
+            },
+            onVolume: (cb) => {
+                multimedia.callbacks.onVolume = cb;
             },
         };
     },
