@@ -10,9 +10,11 @@ export class Audio {
     };
 
     public speakers: MultimediaDevice[];
+    public analyser_node: AnalyserNode | null
 
     constructor(callbacks: { onError(err: AudioError): void; onVolume(volume: number): void }) {
         this.audio_context = null;
+        this.analyser_node = null;
         this.playback_node = null;
         this.audio_context = null;
         this.speakers = [];
@@ -48,6 +50,10 @@ export class Audio {
             });
         });
 
+        this.analyser_node =  this.audio_context.createAnalyser();
+        this.playback_node.connect(this.analyser_node);
+        this.analyser_node.fftSize = 256;
+
         this.playback_node.connect(this.audio_context.destination);
 
         this.playback_node.port.onmessage = (event) => {
@@ -61,6 +67,11 @@ export class Audio {
             this.playback_node.port.postMessage({ type: "clear", buffer: [] });
             this.playback_node.disconnect();
             this.playback_node = null;
+        }
+
+        if(this.analyser_node) {
+            this.analyser_node.disconnect();
+            this.analyser_node = null;
         }
 
         if (this.audio_context?.state !== "closed") {
