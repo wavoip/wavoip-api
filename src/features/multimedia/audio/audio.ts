@@ -6,18 +6,21 @@ export class Audio {
     private audio_context: AudioContext | null;
     private callbacks: {
         onError: (err: AudioError) => void;
-        onVolume?: (volume: number) => void;
+        onAnalyser: (analyser: AnalyserNode) => void;
     };
 
-    public speakers: MultimediaDevice[];
-    public analyser_node: AnalyserNode | null
+    public devices: MultimediaDevice[];
+    public analyser_node: AnalyserNode | null;
 
-    constructor(callbacks: { onError(err: AudioError): void; onVolume(volume: number): void }) {
+    constructor(callbacks: {
+        onError(err: AudioError): void;
+        onAnalyser: (analyser: AnalyserNode) => void;
+    }) {
         this.audio_context = null;
         this.analyser_node = null;
         this.playback_node = null;
         this.audio_context = null;
-        this.speakers = [];
+        this.devices = [];
         this.callbacks = callbacks;
     }
 
@@ -50,16 +53,13 @@ export class Audio {
             });
         });
 
-        this.analyser_node =  this.audio_context.createAnalyser();
+        this.analyser_node = this.audio_context.createAnalyser();
         this.playback_node.connect(this.analyser_node);
         this.analyser_node.fftSize = 256;
 
         this.playback_node.connect(this.audio_context.destination);
 
-        this.playback_node.port.onmessage = (event) => {
-            const { volume } = event.data;
-            this.callbacks.onVolume?.(volume);
-        };
+        this.callbacks.onAnalyser(this.analyser_node);
     }
 
     stop() {
@@ -69,7 +69,7 @@ export class Audio {
             this.playback_node = null;
         }
 
-        if(this.analyser_node) {
+        if (this.analyser_node) {
             this.analyser_node.disconnect();
             this.analyser_node = null;
         }

@@ -35,10 +35,19 @@ export type DeviceSocketServerToClientEvents = {
     "calls:error": (call_id: string, error: string) => void;
     stats: (call_id: string, stats: CallStats) => void;
     "calls:status": (call_id: string, status: CallStatus) => void;
+    "calls:offer": (call: {
+        id: string;
+        peer: { number: string; display_name: string; profile_picture: string | null };
+    }) => void;
 };
 
 export type DeviceSocketClientToServerEvents = {
-    "calls:start": (whatsapp_id: string, callback: (response: DeviceResponse<{ call_id: string }>) => void) => void;
+    "calls:start": (
+        whatsapp_id: string,
+        callback: (
+            response: DeviceResponse<{ id: string; peer: { number: string; profile_picture: string | null } }>,
+        ) => void,
+    ) => void;
     "calls:reject": (call_id: string, callback: (response: DeviceResponse) => void) => void;
     "calls:mute": (callback: (response: DeviceResponse) => void) => void;
     "calls:unmute": (callback: (response: DeviceResponse) => void) => void;

@@ -13,15 +13,19 @@ export class Multimedia {
 
     public callbacks: {
         onConnectionStatus?: (socket_status: MultimediaSocketStatus) => void;
-        onVolume?: (volume: number) => void;
+        onAudioAnalyser?: (analyser: AnalyserNode) => void;
     } = {};
 
-    constructor(params: { onError?: (err: MultimediaError) => void }) {
+    constructor(params: {
+        onError?: (err: MultimediaError) => void;
+    }) {
         this.socket = null;
-        this.microphone = new Microphone({ onError: (err) => params.onError?.({ type: "microphone", reason: err }) });
+        this.microphone = new Microphone({
+            onError: (err) => params.onError?.({ type: "microphone", reason: err }),
+        });
         this.audio = new Audio({
             onError: (err) => params.onError?.({ type: "audio", reason: err }),
-            onVolume: (volume) => this.callbacks.onVolume?.(volume),
+            onAnalyser: (analyser) => this.callbacks.onAudioAnalyser?.(analyser),
         });
 
         this.socket_status = "CLOSED";
@@ -79,6 +83,9 @@ export class Multimedia {
         this.audio.stop();
         this.socket?.close();
         this.socket = null;
+
+        this.callbacks.onConnectionStatus = undefined;
+        this.callbacks.onAudioAnalyser = undefined;
     }
 
     async fetchDevices() {
@@ -87,7 +94,7 @@ export class Multimedia {
             return [];
         });
 
-        this.microphone.microphones = devices
+        this.microphone.devices = devices
             .filter((device) => device.kind === "audioinput")
             .map((mic) => ({
                 type: "audio-in",
@@ -95,7 +102,7 @@ export class Multimedia {
                 deviceId: mic.deviceId,
             }));
 
-        this.audio.speakers = devices
+        this.audio.devices = devices
             .filter((device) => device.kind === "audiooutput")
             .map((mic) => ({
                 type: "audio-out",

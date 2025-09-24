@@ -61,21 +61,24 @@ export class Wavoip {
                 continue;
             }
 
-            const { call_id, err } = await device.startCall(params.to);
+            const { call: callStarted, err } = await device.startCall(params.to);
 
-            if (!call_id) {
+            if (!callStarted) {
                 device_errors.push({ token: device.token, reason: err as string });
                 continue;
             }
 
             const call: Call = {
-                id: call_id,
+                id: callStarted.id,
                 device_token: device.token,
-                peer: params.to,
+                peer: {
+                    ...callStarted.peer,
+                    display_name: null,
+                    muted: false,
+                },
                 direction: "OUTGOING",
                 status: "RINGING",
                 muted: false,
-                peerMuted: false,
                 callbacks: {},
             };
 
@@ -154,8 +157,8 @@ export class Wavoip {
     }
 
     getMultimediaDevices() {
-        const microphones = this.multimedia.microphone.microphones;
-        const speakers = this.multimedia.audio.speakers;
+        const microphones = this.multimedia.microphone.devices;
+        const speakers = this.multimedia.audio.devices;
 
         return { microphones, speakers };
     }
@@ -165,24 +168,25 @@ export class Wavoip {
     }
 
     private bindDeviceEvents(device: DeviceManager) {
-        device.socket.on("signaling", (packet, call_id) => {
-            if (packet.tag === "offer") {
-                const call: Call = {
-                    id: call_id,
-                    device_token: device.token,
-                    direction: "INCOMING",
-                    status: "RINGING",
+        device.socket.on("calls:offer", (_call) => {
+            const call: Call = {
+                id: _call.id,
+                device_token: device.token,
+                direction: "INCOMING",
+                status: "RINGING",
+                muted: false,
+                peer: {
+                    ..._call.peer,
                     muted: false,
-                    peer: packet.attrs["call-creator"],
-                    peerMuted: false,
-                    callbacks: {},
-                };
+                },
+                callbacks: {},
+            };
 
-                this.calls.set(call.id, call);
-                this.callbacks.onOffer?.(CallBuilder.buildOffer(call, device, this.multimedia));
-                return;
-            }
+            this.calls.set(call.id, call);
+            this.callbacks.onOffer?.(CallBuilder.buildOffer(call, device, this.multimedia));
+        });
 
+        device.socket.on("signaling", (packet, call_id) => {
             const call = this.calls.get(call_id);
 
             if (!call) {
@@ -210,10 +214,10 @@ export class Wavoip {
 
             if (packet.tag === "mute_v2") {
                 if (packet.attrs["mute-state"] === "0") {
-                    call.peerMuted = false;
+                    call.peer.muted = false;
                     call.callbacks.onPeerUnmute?.();
                 } else {
-                    call.peerMuted = true;
+                    call.peer.muted = true;
                     call.callbacks.onPeerMute?.();
                 }
             }

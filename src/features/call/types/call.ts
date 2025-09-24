@@ -2,7 +2,16 @@ import type { MultimediaSocketStatus } from "@/features/multimedia/types/socket"
 
 export type CallDirection = "INCOMING" | "OUTGOING";
 
-export type CallStatus = "RINGING" | "ACTIVE" | "ENDED" | "REJECTED" | "FAILED" | "DISCONNECTED";
+export type CallStatus =
+    | "RINGING"
+    | "CALLING"
+    | "NOT ANSWERED"
+    | "ACTIVE"
+    | "ENDED"
+    | "REJECTED"
+    | "FAILED"
+    | "DISCONNECTED"
+    | "DEVICE_RESTARTING";
 
 export type CallStats = {
     rtt: {
@@ -34,10 +43,14 @@ export type Call = {
     device_token: string;
     direction: CallDirection;
     status: CallStatus;
-    peer: string;
-    callbacks: CallCallbacks;
+    peer: {
+        number: string;
+        display_name: string | null;
+        profile_picture: string | null;
+        muted: boolean;
+    };
     muted: boolean;
-    peerMuted: boolean;
+    callbacks: CallCallbacks;
 };
 
 export type CallOffer = Omit<Call, "callbacks"> & {
@@ -52,6 +65,7 @@ export type CallOffer = Omit<Call, "callbacks"> & {
 
 export type CallActive = Omit<Call, "callbacks"> & {
     connection_status: MultimediaSocketStatus;
+    audio_analyser: Promise<AnalyserNode>;
     mute(): Promise<{ err: string | null }>;
     unmute(): Promise<{ err: string | null }>;
     end(): Promise<{ err: string | null }>;
@@ -61,7 +75,6 @@ export type CallActive = Omit<Call, "callbacks"> & {
     onEnd(callback: () => void): void;
     onStats(callback: (stats: CallStats) => void): void;
     onConnectionStatus(callback: (status: MultimediaSocketStatus) => void): void;
-    onVolume(callback: (volume: number) => void): void;
     onStatus(cb: (status: CallStatus) => void): void;
 };
 

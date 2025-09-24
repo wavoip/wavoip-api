@@ -4,17 +4,22 @@ import type { MultimediaDevice } from "@/features/multimedia/types/multimedia-de
 export class Microphone {
     private audio_context: AudioContext | null;
     private mic_stream: MediaStream | null;
+    private mic_source: MediaStreamAudioSourceNode | null;
     private resample_node: AudioWorkletNode | null;
-    private onError: (err: MicError) => void;
 
-    public microphones: MultimediaDevice[];
+    private onError: (err: MicError) => void;
+    private playback_active: boolean;
+
+    public devices: MultimediaDevice[];
 
     constructor(params: { onError(err: MicError): void }) {
         this.audio_context = null;
         this.mic_stream = null;
+        this.mic_source = null;
         this.resample_node = null;
-        this.microphones = [];
+        this.devices = [];
         this.onError = params.onError;
+        this.playback_active = false;
 
         this.requestMicPermission().then(({ stream, err }) => {
             if (!stream) {
@@ -31,14 +36,12 @@ export class Microphone {
             return;
         }
 
-        this.mic_stream = stream;
         try {
             this.audio_context = new AudioContext({ latencyHint: "interactive" });
         } catch (err) {
             this.onError((err as Error).name as MicError);
             return;
         }
-        const mic_source = this.audio_context.createMediaStreamSource(this.mic_stream);
 
         await this.audio_context.audioWorklet.addModule(new URL("./AudioWorkletMic.js", import.meta.url));
 
@@ -53,7 +56,9 @@ export class Microphone {
             socket.send(event.data);
         };
 
-        mic_source.connect(this.resample_node);
+        this.mic_stream = stream;
+        this.mic_source = this.audio_context.createMediaStreamSource(this.mic_stream);
+        this.mic_source.connect(this.resample_node);
     }
 
     async stop() {
@@ -67,6 +72,7 @@ export class Microphone {
         if (this.resample_node) {
             this.resample_node.disconnect();
             this.resample_node = null;
+            this.playback_active = false;
         }
 
         if (this.audio_context?.state !== "closed") {
@@ -84,14 +90,39 @@ export class Microphone {
     }
 
     togglePlayback() {
-        if (this.audio_context) {
-            this.resample_node?.connect(this.audio_context.destination);
+        if (this.playback_active) {
+            this.resample_node?.disconnect();
+            this.playback_active = true;
+        } else {
+            if (this.audio_context) {
+                this.resample_node?.connect(this.audio_context.destination);
+            }
+            this.playback_active = false;
         }
     }
 
-    deactivatePlayback() {
-        if (this.resample_node) {
-            this.resample_node?.disconnect();
+    async changeDevice(deviceId: string) {
+        if (!this.audio_context || !this.resample_node) {
+            return { err: "NotAllowedError" };
         }
+
+        const { stream, err } = await navigator.mediaDevices
+            .getUserMedia({ audio: { deviceId } })
+            .then((stream) => ({ stream, err: null }))
+            .catch((err: Error) => ({ stream: null, err: err.name as MicError }));
+
+        if (!stream) {
+            return { err };
+        }
+
+        if (this.mic_stream) {
+            for (const track of this.mic_stream.getTracks()) {
+                track.stop();
+            }
+        }
+
+        this.mic_stream = stream;
+        this.mic_source = this.audio_context.createMediaStreamSource(this.mic_stream);
+        this.mic_source.connect(this.resample_node);
     }
 }

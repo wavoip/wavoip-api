@@ -80,13 +80,16 @@ export class DeviceManager {
     }
 
     startCall(whatsapp_id: string) {
-        return new Promise<{ call_id: string; err: null } | { call_id: null; err: string }>((resolve) => {
+        return new Promise<
+            | { call: { id: string; peer: { number: string; profile_picture: string | null } }; err: null }
+            | { call: null; err: string }
+        >((resolve) => {
             this.socket.emit("calls:start", whatsapp_id, (res) => {
                 if (res.type === "success") {
-                    return resolve({ err: null, call_id: res.result.call_id });
+                    return resolve({ err: null, call: res.result });
                 }
 
-                resolve({ call_id: null, err: res.result });
+                resolve({ call: null, err: res.result });
             });
         });
     }

@@ -92,9 +92,14 @@ export const CallBuilder = {
     buildActiveCall(call: Call, device: DeviceManager, multimedia: Multimedia): CallActive {
         const { callbacks: _callbacks, ...rest } = call;
 
+        const audioAnalyserPromise = new Promise<AnalyserNode>((resolve) => {
+            multimedia.callbacks.onAudioAnalyser = (analyser) => resolve(analyser);
+        });
+
         return {
             ...rest,
             connection_status: multimedia.socket_status,
+            audio_analyser: audioAnalyserPromise,
             end: () =>
                 device.endCall().then(({ err }) => {
                     if (!err) {
@@ -131,8 +136,6 @@ export const CallBuilder = {
             },
             onEnd: (cb) => {
                 call.callbacks.onEnd = cb;
-                multimedia.callbacks.onConnectionStatus = undefined;
-                multimedia.callbacks.onVolume = undefined;
             },
             onStats: (cb) => {
                 call.callbacks.onStats = cb;
@@ -140,9 +143,6 @@ export const CallBuilder = {
             onConnectionStatus: (cb) => {
                 multimedia.callbacks.onConnectionStatus = cb;
                 cb(multimedia.socket_status);
-            },
-            onVolume: (cb) => {
-                multimedia.callbacks.onVolume = cb;
             },
             onStatus: (cb) => {
                 call.callbacks.onStatus = cb;
