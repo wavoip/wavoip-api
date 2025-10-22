@@ -15,6 +15,8 @@ export type Device = {
     status: DeviceStatus | null;
     qrcode: string | null;
     onStatus(cb: (status: DeviceStatus | null) => void): void;
-    onQRCode(cb: (qrcode: string) => void): void;
-    powerOn: () => void;
+    onQRCode(cb: (qrcode: string | null) => void): void;
+    restart(): void;
+    logout(): void;
+    powerOn(): void;
 };

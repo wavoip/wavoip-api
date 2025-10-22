@@ -38,6 +38,7 @@
     },
     "dependencies": {
         "@alexanderolsen/libsamplerate-js": "^2.1.2",
+        "axios": "^1.12.2",
         "socket.io-client": "^4.8.1"
     }
 }

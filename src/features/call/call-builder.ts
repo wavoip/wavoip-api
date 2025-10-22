@@ -1,5 +1,6 @@
 import type { Call, CallActive, CallOffer, CallOutgoing } from "@/features/call/types/call";
 import type { DeviceManager } from "@/features/device/device-manager";
+import type { CallTransport } from "@/features/device/types/socket";
 import type { Multimedia } from "@/features/multimedia/multimedia";
 
 export const CallBuilder = {
@@ -9,12 +10,14 @@ export const CallBuilder = {
         return {
             ...rest,
             accept: () =>
-                device.acceptCall(call.id).then(({ err }) => {
-                    if (err) {
+                device.acceptCall({ call_id: call.id }).then(({ transport, err }) => {
+                    if (!transport) {
                         return { call: null, err };
                     }
 
-                    return { call: CallBuilder.buildActiveCall(call, device, multimedia), err: null };
+                    const _call = CallBuilder.buildActiveCall(call, device, multimedia, transport);
+
+                    return { call: _call, err: null };
                 }),
             reject: () =>
                 device.rejectCall(call.id).then(({ err }) => {
@@ -42,7 +45,7 @@ export const CallBuilder = {
         };
     },
 
-    buildOutgoing(call: Call, device: DeviceManager, multimedia: Multimedia): CallOutgoing {
+    buildOutgoing(call: Call, device: DeviceManager, multimedia: Multimedia, transport: CallTransport): CallOutgoing {
         const { callbacks: _callbacks, ...rest } = call;
 
         return {
@@ -51,7 +54,7 @@ export const CallBuilder = {
                 call.callbacks.onStatus = cb;
             },
             onPeerAccept: (cb) => {
-                call.callbacks.onAccept = () => cb(CallBuilder.buildActiveCall(call, device, multimedia));
+                call.callbacks.onAccept = () => cb(CallBuilder.buildActiveCall(call, device, multimedia, transport));
             },
             onPeerReject: (cb) => {
                 call.callbacks.onReject = cb;
@@ -89,12 +92,14 @@ export const CallBuilder = {
         };
     },
 
-    buildActiveCall(call: Call, device: DeviceManager, multimedia: Multimedia): CallActive {
+    buildActiveCall(call: Call, device: DeviceManager, multimedia: Multimedia, transport: CallTransport): CallActive {
         const { callbacks: _callbacks, ...rest } = call;
 
         const audioAnalyserPromise = new Promise<AnalyserNode>((resolve) => {
-            multimedia.callbacks.onAudioAnalyser = (analyser) => resolve(analyser);
+            multimedia.on("audioAnalyser", (analyser) => resolve(analyser));
         });
+
+        multimedia.start(device.token, transport);
 
         return {
             ...rest,
@@ -104,7 +109,7 @@ export const CallBuilder = {
                 device.endCall().then(({ err }) => {
                     if (!err) {
                         call.callbacks.onEnd?.();
-                        multimedia.callbacks.onConnectionStatus = undefined;
+                        multimedia.removeAllListeners("status");
                     }
 
                     return { err };
@@ -141,7 +146,7 @@ export const CallBuilder = {
                 call.callbacks.onStats = cb;
             },
             onConnectionStatus: (cb) => {
-                multimedia.callbacks.onConnectionStatus = cb;
+                multimedia.on("status", (...args) => cb(...args));
                 cb(multimedia.socket_status);
             },
             onStatus: (cb) => {

@@ -1,3 +1,4 @@
+import type { CallPeer } from "@/features/device/types/socket";
 import type { MultimediaSocketStatus } from "@/features/multimedia/types/socket";
 
 export type CallDirection = "INCOMING" | "OUTGOING";
@@ -43,18 +44,23 @@ export type Call = {
     device_token: string;
     direction: CallDirection;
     status: CallStatus;
-    peer: {
-        number: string;
-        display_name: string | null;
-        profile_picture: string | null;
-        muted: boolean;
-    };
+    peer: CallPeer & { muted: boolean };
     muted: boolean;
     callbacks: CallCallbacks;
 };
 
 export type CallOffer = Omit<Call, "callbacks"> & {
     accept(): Promise<{ call: CallActive; err: null } | { call: null; err: string }>;
+    reject(): Promise<{ err: string | null }>;
+    onAcceptedElsewhere(callback: () => void): void;
+    onRejectedElsewhere(callback: () => void): void;
+    onUnanswered(cb: () => void): void;
+    onEnd(cb: () => void): void;
+    onStatus(cb: (status: CallStatus) => void): void;
+};
+
+export type CallOfferOfficial = Omit<Call, "callbacks"> & {
+    accept(answer: RTCSessionDescriptionInit): Promise<{ call: CallActive; err: null } | { call: null; err: string }>;
     reject(): Promise<{ err: string | null }>;
     onAcceptedElsewhere(callback: () => void): void;
     onRejectedElsewhere(callback: () => void): void;

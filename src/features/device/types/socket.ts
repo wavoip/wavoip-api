@@ -6,8 +6,17 @@ import type { MuteV2Content } from "@/features/device/types/whatsapp/mute_v2";
 import type { OfferContent } from "@/features/device/types/whatsapp/offer";
 import type { RejectContent } from "@/features/device/types/whatsapp/reject";
 import type { TerminateContent } from "@/features/device/types/whatsapp/terminate";
+import type { PreacceptContent } from "@/features/device/types/whatsapp/preaccept";
+import type { RelayLatencyContent } from "@/features/device/types/whatsapp/relay_latency";
 
-export type Signaling = OfferContent | AcceptContent | RejectContent | TerminateContent | MuteV2Content;
+export type Signaling =
+    | OfferContent
+    | PreacceptContent
+    | AcceptContent
+    | RejectContent
+    | RelayLatencyContent
+    | TerminateContent
+    | MuteV2Content;
 
 type DeviceResponseError = {
     type: "error";
@@ -15,46 +24,55 @@ type DeviceResponseError = {
     code?: "busy";
 };
 
-type DeviceResponseSuccess<TResult = undefined> = {
-    type: "success";
-    result: TResult extends undefined ? never : TResult;
-};
+type DeviceResponseSuccess<TResult> = TResult extends undefined
+    ? { type: "success" }
+    : { type: "success"; result: TResult };
 
 export type DeviceResponse<TSuccessResult extends string | object | undefined = undefined> =
     | DeviceResponseSuccess<TSuccessResult>
     | DeviceResponseError;
 
+export type CallType = "official" | "unofficial";
+
+export type CallPeer = {
+    phone: string;
+    displayName: string | null;
+    profilePicture: string | null;
+};
+
+export type CallTransport<T extends CallType = CallType> = T extends "official"
+    ? {
+          type: T;
+          sdpOffer: RTCSessionDescriptionInit;
+      }
+    : {
+          type: T;
+          server: { host: string; port: string };
+      };
+
 export type DeviceSocketServerToClientEvents = {
-    "audio_transport:create": (data: { ip: string; port: string }) => void;
-    "audio_transport:terminate": () => void;
-    qrcode: (qrcode: string) => void;
-    device_status: (device_status: DeviceStatus) => void;
-    signaling: (packet: Signaling, call_id: string) => void;
+    "device:qrcode": (qrcode: string | null) => void;
+    "device:status": (device_status: DeviceStatus | null) => void;
+    "call:offer": (call: { id: string; peer: CallPeer }) => void;
+    "call:transport": (call_id: string, transport: CallTransport) => void;
+    "call:signaling": (packet: Signaling, call_id: string) => void;
+    "call:error": (call_id: string, error: string) => void;
+    "call:status": (call_id: string, status: CallStatus) => void;
+    "call:stats": (call_id: string, stats: CallStats) => void;
     "peer:accepted_elsewhere": (call_id: string) => void;
     "peer:rejected_elsewhere": (call_id: string) => void;
-    "calls:error": (call_id: string, error: string) => void;
-    stats: (call_id: string, stats: CallStats) => void;
-    "calls:status": (call_id: string, status: CallStatus) => void;
-    "calls:offer": (call: {
-        id: string;
-        peer: { number: string; display_name: string; profile_picture: string | null };
-    }) => void;
 };
 
 export type DeviceSocketClientToServerEvents = {
-    "calls:start": (
-        whatsapp_id: string,
-        callback: (
-            response: DeviceResponse<{ id: string; peer: { number: string; profile_picture: string | null } }>,
-        ) => void,
-    ) => void;
-    "calls:reject": (call_id: string, callback: (response: DeviceResponse) => void) => void;
-    "calls:mute": (callback: (response: DeviceResponse) => void) => void;
-    "calls:unmute": (callback: (response: DeviceResponse) => void) => void;
-    "calls:end": (callback: (response: DeviceResponse) => void) => void;
-    "calls:accept": (call_id: string, callback: (response: DeviceResponse) => void) => void;
-    "whatsapp:qrcode": (callback: (qrcode: string) => void) => void;
-    "whatsapp:device_status": (callback: (device_status: DeviceStatus) => void) => void;
+    "call:start": (phone: string, callback: (response: DeviceResponse<{ id: string; peer: CallPeer }>) => void) => void;
+    "call:accept": (call: { id: string }, callback: (response: DeviceResponse) => void) => void;
+    "call:answer": (answer: RTCSessionDescriptionInit) => void;
+    "call:reject": (callId: string, callback: (response: DeviceResponse) => void) => void;
+    "call:mute": (callback: (response: DeviceResponse) => void) => void;
+    "call:unmute": (callback: (response: DeviceResponse) => void) => void;
+    "call:end": (callback: (response: DeviceResponse) => void) => void;
+    "device:qrcode": (callback: (qrcode: string | null) => void) => void;
+    "device:status": (callback: (device_status: DeviceStatus | "") => void) => void;
     "whatsapp:pairing_code": (phone: string, callback: (response: DeviceResponse<string>) => void) => void;
 };
 

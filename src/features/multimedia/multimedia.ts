@@ -1,9 +1,17 @@
+import type { CallTransport } from "@/features/device/types/socket";
+import { EventEmitter } from "@/features/EventEmitter";
 import { Audio } from "@/features/multimedia/audio/audio";
 import { Microphone } from "@/features/multimedia/microphone/microphone";
 import type { MultimediaError } from "@/features/multimedia/types/error";
 import type { MultimediaSocketStatus } from "@/features/multimedia/types/socket";
 
-export class Multimedia {
+type Events = {
+    error: [error: MultimediaError];
+    status: [status: MultimediaSocketStatus];
+    audioAnalyser: [analyser: AnalyserNode];
+};
+
+export class Multimedia extends EventEmitter<Events> {
     private readonly SOCKET_RECONNECT_CODES = [1001, 1006, 1011, 1015];
     private socket: WebSocket | null;
     public socket_status: MultimediaSocketStatus;
@@ -11,25 +19,20 @@ export class Multimedia {
     public audio: Audio;
     public microphone: Microphone;
 
-    public callbacks: {
-        onConnectionStatus?: (socket_status: MultimediaSocketStatus) => void;
-        onAudioAnalyser?: (analyser: AnalyserNode) => void;
-    } = {};
+    constructor() {
+        super();
 
-    constructor(params: {
-        onError?: (err: MultimediaError) => void;
-    }) {
         this.socket = null;
         this.microphone = new Microphone({
-            onError: (err) => params.onError?.({ type: "microphone", reason: err }),
+            onError: (err) => this.emit("error", { type: "microphone", reason: err }),
         });
         this.audio = new Audio({
-            onError: (err) => params.onError?.({ type: "audio", reason: err }),
-            onAnalyser: (analyser) => this.callbacks.onAudioAnalyser?.(analyser),
+            onError: (err) => this.emit("error", { type: "audio", reason: err }),
+            onAnalyser: (analyser) => this.emit("audioAnalyser", analyser),
         });
 
         this.socket_status = "CLOSED";
-        this.callbacks.onConnectionStatus?.(this.socket_status);
+        this.emit("status", this.socket_status);
 
         this.fetchDevices();
         navigator.mediaDevices?.addEventListener("devicechange", () => {
@@ -37,26 +40,30 @@ export class Multimedia {
         });
     }
 
-    async start(server: { ip: string; port: string }, token: string) {
-        this.socket = new WebSocket(`wss://${server.ip}:${server.port}?token=${token}`);
+    async start(token: string, transport: CallTransport) {
+        if (transport.type === "official") return;
+
+        const { server } = transport;
+
+        this.socket = new WebSocket(`wss://${server.host}:${server.port}?token=${token}`);
         this.socket.binaryType = "arraybuffer";
         this.socket_status = "CONNECTING";
-        this.callbacks.onConnectionStatus?.(this.socket_status);
+        this.emit("status", this.socket_status);
 
         this.socket.addEventListener("open", () => {
             this.socket_status = "CONNECTED";
-            this.callbacks.onConnectionStatus?.(this.socket_status);
+            this.emit("status", this.socket_status);
         });
 
         this.socket.addEventListener("error", () => {
             this.socket_status = "ERROR";
-            this.callbacks.onConnectionStatus?.(this.socket_status);
+            this.emit("status", this.socket_status);
             this.audio.stop();
         });
 
         this.socket.addEventListener("close", (event) => {
             this.socket_status = "CLOSED";
-            this.callbacks.onConnectionStatus?.(this.socket_status);
+            this.emit("status", this.socket_status);
 
             if (!this.SOCKET_RECONNECT_CODES.includes(event.code)) {
                 this.stop();
@@ -64,7 +71,7 @@ export class Multimedia {
             }
 
             setTimeout(() => {
-                this.start(server, token);
+                this.start(token, transport);
             }, 1000);
         });
 
@@ -84,8 +91,8 @@ export class Multimedia {
         this.socket?.close();
         this.socket = null;
 
-        this.callbacks.onConnectionStatus = undefined;
-        this.callbacks.onAudioAnalyser = undefined;
+        this.removeAllListeners("status");
+        this.removeAllListeners("audioAnalyser");
     }
 
     async fetchDevices() {

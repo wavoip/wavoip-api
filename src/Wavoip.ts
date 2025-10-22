@@ -1,6 +1,7 @@
 import { CallBuilder } from "@/features/call/call-builder";
 import type { Call, CallOffer, CallOutgoing } from "@/features/call/types/call";
 import { DeviceManager } from "@/features/device/device-manager";
+import { PublicDeviceBuilder } from "@/features/device/PublicDeviceBuilder";
 import type { Device } from "@/features/device/types/device";
 import { Multimedia } from "@/features/multimedia/multimedia";
 import type { MultimediaError } from "@/features/multimedia/types/error";
@@ -21,7 +22,9 @@ export class Wavoip {
         this.calls = new Map<string, Call>();
         this.devices = [...new Set(params.tokens)].map((token) => new DeviceManager(token));
         this.callbacks = {};
-        this.multimedia = new Multimedia({ onError: (error) => this.callbacks.onMultimediaError?.(error) });
+        this.multimedia = new Multimedia();
+
+        this.multimedia.on("error", (error) => this.callbacks.onMultimediaError?.(error));
 
         for (const device of this.devices) {
             this.bindDeviceEvents(device);
@@ -73,7 +76,6 @@ export class Wavoip {
                 device_token: device.token,
                 peer: {
                     ...callStarted.peer,
-                    display_name: null,
                     muted: false,
                 },
                 direction: "OUTGOING",
@@ -83,27 +85,14 @@ export class Wavoip {
             };
 
             this.calls.set(call.id, call);
-            return { call: CallBuilder.buildOutgoing(call, device, this.multimedia), err: null };
+            return { call: CallBuilder.buildOutgoing(call, device, this.multimedia, callStarted.transport), err: null };
         }
 
         return { call: null, err: { message: "Não foi possível realizar a chamada", devices: device_errors } };
     }
 
     getDevices(): Device[] {
-        return this.devices.map((device) => ({
-            token: device.token,
-            status: device.status,
-            qrcode: device.qrcode,
-            onStatus: (cb) => {
-                device.callbacks.onStatus = cb;
-            },
-            onQRCode: (cb) => {
-                device.callbacks.onQRCode = cb;
-            },
-            powerOn: () => {
-                device.getInfos();
-            },
-        }));
+        return this.devices.map(PublicDeviceBuilder);
     }
 
     addDevices(tokens: string[] = []): Device[] {
@@ -117,23 +106,7 @@ export class Wavoip {
             devices.push(device);
         }
 
-        return devices.map((device) => {
-            this.bindDeviceEvents(device);
-            return {
-                token: device.token,
-                status: device.status,
-                qrcode: device.qrcode,
-                onStatus: (cb) => {
-                    device.callbacks.onStatus = cb;
-                },
-                onQRCode: (cb) => {
-                    device.callbacks.onQRCode = cb;
-                },
-                powerOn: async () => {
-                    await device.getInfos();
-                },
-            };
-        });
+        return devices.map(PublicDeviceBuilder);
     }
 
     removeDevices(tokens: string[] = []) {
@@ -168,7 +141,7 @@ export class Wavoip {
     }
 
     private bindDeviceEvents(device: DeviceManager) {
-        device.socket.on("calls:offer", (_call) => {
+        device.socket.on("call:offer", (_call) => {
             const call: Call = {
                 id: _call.id,
                 device_token: device.token,
@@ -186,7 +159,7 @@ export class Wavoip {
             this.callbacks.onOffer?.(CallBuilder.buildOffer(call, device, this.multimedia));
         });
 
-        device.socket.on("signaling", (packet, call_id) => {
+        device.socket.on("call:signaling", (packet, call_id) => {
             const call = this.calls.get(call_id);
 
             if (!call) {
@@ -247,15 +220,7 @@ export class Wavoip {
             this.calls.delete(call_id);
         });
 
-        device.socket.on("audio_transport:create", (server) => {
-            this.multimedia.start(server, device.token);
-        });
-
-        device.socket.on("audio_transport:terminate", () => {
-            this.multimedia.stop();
-        });
-
-        device.socket.on("stats", (call_id, stats) => {
+        device.socket.on("call:stats", (call_id, stats) => {
             const call = this.calls.get(call_id);
 
             if (!call) {
@@ -265,7 +230,7 @@ export class Wavoip {
             call.callbacks.onStats?.(stats);
         });
 
-        device.socket.on("calls:error", (call_id, err) => {
+        device.socket.on("call:error", (call_id, err) => {
             const call = this.calls.get(call_id);
 
             if (!call) {
@@ -278,7 +243,7 @@ export class Wavoip {
             this.calls.delete(call.id);
         });
 
-        device.socket.on("calls:status", (call_id, status) => {
+        device.socket.on("call:status", (call_id, status) => {
             const call = this.calls.get(call_id);
 
             if (!call) {

@@ -1,19 +1,28 @@
-import { io } from "socket.io-client";
 import type { DeviceStatus } from "@/features/device/types/device";
 import type { DeviceAllInfo } from "@/features/device/types/device-all-info";
-import type { DeviceCallbacks } from "@/features/device/types/device-callbacks";
-import type { DeviceSocket } from "@/features/device/types/socket";
+import type { CallPeer, CallTransport, DeviceSocket } from "@/features/device/types/socket";
+import { EventEmitter } from "@/features/EventEmitter";
+import axios, { type AxiosInstance } from "axios";
+import { io } from "socket.io-client";
 
-export class DeviceManager {
+type Events = {
+    status: [status: DeviceStatus | null];
+    qrcode: [qrcode: string | null];
+};
+
+export class DeviceManager extends EventEmitter<Events> {
     public readonly socket: DeviceSocket;
     public readonly token: string;
     public qrcode: string | null = null;
-    public status: DeviceStatus = "disconnected";
+    public status: DeviceStatus | null = "disconnected";
 
-    public callbacks: DeviceCallbacks = {};
+    private api: AxiosInstance;
 
     constructor(device_token: string) {
+        super();
+
         this.token = device_token;
+        this.api = axios.create({ baseURL: `https://devices.wavoip.com/${this.token}` });
 
         this.socket = io("https://devices.wavoip.com", {
             transports: ["websocket"],
@@ -22,14 +31,14 @@ export class DeviceManager {
             reconnectionAttempts: 3,
         });
 
-        this.socket.on("qrcode", (qrcode) => {
+        this.socket.on("device:qrcode", (qrcode) => {
             this.qrcode = qrcode;
-            this.callbacks.onQRCode?.(qrcode);
+            this.emit("qrcode", qrcode);
         });
 
-        this.socket.on("device_status", (status) => {
+        this.socket.on("device:status", (status) => {
             this.status = status;
-            this.callbacks.onStatus?.(status);
+            this.emit("status", status);
         });
 
         this.socket.on("disconnect", () => {
@@ -38,7 +47,7 @@ export class DeviceManager {
             }
 
             this.status = "disconnected";
-            this.callbacks.onStatus?.("disconnected");
+            this.emit("status", this.status);
 
             this.getInfos().then((infos) => {
                 if (!infos) {
@@ -46,19 +55,19 @@ export class DeviceManager {
                 }
 
                 this.status = infos.status;
-                this.callbacks.onStatus?.(infos.status);
+                this.emit("status", this.status);
             });
         });
 
         this.getInfos().then((infos) => {
             if (!infos) {
                 this.status = "error";
-                this.callbacks.onStatus?.("error");
+                this.emit("status", this.status);
                 return;
             }
 
             this.status = infos.status;
-            this.callbacks.onStatus?.(infos.status);
+            this.emit("status", this.status);
             this.socket.connect();
         });
     }
@@ -76,27 +85,44 @@ export class DeviceManager {
             return { err: "É preciso vincular um número ao dispositivo" };
         }
 
+        if (this.status === "restarting") {
+            return { err: "Dispositivo está sendo reiniciado" };
+        }
+
         return { err: null };
     }
 
     startCall(whatsapp_id: string) {
         return new Promise<
-            | { call: { id: string; peer: { number: string; profile_picture: string | null } }; err: null }
-            | { call: null; err: string }
+            { call: { id: string; peer: CallPeer; transport: CallTransport }; err: null } | { call: null; err: string }
         >((resolve) => {
-            this.socket.emit("calls:start", whatsapp_id, (res) => {
-                if (res.type === "success") {
-                    return resolve({ err: null, call: res.result });
+            const call: { id: string; peer: CallPeer; transport: CallTransport } = {
+                id: "",
+                peer: { phone: "", displayName: null, profilePicture: null },
+                transport: { type: "unofficial", server: { host: "", port: "" } },
+            };
+
+            this.socket.on("call:transport", (_call_id, transport) => {
+                this.socket.removeAllListeners("call:transport");
+                call.transport = transport;
+                resolve({ call, err: null });
+            });
+
+            this.socket.emit("call:start", whatsapp_id, (res) => {
+                if (res.type === "error") {
+                    this.socket.removeAllListeners("call:transport");
+                    return resolve({ call: null, err: res.result });
                 }
 
-                resolve({ call: null, err: res.result });
+                call.id = res.result.id;
+                call.peer = res.result.peer;
             });
         });
     }
 
     endCall() {
         return new Promise<{ err: null | string }>((resolve) => {
-            this.socket.emit("calls:end", (res) => {
+            this.socket.emit("call:end", (res) => {
                 if (res.type === "success") {
                     resolve({ err: null });
                 } else {
@@ -106,21 +132,29 @@ export class DeviceManager {
         });
     }
 
-    acceptCall(call_id: string) {
-        return new Promise<{ err: null | string }>((resolve) => {
-            this.socket.emit("calls:accept", call_id, (res) => {
-                if (res.type === "success") {
-                    resolve({ err: null });
-                } else {
-                    resolve({ err: res.result });
+    acceptCall(params: { call_id: string }) {
+        return new Promise<{ transport: CallTransport; err: null } | { transport: null; err: string }>((resolve) => {
+            this.socket.on("call:transport", (_call_id, transport) => {
+                this.socket.removeAllListeners("call:transport");
+                resolve({ transport, err: null });
+            });
+
+            this.socket.emit("call:accept", { id: params.call_id }, (res) => {
+                if (res.type === "error") {
+                    this.socket.removeAllListeners("call:transport");
+                    resolve({ transport: null, err: res.result });
                 }
             });
         });
+    }
+
+    sendAnswer(params: { answer: RTCSessionDescriptionInit }) {
+        this.socket.emit("call:answer", params.answer);
     }
 
     rejectCall(call_id: string) {
         return new Promise<{ err: null | string }>((resolve) => {
-            this.socket.emit("calls:reject", call_id, (res) => {
+            this.socket.emit("call:reject", call_id, (res) => {
                 if (res.type === "success") {
                     resolve({ err: null });
                 } else {
@@ -132,7 +166,7 @@ export class DeviceManager {
 
     mute() {
         return new Promise<{ err: null | string }>((resolve) => {
-            this.socket.emit("calls:mute", (res) => {
+            this.socket.emit("call:mute", (res) => {
                 if (res.type === "success") {
                     resolve({ err: null });
                 } else {
@@ -144,7 +178,7 @@ export class DeviceManager {
 
     unMute() {
         return new Promise<{ err: null | string }>((resolve) => {
-            this.socket.emit("calls:unmute", (res) => {
+            this.socket.emit("call:unmute", (res) => {
                 if (res.type === "success") {
                     resolve({ err: null });
                 } else {
@@ -155,12 +189,23 @@ export class DeviceManager {
     }
 
     async getInfos() {
-        return fetch(`https://devices.wavoip.com/${this.token}/whatsapp/all_info`).then((res) => {
-            if (res.status >= 400) {
-                return null;
-            }
+        return this.api
+            .get<{ result: DeviceAllInfo }>("/whatsapp/all_info")
+            .then((res) => res.data.result)
+            .catch(() => null);
+    }
 
-            return res.json().then((info) => info.result as DeviceAllInfo);
-        });
+    async restart() {
+        return this.api
+            .get<{ result: string }>("/device/restart")
+            .then((res) => res.data.result)
+            .catch(() => null);
+    }
+
+    async logout() {
+        return this.api
+            .get<{ result: string }>("/whatsapp/logout")
+            .then((res) => res.data.result)
+            .catch(() => null);
     }
 }
