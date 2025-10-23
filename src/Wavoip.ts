@@ -113,7 +113,7 @@ export class Wavoip {
         const devices = this.devices.filter((device) => tokens.includes(device.token));
 
         for (const device of devices) {
-            device.socket.close();
+            device.socket?.close();
         }
 
         if (devices.length) {
