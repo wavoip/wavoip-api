@@ -17,5 +17,6 @@ export function PublicDeviceBuilder(device: DeviceManager): Device {
         powerOn: () => device.getInfos(),
         restart: () => device.restart(),
         logout: () => device.logout(),
+        pairingCode: (phone: string) => device.requestPairingCode(phone),
     };
 }

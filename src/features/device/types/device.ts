@@ -19,4 +19,5 @@ export type Device = {
     restart(): void;
     logout(): void;
     powerOn(): void;
+    pairingCode(phone: string): void;
 };

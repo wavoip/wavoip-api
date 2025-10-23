@@ -188,6 +188,18 @@ export class DeviceManager extends EventEmitter<Events> {
         });
     }
 
+    requestPairingCode(phone: string) {
+        return new Promise<{ pairingCode: string; err: null } | { pairingCode: null; err: string }>((resolve) => {
+            this.socket.emit("whatsapp:pairing_code", phone, (res) => {
+                if (res.type === "error") {
+                    return resolve({ pairingCode: null, err: res.result });
+                }
+
+                resolve({ pairingCode: res.result, err: null });
+            });
+        });
+    }
+
     async getInfos() {
         return this.api
             .get<{ result: DeviceAllInfo }>("/whatsapp/all_info")
