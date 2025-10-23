@@ -117,7 +117,7 @@ export class Wavoip {
         }
 
         if (devices.length) {
-            this.devices.filter((device) => tokens.includes(device.token));
+            this.devices = this.devices.filter((device) => !tokens.includes(device.token));
         }
 
         return this.getDevices();
