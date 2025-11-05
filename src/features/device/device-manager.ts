@@ -28,7 +28,6 @@ export class DeviceManager extends EventEmitter<Events> {
             transports: ["websocket"],
             path: `/${device_token}/websocket`,
             autoConnect: false,
-            reconnectionAttempts: 3,
         });
 
         this.socket.on("device:qrcode", (qrcode) => {
@@ -96,26 +95,19 @@ export class DeviceManager extends EventEmitter<Events> {
         return new Promise<
             { call: { id: string; peer: CallPeer; transport: CallTransport }; err: null } | { call: null; err: string }
         >((resolve) => {
-            const call: { id: string; peer: CallPeer; transport: CallTransport } = {
-                id: "",
-                peer: { phone: "", displayName: null, profilePicture: null },
-                transport: { type: "unofficial", server: { host: "", port: "" } },
-            };
-
-            this.socket.on("call:transport", (_call_id, transport) => {
-                this.socket.removeAllListeners("call:transport");
-                call.transport = transport;
-                resolve({ call, err: null });
-            });
-
             this.socket.emit("call:start", whatsapp_id, (res) => {
                 if (res.type === "error") {
-                    this.socket.removeAllListeners("call:transport");
                     return resolve({ call: null, err: res.result });
                 }
 
-                call.id = res.result.id;
-                call.peer = res.result.peer;
+                resolve({
+                    call: {
+                        id: res.result.id,
+                        peer: res.result.peer,
+                        transport: res.result.transport,
+                    },
+                    err: null,
+                });
             });
         });
     }
@@ -134,22 +126,19 @@ export class DeviceManager extends EventEmitter<Events> {
 
     acceptCall(params: { call_id: string }) {
         return new Promise<{ transport: CallTransport; err: null } | { transport: null; err: string }>((resolve) => {
-            this.socket.on("call:transport", (_call_id, transport) => {
-                this.socket.removeAllListeners("call:transport");
-                resolve({ transport, err: null });
-            });
-
             this.socket.emit("call:accept", { id: params.call_id }, (res) => {
                 if (res.type === "error") {
-                    this.socket.removeAllListeners("call:transport");
                     resolve({ transport: null, err: res.result });
+                    return;
                 }
+
+                resolve({ transport: res.result, err: null });
             });
         });
     }
 
-    sendAnswer(params: { answer: RTCSessionDescriptionInit }) {
-        this.socket.emit("call:answer", params.answer);
+    sendSdpAnswer(answer: RTCSessionDescriptionInit) {
+        this.socket.emit("call:sdp-answer", answer);
     }
 
     rejectCall(call_id: string) {

@@ -1,5 +1,5 @@
 import type { CallPeer } from "@/features/device/types/socket";
-import type { MultimediaSocketStatus } from "@/features/multimedia/types/socket";
+import type { TransportStatus } from "@/features/multimedia/transport/ITransport";
 
 export type CallDirection = "INCOMING" | "OUTGOING";
 
@@ -16,16 +16,9 @@ export type CallStatus =
 
 export type CallStats = {
     rtt: {
-        client: {
-            min: number;
-            max: number;
-            avg: number;
-        };
-        whatsapp: {
-            min: number;
-            max: number;
-            avg: number;
-        };
+        min: number;
+        max: number;
+        avg: number;
     };
     tx: {
         total: number;
@@ -70,7 +63,7 @@ export type CallOfferOfficial = Omit<Call, "callbacks"> & {
 };
 
 export type CallActive = Omit<Call, "callbacks"> & {
-    connection_status: MultimediaSocketStatus;
+    connection_status: TransportStatus;
     audio_analyser: Promise<AnalyserNode>;
     mute(): Promise<{ err: string | null }>;
     unmute(): Promise<{ err: string | null }>;
@@ -80,7 +73,7 @@ export type CallActive = Omit<Call, "callbacks"> & {
     onPeerUnmute(callback: () => void): void;
     onEnd(callback: () => void): void;
     onStats(callback: (stats: CallStats) => void): void;
-    onConnectionStatus(callback: (status: MultimediaSocketStatus) => void): void;
+    onConnectionStatus(callback: (status: TransportStatus) => void): void;
     onStatus(cb: (status: CallStatus) => void): void;
 };
 

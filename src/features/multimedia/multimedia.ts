@@ -1,120 +1,63 @@
 import type { CallTransport } from "@/features/device/types/socket";
 import { EventEmitter } from "@/features/EventEmitter";
-import { Audio } from "@/features/multimedia/audio/audio";
-import { Microphone } from "@/features/multimedia/microphone/microphone";
+import { WebRTCTransport } from "@/features/multimedia/transport/webrtc/WebRTCTransport";
+import { WebsocketTransport } from "@/features/multimedia/transport/websocket/WebsocketTransport";
 import type { MultimediaError } from "@/features/multimedia/types/error";
-import type { MultimediaSocketStatus } from "@/features/multimedia/types/socket";
+import { Speaker } from "@/features/multimedia/speaker/speaker";
+import { Microphone } from "@/features/multimedia/microphone/microphone";
+import type { ITransport } from "@/features/multimedia/transport/ITransport";
 
 type Events = {
     error: [error: MultimediaError];
-    status: [status: MultimediaSocketStatus];
-    audioAnalyser: [analyser: AnalyserNode];
+    permission: [error: MultimediaError, retry?: () => void];
 };
 
 export class Multimedia extends EventEmitter<Events> {
-    private readonly SOCKET_RECONNECT_CODES = [1001, 1006, 1011, 1015];
-    private socket: WebSocket | null;
-    public socket_status: MultimediaSocketStatus;
+    private webRTC: WebRTCTransport | null = null;
+    private websocket: WebsocketTransport | null = null;
 
-    public audio: Audio;
+    public speaker: Speaker;
     public microphone: Microphone;
 
     constructor() {
         super();
 
-        this.socket = null;
-        this.microphone = new Microphone({
-            onError: (err) => this.emit("error", { type: "microphone", reason: err }),
-        });
-        this.audio = new Audio({
-            onError: (err) => this.emit("error", { type: "audio", reason: err }),
-            onAnalyser: (analyser) => this.emit("audioAnalyser", analyser),
-        });
+        this.microphone = new Microphone();
+        this.speaker = new Speaker();
 
-        this.socket_status = "CLOSED";
-        this.emit("status", this.socket_status);
+        this.microphone.on("error", (err) =>
+            this.emit("error", {
+                type: "microphone",
+                reason: err,
+            }),
+        );
 
-        this.fetchDevices();
-        navigator.mediaDevices?.addEventListener("devicechange", () => {
-            this.fetchDevices();
-        });
+        this.microphone.on("permission", (err, retry) =>
+            this.emit("permission", { type: "microphone", reason: err }, retry),
+        );
+
+        this.speaker.on("error", (err) =>
+            this.emit("error", {
+                type: "audio",
+                reason: err,
+            }),
+        );
     }
 
-    async start(token: string, transport: CallTransport) {
-        if (transport.type === "official") return;
-
-        const { server } = transport;
-
-        this.socket = new WebSocket(`wss://${server.host}:${server.port}?token=${token}`);
-        this.socket.binaryType = "arraybuffer";
-        this.socket_status = "CONNECTING";
-        this.emit("status", this.socket_status);
-
-        this.socket.addEventListener("open", () => {
-            this.socket_status = "CONNECTED";
-            this.emit("status", this.socket_status);
-        });
-
-        this.socket.addEventListener("error", () => {
-            this.socket_status = "ERROR";
-            this.emit("status", this.socket_status);
-            this.audio.stop();
-        });
-
-        this.socket.addEventListener("close", (event) => {
-            this.socket_status = "CLOSED";
-            this.emit("status", this.socket_status);
-
-            if (!this.SOCKET_RECONNECT_CODES.includes(event.code)) {
-                this.stop();
-                return;
+    async startTransport(token: string, config: CallTransport): Promise<ITransport> {
+        if (config.type === "official") {
+            if (!this.webRTC) {
+                this.webRTC = new WebRTCTransport(this.microphone);
             }
+            await this.webRTC.start(config.sdpOffer);
+            return this.webRTC;
+        }
 
-            setTimeout(() => {
-                this.start(token, transport);
-            }, 1000);
-        });
+        if (!this.websocket) {
+            this.websocket = new WebsocketTransport(this.microphone);
+        }
 
-        this.socket.addEventListener("message", (event) => {
-            if (new Uint8Array(event.data).length === 4) {
-                this.socket?.send("pong");
-            }
-        });
-
-        this.microphone.start(this.socket);
-        this.audio.start(this.socket);
-    }
-
-    stop() {
-        this.microphone.stop();
-        this.audio.stop();
-        this.socket?.close();
-        this.socket = null;
-
-        this.removeAllListeners("status");
-        this.removeAllListeners("audioAnalyser");
-    }
-
-    async fetchDevices() {
-        const devices = await navigator.mediaDevices.enumerateDevices().catch((err) => {
-            console.error("Error fetching microphones:", err);
-            return [];
-        });
-
-        this.microphone.devices = devices
-            .filter((device) => device.kind === "audioinput")
-            .map((mic) => ({
-                type: "audio-in",
-                label: mic.label || "Unnamed Microphone",
-                deviceId: mic.deviceId,
-            }));
-
-        this.audio.devices = devices
-            .filter((device) => device.kind === "audiooutput")
-            .map((mic) => ({
-                type: "audio-out",
-                label: mic.label || "Unnamed Speaker",
-                deviceId: mic.deviceId,
-            }));
+        await this.websocket.start(config, token);
+        return this.websocket;
     }
 }

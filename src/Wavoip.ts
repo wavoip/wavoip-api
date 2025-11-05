@@ -1,44 +1,90 @@
-import { CallBuilder } from "@/features/call/call-builder";
-import type { Call, CallOffer, CallOutgoing } from "@/features/call/types/call";
-import { DeviceManager } from "@/features/device/device-manager";
+import { EventEmitter } from "@/features/EventEmitter";
+import { CallManager } from "@/features/call/call-manager";
+import type { CallOffer, CallOutgoing } from "@/features/call/types/call";
 import { PublicDeviceBuilder } from "@/features/device/PublicDeviceBuilder";
+import { DeviceManager } from "@/features/device/device-manager";
 import type { Device } from "@/features/device/types/device";
 import { Multimedia } from "@/features/multimedia/multimedia";
 import type { MultimediaError } from "@/features/multimedia/types/error";
 
-export class Wavoip {
-    private calls: Map<string, Call>;
-    private devices: DeviceManager[];
-    private multimedia: Multimedia;
+type Events = {
+    offer: [callOffer: CallOffer];
+};
 
-    private callbacks: {
-        onOffer?: (callOffer: CallOffer) => void;
-        onMultimediaError?: (err: MultimediaError) => void;
-    };
+export class Wavoip extends EventEmitter<Events> {
+    private call_manager: CallManager;
+    private _devices: DeviceManager[];
+    private _multimedia: Multimedia;
 
     constructor(params: {
         tokens: string[];
     }) {
-        this.calls = new Map<string, Call>();
-        this.devices = [...new Set(params.tokens)].map((token) => new DeviceManager(token));
-        this.callbacks = {};
-        this.multimedia = new Multimedia();
+        super();
 
-        this.multimedia.on("error", (error) => this.callbacks.onMultimediaError?.(error));
+        this._devices = [...new Set(params.tokens)].map((token) => new DeviceManager(token));
+        this._multimedia = new Multimedia();
+        this.call_manager = new CallManager(this._multimedia);
 
-        for (const device of this.devices) {
+        for (const device of this._devices) {
             this.bindDeviceEvents(device);
         }
     }
 
     onOffer(cb: (callOffer: CallOffer) => void) {
-        this.callbacks.onOffer = cb;
+        this.removeAllListeners("offer");
+        this.on("offer", cb);
     }
 
-    onMultimediaError(cb: (err: MultimediaError) => void) {
-        this.callbacks.onMultimediaError = cb;
+    get multimedia() {
+        return {
+            microphone: this._multimedia.microphone,
+            speaker: this._multimedia.speaker,
+            on: this._multimedia.on,
+        };
     }
 
+    getMultimediaDevices() {
+        const microphones = this.multimedia.microphone.devices;
+        const speakers = this.multimedia.speaker.devices;
+
+        return { microphones, speakers };
+    }
+
+    onMultimediaError(cb: (err: MultimediaError, retry?: () => void) => void) {
+        this._multimedia.removeAllListeners("error");
+        this._multimedia.on("error", cb);
+    }
+
+    /**
+     * Attempts to start an outgoing call using one or more available devices.
+     *
+     * The method tries each device in sequence until one successfully initiates a call.
+     * If all devices fail, it returns a detailed error report listing the reasons per device.
+     *
+     * @async
+     * @param {Object} params - Parameters for starting the call.
+     * @param {string[]} [params.fromTokens] - Specific device tokens to use.
+     *   If omitted, all registered devices will be tried.
+     * @param {string} params.to - The peer number (target) to call.
+     *
+     * @returns {Promise<
+     *   | { call: CallOutgoing; err: null }
+     *   | { call: null; err: { message: string; devices: { token: string; reason: string }[] } }
+     * >}
+     * A promise that resolves with either:
+     * - A successful outgoing call and `err: null`, or
+     * - An error containing a message and a list of failed devices with reasons.
+     *
+     * @example
+     * const result = await instance.startCall({ to: "5511999999999" });
+     *
+     * if (result.err) {
+     *   console.error(result.err.message);
+     *   result.err.devices.forEach(d => console.warn(`${d.token}: ${d.reason}`));
+     * } else {
+     *   console.log("Call started successfully:", result.call);
+     * }
+     */
     async startCall(params: {
         fromTokens?: string[];
         to: string;
@@ -47,8 +93,8 @@ export class Wavoip {
         | { call: null; err: { message: string; devices: { token: string; reason: string }[] } }
     > {
         const devices = params.fromTokens
-            ? this.devices.filter((device) => params.fromTokens?.includes(device.token))
-            : this.devices;
+            ? this._devices.filter((device) => params.fromTokens?.includes(device.token))
+            : this._devices;
 
         if (!devices.length) {
             return { call: null, err: { devices: [], message: "Não existe nenhum dispositivo" } };
@@ -64,211 +110,201 @@ export class Wavoip {
                 continue;
             }
 
-            const { call: callStarted, err } = await device.startCall(params.to);
+            const { call, err } = await device.startCall(params.to);
 
-            if (!callStarted) {
+            if (!call) {
                 device_errors.push({ token: device.token, reason: err as string });
                 continue;
             }
 
-            const call: Call = {
-                id: callStarted.id,
-                device_token: device.token,
-                peer: {
-                    ...callStarted.peer,
-                    muted: false,
-                },
-                direction: "OUTGOING",
-                status: "RINGING",
-                muted: false,
-                callbacks: {},
-            };
+            const outgoing = await this.call_manager.buildOutgoing(call.id, call.peer, call.transport, device);
 
-            this.calls.set(call.id, call);
-            return { call: CallBuilder.buildOutgoing(call, device, this.multimedia, callStarted.transport), err: null };
+            return { call: outgoing, err: null };
         }
 
         return { call: null, err: { message: "Não foi possível realizar a chamada", devices: device_errors } };
     }
 
-    getDevices(): Device[] {
-        return this.devices.map(PublicDeviceBuilder);
+    /**
+     * Attempts to start an outgoing call using one or more available devices.
+     *
+     * This async generator yields the result of each device's call attempt,
+     * and returns the first successful call, if any.
+     *
+     * @async
+     * @generator
+     * @param {Object} params - Parameters for starting the call.
+     * @param {string[]} [params.fromTokens] - Specific device tokens to use.
+     *   If omitted, all registered devices will be tried.
+     * @param {string} params.to - The peer number (target) to call.
+     *
+     * @yields {{ call: null, token: string, err: string }} -
+     *   Emitted when a device fails to start a call, including its token and error message.
+     *
+     * @returns {{ call: CallOutgoing, token: string, err: null } | { call: null, err: string }} -
+     *   The first successful call, or a final error if no call succeeded.
+     *
+     * @example
+     * for await (const result of instance.startCallIterator({ to: "5511999999999" })) {
+     *   if (result.err) {
+     *     console.warn(`Device ${result.token} failed: ${result.err}`);
+     *   } else {
+     *     console.log(`Call started via ${result.token}:`, result.call);
+     *   }
+     * }
+     */
+    async *startCallIterator(params: {
+        fromTokens?: string[];
+        to: string;
+    }): AsyncGenerator<{ call: CallOutgoing; token: string; err: null } | { call: null; token?: string; err: string }> {
+        const devices = params.fromTokens
+            ? this._devices.filter((device) => params.fromTokens?.includes(device.token))
+            : this._devices;
+
+        if (!devices.length) {
+            return { call: null, err: "Nenhum dispositivo" };
+        }
+
+        for (const device of devices) {
+            const canCall = device.canCall();
+
+            if (canCall.err) {
+                yield {
+                    call: null,
+                    token: device.token,
+                    err: canCall.err,
+                };
+                continue;
+            }
+
+            const { call, err } = await device.startCall(params.to);
+
+            if (!call) {
+                yield { call: null, token: device.token, err };
+                continue;
+            }
+
+            const outgoing = await this.call_manager.buildOutgoing(call.id, call.peer, call.transport, device);
+            return { call: outgoing, token: device.token };
+        }
+
+        return { call: null, err: "Não foi possível realizar a chamada" };
     }
 
+    get devices() {
+        return this._devices.map((device) => PublicDeviceBuilder(device, this));
+    }
+
+    getDevices(): Device[] {
+        return this.devices;
+    }
+
+    /**
+     * Add devices to instance
+     * @param {string[]} tokens - Device tokens.
+     * @returns {Device[]} Array containing the added devices
+     */
     addDevices(tokens: string[] = []): Device[] {
         const devices = [];
         for (const token of tokens) {
-            if (this.devices.find((device) => tokens.includes(device.token))) {
-                continue;
-            }
+            if (this.devices.find((device) => tokens.includes(device.token))) continue;
+
             const device = new DeviceManager(token);
-            this.devices.push(device);
+            this._devices.push(device);
             devices.push(device);
         }
 
-        return devices.map(PublicDeviceBuilder);
+        return devices.map((device) => PublicDeviceBuilder(device, this));
     }
 
-    removeDevices(tokens: string[] = []) {
-        const devices = this.devices.filter((device) => tokens.includes(device.token));
+    /**
+     * Remove devices to instance
+     * @param {string[]} tokens - Device tokens.
+     * @returns {Device[]} Array containing the rest of the devices
+     */
+    removeDevices(tokens: string[]): Device[] {
+        if (!tokens.length) {
+            return this.devices;
+        }
+
+        const devicesLeft = [];
+
+        for (const device of this._devices) {
+            if (tokens.includes(device.token)) {
+                device.socket.close();
+                continue;
+            }
+            devicesLeft.push(device);
+        }
+
+        this._devices = devicesLeft;
+
+        return this.devices;
+    }
+
+    /**
+     * Iteratively wakes up devices that are in hibernation.
+     *
+     * This async generator attempts to wake each specified device (or all devices if none are specified)
+     * and yields the result for each one.
+     *
+     * @async
+     * @generator
+     * @param {string[]} [tokens=[]] - Specific device tokens to wake up.
+     *   If omitted, all registered devices will be checked.
+     *
+     * @yields {{ token: string, waken: boolean }} -
+     *   The result for each device, indicating whether it was successfully awakened.
+     *
+     * @returns {void}
+     *   When all devices have been processed.
+     *
+     * @example
+     * for await (const result of instance.wakeUpDevicesIterator(["abc123", "xyz789"])) {
+     *   console.log(`${result.token}: ${result.waken ? "awake" : "still asleep"}`);
+     * }
+     */
+    async *wakeUpDevicesIterator(tokens: string[] = []) {
+        const devices = tokens.length ? this._devices.filter((device) => tokens.includes(device.token)) : this._devices;
 
         for (const device of devices) {
-            device.socket?.close();
+            const infos = await device.getInfos();
+            yield { token: device.token, waken: !!infos };
         }
-
-        if (devices.length) {
-            this.devices = this.devices.filter((device) => !tokens.includes(device.token));
-        }
-
-        return this.getDevices();
     }
 
-    wakeUpDevices(tokens: string[] = []) {
-        const devices = tokens.length ? this.devices.filter((device) => tokens.includes(device.token)) : this.devices;
+    /**
+     * Wakes up devices that are in hibernation.
+     *
+     * This method attempts to wake each specified device (or all devices if none are specified)
+     * and returns an array of Promises, each resolving to that device's wake-up result.
+     *
+     * @param {string[]} [tokens=[]] - Specific device tokens to wake up.
+     *   If an empty array is passed, all registered devices will be targeted.
+     *
+     * @returns {Promise<{ token: string, waken: boolean }>[]}
+     * An array of Promises, each resolving to an object containing:
+     * - `token`: The device token.
+     * - `waken`: Whether the device was successfully awakened.
+     *
+     * @example
+     * const results = await Promise.all(instance.wakeUpDevices(["abc123", "xyz789"]));
+     * results.forEach(r => {
+     *   console.log(`${r.token}: ${r.waken ? "awake" : "still asleep"}`);
+     * });
+     */
+    wakeUpDevices(tokens: string[] = []): Promise<{ token: string; waken: boolean }>[] {
+        const devices = tokens.length ? this._devices.filter((device) => tokens.includes(device.token)) : this._devices;
 
         return devices.map((device) => device.getInfos().then((infos) => ({ token: device.token, waken: !!infos })));
     }
 
-    getMultimediaDevices() {
-        const microphones = this.multimedia.microphone.devices;
-        const speakers = this.multimedia.audio.devices;
-
-        return { microphones, speakers };
-    }
-
-    requestMicrophonePermission() {
-        this.multimedia.microphone.requestMicPermission();
-    }
-
     private bindDeviceEvents(device: DeviceManager) {
-        device.socket.on("call:offer", (_call) => {
-            const call: Call = {
-                id: _call.id,
-                device_token: device.token,
-                direction: "INCOMING",
-                status: "RINGING",
-                muted: false,
-                peer: {
-                    ..._call.peer,
-                    muted: false,
-                },
-                callbacks: {},
-            };
-
-            this.calls.set(call.id, call);
-            this.callbacks.onOffer?.(CallBuilder.buildOffer(call, device, this.multimedia));
+        device.socket.on("call:offer", (call) => {
+            const offer = this.call_manager.onOffer(call.id, call.peer, device);
+            this.emit("offer", offer);
         });
 
-        device.socket.on("call:signaling", (packet, call_id) => {
-            const call = this.calls.get(call_id);
-
-            if (!call) {
-                return;
-            }
-
-            if (packet.tag === "accept") {
-                call.status = "ACTIVE";
-                call.callbacks.onAccept?.();
-            }
-
-            if (packet.tag === "reject") {
-                call.callbacks.onReject?.();
-                call.callbacks.onEnd?.();
-                this.calls.delete(call.id);
-            }
-
-            if (packet.tag === "terminate") {
-                if (call.status !== "ACTIVE") {
-                    call.callbacks.onUnanswered?.();
-                }
-                call.callbacks.onEnd?.();
-                this.calls.delete(call.id);
-            }
-
-            if (packet.tag === "mute_v2") {
-                if (packet.attrs["mute-state"] === "0") {
-                    call.peer.muted = false;
-                    call.callbacks.onPeerUnmute?.();
-                } else {
-                    call.peer.muted = true;
-                    call.callbacks.onPeerMute?.();
-                }
-            }
-        });
-
-        device.socket.on("peer:accepted_elsewhere", (call_id) => {
-            const call = this.calls.get(call_id);
-
-            if (!call) {
-                return;
-            }
-
-            call.callbacks.onAcceptedElsewhere?.();
-            call.callbacks.onEnd?.();
-            this.calls.delete(call_id);
-        });
-
-        device.socket.on("peer:rejected_elsewhere", (call_id) => {
-            const call = this.calls.get(call_id);
-
-            if (!call) {
-                return;
-            }
-
-            call.callbacks.onAcceptedElsewhere?.();
-            call.callbacks.onEnd?.();
-            this.calls.delete(call_id);
-        });
-
-        device.socket.on("call:stats", (call_id, stats) => {
-            const call = this.calls.get(call_id);
-
-            if (!call) {
-                return;
-            }
-
-            call.callbacks.onStats?.(stats);
-        });
-
-        device.socket.on("call:error", (call_id, err) => {
-            const call = this.calls.get(call_id);
-
-            if (!call) {
-                return;
-            }
-
-            call.status = "FAILED";
-            call.callbacks.onError?.(err);
-            call.callbacks.onEnd?.();
-            this.calls.delete(call.id);
-        });
-
-        device.socket.on("call:status", (call_id, status) => {
-            const call = this.calls.get(call_id);
-
-            if (!call) {
-                return;
-            }
-
-            call.status = status;
-            call.callbacks.onStatus?.(status);
-        });
-
-        device.socket.on("disconnect", () => {
-            if (!device.socket.active) {
-                return;
-            }
-
-            const call = [...this.calls.values()].find(
-                (call) => call.status === "ACTIVE" && call.device_token === device.token,
-            );
-
-            if (!call) {
-                return;
-            }
-
-            device.socket.auth = { call_id: call.id };
-            device.socket.connect();
-        });
+        this.call_manager.bindDeviceEvents(device);
     }
 }

@@ -10,8 +10,8 @@ export default defineConfig({
         dts({ rollupTypes: true }),
         viteStaticCopy({
             targets: [
-                { src: "src/features/multimedia/audio/AudioWorklet.js", dest: "" },
-                { src: "src/features/multimedia/microphone/AudioWorkletMic.js", dest: "" },
+                { src: "src/features/multimedia/transport/websocket/audio-output/AudioWorklet.js", dest: "" },
+                { src: "src/features/multimedia/transport/websocket/audio-input/AudioWorkletMic.js", dest: "" },
             ],
         }),
     ],

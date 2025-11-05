@@ -5,12 +5,12 @@ export default defineConfig({
     plugins: [tsconfigPaths()],
     build: {
         lib: {
-            entry: "src/features/multimedia/audio/AudioWorklet.ts",
+            entry: "src/features/multimedia/transport/websocket/audio-output/AudioWorklet.ts",
             name: "AudioWorklet",
             formats: ["iife"],
             fileName: (_format, name) => `${name}.js`,
         },
-        outDir: "src/features/multimedia/audio",
+        outDir: "src/features/multimedia/transport/websocket/audio-output",
         target: "esnext",
         emptyOutDir: false,
     },

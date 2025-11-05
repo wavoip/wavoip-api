@@ -18,6 +18,7 @@ export type Device = {
     onQRCode(cb: (qrcode: string | null) => void): void;
     restart(): void;
     logout(): void;
-    powerOn(): void;
+    wakeUp(): void;
     pairingCode(phone: string): void;
+    delete(): void;
 };
