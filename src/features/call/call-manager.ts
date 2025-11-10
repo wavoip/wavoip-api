@@ -156,16 +156,12 @@ export class CallManager {
                 return;
             }
 
-            const call = [...this.calls.values()].find(
-                (call) => call.status === "ACTIVE" && call.device_token === device.token,
-            );
-
-            if (!call) {
-                return;
+            for (const call of this.calls.values()) {
+                call.callbacks.onStatus?.("DISCONNECTED");
+                setTimeout(() => {
+                    call.callbacks.onEnd?.();
+                }, 1000);
             }
-
-            device.socket.auth = { call_id: call.id };
-            device.socket.connect();
         });
     }
 }
