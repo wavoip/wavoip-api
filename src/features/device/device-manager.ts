@@ -1,6 +1,6 @@
 import type { DeviceStatus } from "@/features/device/types/device";
 import type { DeviceAllInfo } from "@/features/device/types/device-all-info";
-import type { CallPeer, CallTransport, DeviceSocket } from "@/features/device/types/socket";
+import type { CallPeer, CallTransport, CallType, DeviceSocket } from "@/features/device/types/socket";
 import { EventEmitter } from "@/features/EventEmitter";
 import axios, { type AxiosInstance } from "axios";
 import { io } from "socket.io-client";
@@ -8,6 +8,7 @@ import { io } from "socket.io-client";
 type Events = {
     status: [status: DeviceStatus | null];
     qrcode: [qrcode: string | null];
+    contact: [type: CallType, contact: { phone: string } | null];
 };
 
 export class DeviceManager extends EventEmitter<Events> {
@@ -15,6 +16,7 @@ export class DeviceManager extends EventEmitter<Events> {
     public readonly token: string;
     public qrcode: string | null = null;
     public status: DeviceStatus | null = "disconnected";
+    public contact: { [k in CallType]: { phone: string } | null } = { official: null, unofficial: null };
 
     private api: AxiosInstance;
 
@@ -38,6 +40,10 @@ export class DeviceManager extends EventEmitter<Events> {
         this.socket.on("device:status", (status) => {
             this.status = status;
             this.emit("status", status);
+        });
+
+        this.socket.on("device:contact", (type, contact) => {
+            this.contact[type] = contact;
         });
 
         this.socket.on("disconnect", () => {

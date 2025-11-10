@@ -78,6 +78,7 @@ export type Stats = {
 export type DeviceSocketServerToClientEvents = {
     "device:qrcode": (qrcode: string | null) => void;
     "device:status": (device_status: DeviceStatus | null) => void;
+    "device:contact": (type: CallType, contact: { phone: string } | null) => void;
     "call:offer": (call: { id: string; peer: CallPeer }) => void;
     "call:signaling": (packet: Signaling, call_id: string) => void;
     "call:error": (call_id: string, error: string) => void;

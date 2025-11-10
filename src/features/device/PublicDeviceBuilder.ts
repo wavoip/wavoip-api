@@ -7,6 +7,7 @@ export function PublicDeviceBuilder(device: DeviceManager, wavoip: Wavoip): Devi
         token: device.token,
         status: device.status,
         qrcode: device.qrcode,
+        contact: device.contact,
         onStatus: (cb) => {
             device.removeAllListeners("status");
             device.on("status", cb);
@@ -14,6 +15,10 @@ export function PublicDeviceBuilder(device: DeviceManager, wavoip: Wavoip): Devi
         onQRCode: (cb) => {
             device.removeAllListeners("qrcode");
             device.on("qrcode", cb);
+        },
+        onContact: (cb) => {
+            device.removeAllListeners("contact");
+            device.on("contact", cb);
         },
         wakeUp: () => device.getInfos(),
         restart: () => device.restart(),
