@@ -44,6 +44,7 @@ export class DeviceManager extends EventEmitter<Events> {
 
         this.socket.on("device:contact", (type, contact) => {
             this.contact[type] = contact;
+            this.emit("contact", type, contact);
         });
 
         this.socket.on("disconnect", () => {
