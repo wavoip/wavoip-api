@@ -24,6 +24,8 @@ export function PublicDeviceBuilder(device: DeviceManager, wavoip: Wavoip): Devi
         restart: () => device.restart(),
         logout: () => device.logout(),
         pairingCode: (phone: string) => device.requestPairingCode(phone),
-        delete: () => wavoip.removeDevices([device.token]),
+        delete: () => {
+            wavoip.removeDevices([device.token]);
+        },
     };
 }
