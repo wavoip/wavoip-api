@@ -63,6 +63,10 @@ export class CallManager {
             call.status = status;
             call.callbacks.onStatus?.(status);
 
+            if (status === "ACTIVE") {
+                call.callbacks.onAccept?.();
+            }
+
             if (status === "NOT ANSWERED") {
                 call.callbacks.onUnanswered?.();
                 call.callbacks.onEnd?.();

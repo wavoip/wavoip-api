@@ -23,7 +23,7 @@ export class AudioInput extends EventEmitter<Events> {
     }
 
     async start(stream: MediaStream) {
-        if (this.audio_context.state === "suspended") {
+        if (this.audio_context.state !== "running") {
             await this.audio_context.resume();
         }
 
@@ -38,11 +38,17 @@ export class AudioInput extends EventEmitter<Events> {
     }
 
     async stop() {
-        this.resample_node?.disconnect();
-        this.resample_node = null;
+        if (this.resample_node) {
+            if (this.source) {
+                this.source.disconnect(this.resample_node);
+            }
 
-        if (this.audio_context.state !== "running") {
-            this.audio_context.suspend();
+            this.resample_node.port.onmessage = null;
+            this.resample_node.disconnect();
         }
+
+        this.resample_node = null;
+        this.source = null;
+        this.removeAllListeners("audio-data");
     }
 }

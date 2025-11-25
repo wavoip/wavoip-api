@@ -44,6 +44,18 @@ export class Multimedia extends EventEmitter<Events> {
         );
     }
 
+    async canCall(): Promise<{ err: string | null }> {
+        if (!this.microphone.deviceUsed) {
+            if (!this.microphone.devices.length) {
+                return { err: "Nenhum microfone encontrado" };
+            }
+
+            return { err: "Nenhum microfone selecionado" };
+        }
+
+        return { err: null };
+    }
+
     async startTransport(token: string, config: CallTransport): Promise<ITransport> {
         if (config.type === "official") {
             if (!this.webRTC) {

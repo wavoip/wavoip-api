@@ -17,8 +17,6 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     private readonly in: AudioInput;
     private readonly out: AudioOutput;
 
-    private audioAnalyserDeffer: { resolve?: (node: AnalyserNode | PromiseLike<AnalyserNode>) => void } = {};
-
     public audioAnalyser: Promise<AnalyserNode>;
     public status: TransportStatus = "connecting";
 
@@ -28,9 +26,7 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         this.in = new AudioInput(new AudioContext({ latencyHint: 0 }));
         this.out = new AudioOutput(new AudioContext({ sampleRate: 16000, latencyHint: 0 }));
 
-        this.audioAnalyser = new Promise<AnalyserNode>((resolve) => {
-            this.audioAnalyserDeffer = { resolve };
-        });
+        this.audioAnalyser = Promise.resolve({} as AnalyserNode);
     }
 
     async start(transport: CallTransport<"unofficial">, token: string) {
@@ -45,11 +41,13 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
 
         await this.out.ready;
         await this.out.start();
-        this.audioAnalyserDeffer.resolve?.(this.out.createAnalyserNode());
+        this.audioAnalyser = Promise.resolve(this.out.createAnalyserNode());
 
         this.socket = this.connect(transport, token);
 
-        this.in.on("audio-data", (data) => this.socket?.send(data as ArrayBufferLike));
+        this.in.on("audio-data", (data) => {
+            this.socket?.send(data as ArrayBufferLike);
+        });
         this.socket.addEventListener("message", (event) => {
             if (new Uint8Array(event.data).length === 4) {
                 this.socket?.send("pong");
@@ -60,10 +58,9 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     }
 
     async stop() {
-        if (this.socket) {
-            this.socket.close();
-            this.socket = null;
-        }
+        this.socket?.close();
+        this.socket = null;
+
         await this.in.stop();
         await this.out.stop();
     }

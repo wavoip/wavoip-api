@@ -3,6 +3,7 @@ import type { DeviceManager } from "../device-manager";
 import type { DeviceAllInfo } from "./device-all-info";
 
 export type DeviceStatus =
+    | "UP"
     | "disconnected"
     | "close"
     | "connecting"

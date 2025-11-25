@@ -92,6 +92,11 @@ export class Wavoip extends EventEmitter<Events> {
         | { call: CallOutgoing; err: null }
         | { call: null; err: { message: string; devices: { token: string; reason: string }[] } }
     > {
+        const { err } = await this._multimedia.canCall();
+        if (err) {
+            return { call: null, err: { message: err, devices: [] } };
+        }
+
         const devices = params.fromTokens
             ? this._devices.filter((device) => params.fromTokens?.includes(device.token))
             : this._devices;
@@ -157,12 +162,17 @@ export class Wavoip extends EventEmitter<Events> {
         fromTokens?: string[];
         to: string;
     }): AsyncGenerator<{ call: CallOutgoing; token: string; err: null } | { call: null; token?: string; err: string }> {
+        const { err } = await this._multimedia.canCall();
+        if (err) {
+            return { call: null, err };
+        }
+
         const devices = params.fromTokens
             ? this._devices.filter((device) => params.fromTokens?.includes(device.token))
             : this._devices;
 
         if (!devices.length) {
-            return { call: null, err: "Nenhum dispositivo" };
+            return { call: null, err: "Nenhum dispositivo configurado" };
         }
 
         for (const device of devices) {

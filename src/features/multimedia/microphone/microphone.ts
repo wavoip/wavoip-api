@@ -22,11 +22,17 @@ export class Microphone extends EventEmitter<Events> {
         this.updateDeviceList().then((devices) => {
             if (devices.length) this.selectDevice(devices[0].deviceId);
         });
+
+        this.requestMicPermission().catch((err) => {
+            this.emit("permission", err.name as MicError, () => this.requestMicPermission());
+        });
     }
 
-    private requestMicPermission() {
-        navigator.mediaDevices.getUserMedia({ audio: true }).catch((err) => {
-            this.emit("permission", err.name as MicError, () => this.requestMicPermission());
+    async requestMicPermission() {
+        return navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+            for (const track of stream.getTracks()) {
+                track.stop();
+            }
         });
     }
 
@@ -44,6 +50,17 @@ export class Microphone extends EventEmitter<Events> {
         this.devices = devices;
         this.emit("devices", this.devices);
         return devices;
+    }
+
+    async start() {
+        if (!this.devices[0]) {
+            return null;
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: this.devices[0].deviceId } });
+        this.deviceUsed = { ...this.devices[0], stream };
+
+        return this.deviceUsed;
     }
 
     async selectDevice(id: string) {

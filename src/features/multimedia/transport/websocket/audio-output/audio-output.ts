@@ -15,7 +15,7 @@ export class AudioOutput {
     }
 
     async start() {
-        if (this.audio_context.state === "suspended") {
+        if (this.audio_context.state !== "running") {
             await this.audio_context.resume();
         }
 
@@ -48,19 +48,11 @@ export class AudioOutput {
     }
 
     async stop() {
-        if (this.audio_context.state === "running") {
-            await this.audio_context.suspend();
-        }
+        this.playback_node?.port.postMessage({ type: "clear", buffer: [] });
+        this.playback_node?.disconnect();
+        this.playback_node = null;
 
-        if (this.playback_node) {
-            this.playback_node.port.postMessage({ type: "clear", buffer: [] });
-            this.playback_node.disconnect();
-            this.playback_node = null;
-        }
-
-        if (this.analyser_node) {
-            this.analyser_node.disconnect();
-            this.analyser_node = null;
-        }
+        this.analyser_node?.disconnect();
+        this.analyser_node = null;
     }
 }

@@ -20,6 +20,10 @@ class ResampleProcessor extends AudioWorkletProcessor {
     }
 
     process(inputs: Float32Array[][], outputs: Float32Array[][], _parameters: Record<string, Float32Array>) {
+        if (!inputs.length || !inputs[0].length || !inputs[0][0]) {
+            return true;
+        }
+
         // copy ins to outs (gross)
         for (let inputNum = 0; inputNum < inputs.length; inputNum++) {
             const input = inputs[inputNum];

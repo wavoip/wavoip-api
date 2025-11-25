@@ -12,6 +12,11 @@ export const CallBuilder = {
         return {
             ...rest,
             accept: async () => {
+                const { err: multimediaErr } = await multimedia.canCall();
+                if (multimediaErr) {
+                    return { call: null, err: multimediaErr };
+                }
+
                 const { transport: config, err } = await device.acceptCall({ call_id: call.id });
 
                 if (!config) {
@@ -21,12 +26,13 @@ export const CallBuilder = {
                 const transport = await multimedia.startTransport(device.token, config).catch(() => null);
 
                 if (!transport) {
+                    await device.endCall();
                     return { call: null, err: "TransportError" };
                 }
 
                 const _call = await CallBuilder.buildActiveCall(call, device, transport, multimedia);
 
-                if (transport instanceof WebRTCTransport && _call.direction === "INCOMING" && transport.answer) {
+                if (transport instanceof WebRTCTransport && transport.answer) {
                     device.sendSdpAnswer(transport.answer);
                     transport.on("muted", (muted) => {
                         if (muted) {

@@ -30,6 +30,9 @@ export class DeviceManager extends EventEmitter<Events> {
             transports: ["websocket"],
             path: `/${device_token}/websocket`,
             autoConnect: false,
+            auth: {
+                version: "official",
+            },
         });
 
         this.socket.on("device:qrcode", (qrcode) => {
