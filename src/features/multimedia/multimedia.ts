@@ -1,11 +1,11 @@
-import type { CallTransport } from "@/features/device/types/socket";
 import { EventEmitter } from "@/features/EventEmitter";
+import type { CallTransport } from "@/features/device/types/socket";
+import { Microphone } from "@/features/multimedia/microphone/microphone";
+import { Speaker } from "@/features/multimedia/speaker/speaker";
+import type { ITransport } from "@/features/multimedia/transport/ITransport";
 import { WebRTCTransport } from "@/features/multimedia/transport/webrtc/WebRTCTransport";
 import { WebsocketTransport } from "@/features/multimedia/transport/websocket/WebsocketTransport";
 import type { MultimediaError } from "@/features/multimedia/types/error";
-import { Speaker } from "@/features/multimedia/speaker/speaker";
-import { Microphone } from "@/features/multimedia/microphone/microphone";
-import type { ITransport } from "@/features/multimedia/transport/ITransport";
 
 type Events = {
     error: [error: MultimediaError];
@@ -45,12 +45,8 @@ export class Multimedia extends EventEmitter<Events> {
     }
 
     async canCall(): Promise<{ err: string | null }> {
-        if (!this.microphone.deviceUsed) {
-            if (!this.microphone.devices.length) {
-                return { err: "Nenhum microfone encontrado" };
-            }
-
-            return { err: "Nenhum microfone selecionado" };
+        if (!this.microphone.devices.length) {
+            return { err: "Nenhum microfone encontrado" };
         }
 
         return { err: null };

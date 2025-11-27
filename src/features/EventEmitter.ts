@@ -35,6 +35,6 @@ export class EventEmitter<TEvents extends EventsDefaultMap> {
     }
 
     removeAllListeners<T extends keyof TEvents>(event: T) {
-        this.listeners.delete(event);
+        return this.listeners.delete(event);
     }
 }

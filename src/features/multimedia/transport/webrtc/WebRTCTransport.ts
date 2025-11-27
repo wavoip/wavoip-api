@@ -52,9 +52,11 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     }
 
     async start(offer: RTCSessionDescriptionInit) {
-        if (!this.microphone.deviceUsed) return;
+        const deviceUsed = await this.microphone.start();
 
-        const localStream = this.microphone.deviceUsed.stream;
+        if (!deviceUsed) return;
+
+        const localStream = deviceUsed.stream;
 
         if (this.audioContext.state === "suspended") {
             await this.audioContext.resume();
@@ -119,6 +121,8 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         if (this.audioContext.state === "running") {
             await this.audioContext.suspend();
         }
+
+        this.microphone.stop();
 
         this.audioAnalyser = new Promise<AnalyserNode>((resolve) => {
             this.audioAnalyserDeffer = { resolve };

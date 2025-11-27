@@ -19,9 +19,7 @@ export class Microphone extends EventEmitter<Events> {
 
         navigator.mediaDevices.addEventListener("devicechange", () => this.updateDeviceList());
 
-        this.updateDeviceList().then((devices) => {
-            if (devices.length) this.selectDevice(devices[0].deviceId);
-        });
+        this.updateDeviceList();
 
         this.requestMicPermission().catch((err) => {
             this.emit("permission", err.name as MicError, () => this.requestMicPermission());
@@ -57,10 +55,7 @@ export class Microphone extends EventEmitter<Events> {
             return null;
         }
 
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: this.devices[0].deviceId } });
-        this.deviceUsed = { ...this.devices[0], stream };
-
-        return this.deviceUsed;
+        return this.selectDevice(this.devices[0].deviceId);
     }
 
     async selectDevice(id: string) {
@@ -73,5 +68,13 @@ export class Microphone extends EventEmitter<Events> {
         this.deviceUsed = { ...device, stream };
 
         return this.deviceUsed;
+    }
+
+    stop() {
+        if (this.deviceUsed) {
+            for (const track of this.deviceUsed.stream.getTracks()) {
+                track.stop();
+            }
+        }
     }
 }
