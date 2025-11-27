@@ -1,11 +1,11 @@
-import type { CallTransport } from "@/features/device/types/socket";
 import { EventEmitter } from "@/features/EventEmitter";
+import type { CallTransport } from "@/features/call/types/call";
+import { Microphone } from "@/features/multimedia/microphone/microphone";
+import { Speaker } from "@/features/multimedia/speaker/speaker";
+import type { ITransport } from "@/features/multimedia/transport/ITransport";
 import { WebRTCTransport } from "@/features/multimedia/transport/webrtc/WebRTCTransport";
 import { WebsocketTransport } from "@/features/multimedia/transport/websocket/WebsocketTransport";
 import type { MultimediaError } from "@/features/multimedia/types/error";
-import { Speaker } from "@/features/multimedia/speaker/speaker";
-import { Microphone } from "@/features/multimedia/microphone/microphone";
-import type { ITransport } from "@/features/multimedia/transport/ITransport";
 
 type Events = {
     error: [error: MultimediaError];
