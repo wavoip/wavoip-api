@@ -6,7 +6,7 @@ export type CallDirection = "INCOMING" | "OUTGOING";
 export type CallStatus =
     | "RINGING"
     | "CALLING"
-    | "NOT ANSWERED"
+    | "NOT_ANSWERED"
     | "ACTIVE"
     | "ENDED"
     | "REJECTED"
