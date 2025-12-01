@@ -14,5 +14,13 @@ export default defineConfig({
         outDir: "src/features/multimedia/transport/websocket/audio-input",
         target: "esnext",
         emptyOutDir: false,
+        rollupOptions: {
+            external: ["@alexanderolsen/libsamplerate-js"],
+            output: {
+                globals: {
+                    "@alexanderolsen/libsamplerate-js": "libsamplerate",
+                },
+            },
+        },
     },
 });

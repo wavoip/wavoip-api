@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import tsconfigPaths from "vite-tsconfig-paths";
+import pkg from "./package.json";
 
 export default defineConfig({
     plugins: [
@@ -29,7 +30,14 @@ export default defineConfig({
         },
         emptyOutDir: true,
         rollupOptions: {
-            external: ["socket_ioClient"],
+            external: [...Object.keys(pkg.dependencies || {})],
+            output: {
+                globals: {
+                    "socket.io-client": "io",
+                    axios: "axios",
+                    "@alexanderolsen/libsamplerate-js": "libsamplerate",
+                },
+            },
         },
     },
 });

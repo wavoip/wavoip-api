@@ -58,9 +58,7 @@ export class CallManager {
 
     bindDeviceEvents(device: DeviceManager) {
         device.socket.on("call:status", (call_id, status) => {
-            console.log("status", status);
             const call = this.calls.get(call_id);
-            console.log({ call });
             if (!call) return;
 
             call.status = status;
@@ -71,7 +69,6 @@ export class CallManager {
             }
 
             if (status === "NOT_ANSWERED") {
-                console.log("calling not answered callback");
                 call.callbacks.onUnanswered?.();
                 call.callbacks.onEnd?.();
                 this.calls.delete(call.id);

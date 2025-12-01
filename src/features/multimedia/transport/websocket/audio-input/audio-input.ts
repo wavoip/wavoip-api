@@ -17,8 +17,16 @@ export class AudioInput extends EventEmitter<Events> {
 
         this.ready = new Promise<void>((resolve) => {
             this.audio_context.audioWorklet
-                .addModule(new URL("./AudioWorkletMic.js", import.meta.url))
-                .then(() => resolve());
+                .addModule(
+                    "https://cdn.jsdelivr.net/npm/@alexanderolsen/libsamplerate-js@2.1.2/dist/libsamplerate.min.js",
+                )
+                .then(() =>
+                    this.audio_context.audioWorklet
+                        .addModule(new URL("./AudioWorkletMic.js", import.meta.url))
+                        .then(() => {
+                            resolve();
+                        }),
+                );
         });
     }
 
