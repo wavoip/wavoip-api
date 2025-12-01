@@ -20,12 +20,10 @@ export function PublicDeviceBuilder(device: DeviceManager, wavoip: Wavoip): Devi
             device.removeAllListeners("contact");
             device.on("contact", cb);
         },
-        wakeUp: () => device.getInfos(),
-        restart: () => device.restart(),
-        logout: () => device.logout(),
-        pairingCode: (phone: string) => device.requestPairingCode(phone),
-        delete: () => {
-            wavoip.removeDevices([device.token]);
-        },
+        wakeUp: device.getInfos,
+        restart: device.restart,
+        logout: device.logout,
+        pairingCode: device.requestPairingCode,
+        delete: () => wavoip.removeDevices([device.token]),
     };
 }

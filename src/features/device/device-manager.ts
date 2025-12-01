@@ -1,7 +1,8 @@
+import { EventEmitter } from "@/features/EventEmitter";
+import type { CallPeer, CallTransport, CallType } from "@/features/call/types/call";
 import type { DeviceStatus } from "@/features/device/types/device";
 import type { DeviceAllInfo } from "@/features/device/types/device-all-info";
-import type { CallPeer, CallTransport, CallType, DeviceSocket } from "@/features/device/types/socket";
-import { EventEmitter } from "@/features/EventEmitter";
+import type { DeviceSocket } from "@/features/device/types/socket";
 import axios, { type AxiosInstance } from "axios";
 import { io } from "socket.io-client";
 
