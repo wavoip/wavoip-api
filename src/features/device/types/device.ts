@@ -1,4 +1,4 @@
-import type { CallType } from "@/features/device/types/socket";
+import type { CallType } from "@/features/call/types/call";
 import type { DeviceManager } from "../device-manager";
 import type { DeviceAllInfo } from "./device-all-info";
 

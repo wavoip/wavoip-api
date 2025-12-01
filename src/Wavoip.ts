@@ -62,18 +62,18 @@ export class Wavoip extends EventEmitter<Events> {
      * If all devices fail, it returns a detailed error report listing the reasons per device.
      *
      * @async
+     * @function
+     *
      * @param {Object} params - Parameters for starting the call.
      * @param {string[]} [params.fromTokens] - Specific device tokens to use.
      *   If omitted, all registered devices will be tried.
      * @param {string} params.to - The peer number (target) to call.
      *
-     * @returns {Promise<
-     *   | { call: CallOutgoing; err: null }
-     *   | { call: null; err: { message: string; devices: { token: string; reason: string }[] } }
-     * >}
-     * A promise that resolves with either:
-     * - A successful outgoing call and `err: null`, or
-     * - An error containing a message and a list of failed devices with reasons.
+     * @returns {Promise<Object>} A promise that resolves with the result.
+     * @returns {Promise<Object>} return.call - The outgoing call on success, otherwise `null`.
+     * @returns {Promise<null | Object>} return.err - `null` on success, or an error object if all devices failed.
+     * @returns {Promise<string>} [return.err.message] - General error message.
+     * @returns {Promise<Array<{ token: string, reason: string }>>} [return.err.devices] - Per-device failure details.
      *
      * @example
      * const result = await instance.startCall({ to: "5511999999999" });
@@ -97,8 +97,8 @@ export class Wavoip extends EventEmitter<Events> {
             return { call: null, err: { message: err, devices: [] } };
         }
 
-        const devices = params.fromTokens
-            ? this._devices.filter((device) => params.fromTokens?.includes(device.token))
+        const devices = params.fromTokens?.length
+            ? params.fromTokens.map((token) => this._devices.find((d) => d.token === token)).filter((d) => !!d)
             : this._devices;
 
         if (!devices.length) {
@@ -122,7 +122,7 @@ export class Wavoip extends EventEmitter<Events> {
                 continue;
             }
 
-            const outgoing = await this.call_manager.buildOutgoing(call.id, call.peer, call.transport, device);
+            const outgoing = await this.call_manager.buildOutgoing({ ...call, type: "unofficial" }, device);
 
             return { call: outgoing, err: null };
         }
@@ -134,20 +134,27 @@ export class Wavoip extends EventEmitter<Events> {
      * Attempts to start an outgoing call using one or more available devices.
      *
      * This async generator yields the result of each device's call attempt,
-     * and returns the first successful call, if any.
+     * and eventually returns the first successful call (if any).
      *
      * @async
      * @generator
+     * @function
+     *
      * @param {Object} params - Parameters for starting the call.
-     * @param {string[]} [params.fromTokens] - Specific device tokens to use.
-     *   If omitted, all registered devices will be tried.
+     * @param {string[]} [params.fromTokens] -
+     *   Specific device tokens to use. If omitted, all registered devices
+     *   will be tried.
      * @param {string} params.to - The peer number (target) to call.
      *
-     * @yields {{ call: null, token: string, err: string }} -
-     *   Emitted when a device fails to start a call, including its token and error message.
+     * @yields {Object} result - Result of an individual device attempt.
+     * @yields {null | Object} result.call - The call object if the device succeeded, otherwise `null`.
+     * @yields {string} result.token - The token of the device being attempted.
+     * @yields {string | null} result.err - Error message if the attempt failed.
      *
-     * @returns {{ call: CallOutgoing, token: string, err: null } | { call: null, err: string }} -
-     *   The first successful call, or a final error if no call succeeded.
+     * @returns {Promise<Object>} The first successful call attempt or a final failure result.
+     * @returns {Promise<Object>} return.call - The successful `CallOutgoing` instance, or `null` if none succeeded.
+     * @returns {Promise<string | null>} return.err - `null` if successful, or an error description.
+     * @returns {Promise<string | undefined>} return.token - The device token used for the successful call.
      *
      * @example
      * for await (const result of instance.startCallIterator({ to: "5511999999999" })) {
@@ -167,8 +174,8 @@ export class Wavoip extends EventEmitter<Events> {
             return { call: null, err };
         }
 
-        const devices = params.fromTokens
-            ? this._devices.filter((device) => params.fromTokens?.includes(device.token))
+        const devices = params.fromTokens?.length
+            ? params.fromTokens.map((token) => this._devices.find((d) => d.token === token)).filter((d) => !!d)
             : this._devices;
 
         if (!devices.length) {
@@ -194,7 +201,7 @@ export class Wavoip extends EventEmitter<Events> {
                 continue;
             }
 
-            const outgoing = await this.call_manager.buildOutgoing(call.id, call.peer, call.transport, device);
+            const outgoing = await this.call_manager.buildOutgoing({ ...call, type: "unofficial" }, device);
             return { call: outgoing, token: device.token };
         }
 
@@ -266,7 +273,7 @@ export class Wavoip extends EventEmitter<Events> {
      * @yields {{ token: string, waken: boolean }} -
      *   The result for each device, indicating whether it was successfully awakened.
      *
-     * @returns {void}
+     * @returns {AsyncGenerator<{token: string; waken: boolean;}, void, unknown>}
      *   When all devices have been processed.
      *
      * @example
@@ -274,7 +281,9 @@ export class Wavoip extends EventEmitter<Events> {
      *   console.log(`${result.token}: ${result.waken ? "awake" : "still asleep"}`);
      * }
      */
-    async *wakeUpDevicesIterator(tokens: string[] = []) {
+    async *wakeUpDevicesIterator(
+        tokens: string[] = [],
+    ): AsyncGenerator<{ token: string; waken: boolean }, void, unknown> {
         const devices = tokens.length ? this._devices.filter((device) => tokens.includes(device.token)) : this._devices;
 
         for (const device of devices) {
@@ -311,7 +320,7 @@ export class Wavoip extends EventEmitter<Events> {
 
     private bindDeviceEvents(device: DeviceManager) {
         device.socket.on("call:offer", (call) => {
-            const offer = this.call_manager.onOffer(call.id, call.peer, device);
+            const offer = this.call_manager.buildOffer(call, device);
             this.emit("offer", offer);
         });
 

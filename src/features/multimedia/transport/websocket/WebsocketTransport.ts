@@ -1,5 +1,5 @@
 import { EventEmitter } from "@/features/EventEmitter";
-import type { CallTransport } from "@/features/device/types/socket";
+import type { CallTransport } from "@/features/call/types/call";
 import type { Microphone } from "@/features/multimedia/microphone/microphone";
 import type { ITransport, TransportStatus } from "@/features/multimedia/transport/ITransport";
 import { AudioInput } from "@/features/multimedia/transport/websocket/audio-input/audio-input";

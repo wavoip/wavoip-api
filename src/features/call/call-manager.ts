@@ -1,8 +1,8 @@
-import { CallBuilder } from "@/features/call/call-builder";
-import type { Call, CallStats } from "@/features/call/types/call";
+import type { Call, CallPeer, CallStats, CallTransport, CallType } from "@/features/call/types/call";
 import type { DeviceManager } from "@/features/device/device-manager";
-import type { CallPeer, CallTransport } from "@/features/device/types/socket";
 import type { Multimedia } from "@/features/multimedia/multimedia";
+import { CallOffer } from "./CallOffer";
+import { CallOutgoing } from "./CallOutgoing";
 
 export class CallManager {
     private calls: Map<string, Call>;
@@ -11,30 +11,38 @@ export class CallManager {
         this.calls = new Map();
     }
 
-    onOffer(id: string, peer: CallPeer, device: DeviceManager) {
-        const call: Call = {
-            id,
+    buildOffer(call: { id: string; peer: CallPeer; type: CallType }, device: DeviceManager) {
+        const _call: Call = {
+            id: call.id,
+            type: call.type,
             device_token: device.token,
             direction: "INCOMING",
             status: "RINGING",
             muted: false,
             peer: {
-                ...peer,
+                ...call.peer,
                 muted: false,
             },
             callbacks: {},
         };
 
-        this.calls.set(call.id, call);
-        return CallBuilder.buildOffer(call, device, this.multimedia);
+        this.calls.set(_call.id, _call);
+
+        return CallOffer(_call, device, this.multimedia);
     }
 
-    async buildOutgoing(id: string, peer: CallPeer, transport: CallTransport, device: DeviceManager) {
-        const call: Call = {
-            id,
+    async buildOutgoing(
+        call: { id: string; peer: CallPeer; type: CallType; transport: CallTransport },
+        device: DeviceManager,
+    ) {
+        const transport = await this.multimedia.startTransport(device.token, call.transport);
+
+        const _call: Call = {
+            id: call.id,
+            type: call.type,
             device_token: device.token,
             peer: {
-                ...peer,
+                ...call.peer,
                 muted: false,
             },
             direction: "OUTGOING",
@@ -43,16 +51,9 @@ export class CallManager {
             callbacks: {},
         };
 
-        this.calls.set(call.id, call);
-        return await CallBuilder.buildOutgoing(call, device, this.multimedia, transport);
-    }
+        this.calls.set(_call.id, _call);
 
-    getCall(id: string) {
-        return this.calls.get(id);
-    }
-
-    removeCall(id: string) {
-        this.calls.delete(id);
+        return CallOutgoing(_call, device, this.multimedia, transport);
     }
 
     bindDeviceEvents(device: DeviceManager) {
@@ -165,9 +166,8 @@ export class CallManager {
 
             for (const call of this.calls.values()) {
                 call.callbacks.onStatus?.("DISCONNECTED");
-                setTimeout(() => {
-                    call.callbacks.onEnd?.();
-                }, 1000);
+                call.callbacks.onEnd?.();
+                this.calls.delete(call.id);
             }
         });
     }
