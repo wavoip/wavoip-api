@@ -30,14 +30,12 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     }
 
     async start(transport: CallTransport<"unofficial">, token: string) {
-        if (!this.microphone.deviceUsed) return;
+        const deviceUsed = await this.microphone.start();
 
-        for (const track of this.microphone.deviceUsed.stream.getTracks()) {
-            track.enabled = true;
-        }
+        if (!deviceUsed) return;
 
         await this.in.ready;
-        await this.in.start(this.microphone.deviceUsed.stream);
+        await this.in.start(deviceUsed.stream);
 
         await this.out.ready;
         await this.out.start();
@@ -46,7 +44,9 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         this.socket = this.connect(transport, token);
 
         this.in.on("audio-data", (data) => {
-            this.socket?.send(data as ArrayBufferLike);
+            if (this.socket?.readyState === WebSocket.OPEN) {
+                this.socket.send(data as ArrayBufferLike);
+            }
         });
         this.socket.addEventListener("message", (event) => {
             if (new Uint8Array(event.data).length === 4) {
@@ -60,6 +60,8 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     async stop() {
         this.socket?.close();
         this.socket = null;
+
+        this.microphone.stop();
 
         await this.in.stop();
         await this.out.stop();

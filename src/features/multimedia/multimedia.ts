@@ -45,12 +45,8 @@ export class Multimedia extends EventEmitter<Events> {
     }
 
     async canCall(): Promise<{ err: string | null }> {
-        if (!this.microphone.deviceUsed) {
-            if (!this.microphone.devices.length) {
-                return { err: "Nenhum microfone encontrado" };
-            }
-
-            return { err: "Nenhum microfone selecionado" };
+        if (!this.microphone.devices.length) {
+            return { err: "Nenhum microfone encontrado" };
         }
 
         return { err: null };
