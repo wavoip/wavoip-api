@@ -1,52 +1,29 @@
-import { EventEmitter } from "@/features/EventEmitter";
 import type { CallTransport } from "@/features/call/types/call";
+import type { MultimediaError } from "@/features/multimedia/MultimediaError";
 import { Microphone } from "@/features/multimedia/microphone/microphone";
 import { Speaker } from "@/features/multimedia/speaker/speaker";
 import type { ITransport } from "@/features/multimedia/transport/ITransport";
 import { WebRTCTransport } from "@/features/multimedia/transport/webrtc/WebRTCTransport";
 import { WebsocketTransport } from "@/features/multimedia/transport/websocket/WebsocketTransport";
-import type { MultimediaError } from "@/features/multimedia/types/error";
 
-type Events = {
-    error: [error: MultimediaError];
-    permission: [error: MultimediaError, retry?: () => void];
-};
-
-export class Multimedia extends EventEmitter<Events> {
+export class Multimedia {
     private webRTC: WebRTCTransport | null = null;
     private websocket: WebsocketTransport | null = null;
 
-    public speaker: Speaker;
-    public microphone: Microphone;
+    public speaker = new Speaker();
+    public microphone = new Microphone();
 
-    constructor() {
-        super();
+    async canCall(): Promise<{ err: MultimediaError | null }> {
+        const { device: mic, err: micErr } = await this.microphone.start();
 
-        this.microphone = new Microphone();
-        this.speaker = new Speaker();
+        if (!mic) {
+            return { err: micErr };
+        }
 
-        this.microphone.on("error", (err) =>
-            this.emit("error", {
-                type: "microphone",
-                reason: err,
-            }),
-        );
+        const { device: speaker, err: speakerErr } = await this.speaker.start();
 
-        this.microphone.on("permission", (err, retry) =>
-            this.emit("permission", { type: "microphone", reason: err }, retry),
-        );
-
-        this.speaker.on("error", (err) =>
-            this.emit("error", {
-                type: "audio",
-                reason: err,
-            }),
-        );
-    }
-
-    async canCall(): Promise<{ err: string | null }> {
-        if (!this.microphone.devices.length) {
-            return { err: "Nenhum microfone encontrado" };
+        if (!speaker) {
+            return { err: speakerErr };
         }
 
         return { err: null };

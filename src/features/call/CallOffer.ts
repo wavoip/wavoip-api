@@ -11,7 +11,7 @@ export function CallOffer(call: Call, device: DeviceManager, multimedia: Multime
         async accept(): Promise<{ call: TActive; err: null } | { call: null; err: string }> {
             const { err: multimediaErr } = await multimedia.canCall();
             if (multimediaErr) {
-                return { call: null, err: multimediaErr };
+                return { call: null, err: multimediaErr.toString() };
             }
 
             const { transport: config, err } = await device.acceptCall({ call_id: call.id });

@@ -49,7 +49,7 @@ export function CallActive(call: Call, device: DeviceManager, multimedia: Multim
             call.muted = true;
 
             const mic = multimedia.microphone.deviceUsed;
-            if (mic) {
+            if (mic?.stream) {
                 for (const track of mic.stream.getTracks()) {
                     track.enabled = false;
                 }
@@ -65,7 +65,7 @@ export function CallActive(call: Call, device: DeviceManager, multimedia: Multim
 
             call.muted = false;
             const mic = multimedia.microphone.deviceUsed;
-            if (mic) {
+            if (mic?.stream) {
                 for (const track of mic.stream.getTracks()) {
                     track.enabled = true;
                 }

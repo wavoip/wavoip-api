@@ -1,37 +1,24 @@
 import { EventEmitter } from "@/features/EventEmitter";
-import type { MicError } from "@/features/multimedia/microphone/types/error";
+import { MultimediaError } from "@/features/multimedia/MultimediaError";
 import type { MultimediaDevice } from "@/features/multimedia/types/multimedia-device";
 
 export type Events = {
-    error: [error: MicError];
     devices: [devices: MultimediaDevice[]];
-    permission: [error: MicError, retry: () => void];
 };
 
 export class Microphone extends EventEmitter<Events> {
-    public deviceUsed: (MultimediaDevice & { stream: MediaStream }) | null = null;
-    public devices: MultimediaDevice[];
+    public deviceUsed: (MultimediaDevice & { stream?: MediaStream }) | null = null;
+    public devices: MultimediaDevice[] = [];
 
     constructor() {
         super();
 
-        this.devices = [];
-
         navigator.mediaDevices.addEventListener("devicechange", () => this.updateDeviceList());
-
         this.updateDeviceList();
-
-        this.requestMicPermission().catch((err) => {
-            this.emit("permission", err.name as MicError, () => this.requestMicPermission());
-        });
     }
 
     async requestMicPermission() {
-        return navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-            for (const track of stream.getTracks()) {
-                track.stop();
-            }
-        });
+        return navigator.mediaDevices.getUserMedia({ audio: true });
     }
 
     private async updateDeviceList(): Promise<MultimediaDevice[]> {
@@ -51,30 +38,38 @@ export class Microphone extends EventEmitter<Events> {
     }
 
     async start() {
-        if (!this.devices[0]) {
-            return null;
+        if (!this.devices.length) {
+            return { device: null, err: new MultimediaError("microphone", new DOMException("", "NotFoundError")) };
         }
 
-        return this.selectDevice(this.devices[0].deviceId);
+        return this.selectDevice(this.deviceUsed?.deviceId || this.devices[0].deviceId);
     }
 
     async selectDevice(id: string) {
         const device = this.devices.find((device) => device.deviceId === id) || null;
 
-        if (!device) return null;
+        if (!device)
+            return { device: null, err: new MultimediaError("microphone", new DOMException("", "NotFoundError")) };
 
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: device.deviceId } });
+        const { stream, err } = await navigator.mediaDevices
+            .getUserMedia({ audio: { deviceId: device.deviceId } })
+            .then((stream) => ({ stream, err: null }))
+            .catch((err: DOMException) => ({ stream: null, err }));
+
+        if (!stream) return { device: null, err: new MultimediaError("microphone", err) };
 
         this.deviceUsed = { ...device, stream };
 
-        return this.deviceUsed;
+        return { device: this.deviceUsed, err: null };
     }
 
     stop() {
-        if (this.deviceUsed) {
+        if (this.deviceUsed?.stream) {
             for (const track of this.deviceUsed.stream.getTracks()) {
                 track.stop();
             }
+
+            this.deviceUsed.stream = undefined;
         }
     }
 }

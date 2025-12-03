@@ -1,7 +1,1 @@
-export type MicError =
-    | "NotAllowedError"
-    | "NotFoundError"
-    | "NotReadableError"
-    | "OverconstrainedError"
-    | "SecurityError"
-    | "AbortError";
+export type MicError = DOMException;

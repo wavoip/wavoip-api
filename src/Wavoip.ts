@@ -5,7 +5,6 @@ import { PublicDeviceBuilder } from "@/features/device/PublicDeviceBuilder";
 import { DeviceManager } from "@/features/device/device-manager";
 import type { Device } from "@/features/device/types/device";
 import { Multimedia } from "@/features/multimedia/multimedia";
-import type { MultimediaError } from "@/features/multimedia/types/error";
 
 type Events = {
     offer: [callOffer: CallOffer];
@@ -39,7 +38,6 @@ export class Wavoip extends EventEmitter<Events> {
         return {
             microphone: this._multimedia.microphone,
             speaker: this._multimedia.speaker,
-            on: this._multimedia.on,
         };
     }
 
@@ -48,11 +46,6 @@ export class Wavoip extends EventEmitter<Events> {
         const speakers = this.multimedia.speaker.devices;
 
         return { microphones, speakers };
-    }
-
-    onMultimediaError(cb: (err: MultimediaError, retry?: () => void) => void) {
-        this._multimedia.removeAllListeners("error");
-        this._multimedia.on("error", cb);
     }
 
     /**
@@ -94,7 +87,7 @@ export class Wavoip extends EventEmitter<Events> {
     > {
         const { err } = await this._multimedia.canCall();
         if (err) {
-            return { call: null, err: { message: err, devices: [] } };
+            return { call: null, err: { message: err.toString(), devices: [] } };
         }
 
         const devices = params.fromTokens?.length
@@ -168,10 +161,13 @@ export class Wavoip extends EventEmitter<Events> {
     async *startCallIterator(params: {
         fromTokens?: string[];
         to: string;
-    }): AsyncGenerator<{ call: CallOutgoing; token: string; err: null } | { call: null; token?: string; err: string }> {
+    }): AsyncGenerator<
+        { call: null; token: string; err: string },
+        { call: CallOutgoing; token: string } | { call: null; err: string }
+    > {
         const { err } = await this._multimedia.canCall();
         if (err) {
-            return { call: null, err };
+            return { call: null, err: err.toString() };
         }
 
         const devices = params.fromTokens?.length
