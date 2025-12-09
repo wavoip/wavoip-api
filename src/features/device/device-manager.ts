@@ -32,6 +32,7 @@ export class DeviceManager extends EventEmitter<Events> {
             path: `/${device_token}/websocket`,
             autoConnect: false,
             auth: {
+                upgrade: "true",
                 version: "official",
             },
         });
