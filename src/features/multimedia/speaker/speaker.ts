@@ -34,24 +34,14 @@ export class Speaker extends EventEmitter<Events> {
     }
 
     async start() {
-        if (!this.devices.length) {
-            return { device: null, err: new MultimediaError("audio", new DOMException("", "NotFoundError")) };
-        }
-
-        return this.selectDevice(this.deviceUsed?.deviceId || this.devices[0].deviceId);
-    }
-
-    async selectDevice(id: string) {
-        const device = this.devices.find((device) => device.deviceId === id) || null;
-
-        if (!device) return { device: null, err: new MultimediaError("audio", new DOMException("", "NotFoundError")) };
-
         const { stream, err } = await navigator.mediaDevices
-            .getUserMedia({ audio: { deviceId: device.deviceId } })
+            .getUserMedia({ audio: true })
             .then((stream) => ({ stream, err: null }))
             .catch((err: DOMException) => ({ stream: null, err }));
 
-        if (!stream) return { device: null, err: new MultimediaError("audio", new DOMException("", "NotFoundError")) };
+        if (!stream) return { device: null, err: new MultimediaError("audio", err) };
+
+        const device = this.devices.find((device) => device.deviceId === "") as MultimediaDevice;
 
         this.deviceUsed = { ...device, stream };
 

@@ -22,6 +22,14 @@ export class Microphone extends EventEmitter<Events> {
     }
 
     private async updateDeviceList(): Promise<MultimediaDevice[]> {
+        const devicesall: MultimediaDevice[] = await navigator.mediaDevices.enumerateDevices().then((devices) =>
+            devices.map((mic) => ({
+                type: "audio-in",
+                label: mic.label || "Unnamed Microphone",
+                deviceId: mic.deviceId,
+            })),
+        );
+
         const devices: MultimediaDevice[] = await navigator.mediaDevices.enumerateDevices().then((devices) =>
             devices
                 .filter((device) => device.kind === "audioinput")
@@ -42,21 +50,18 @@ export class Microphone extends EventEmitter<Events> {
             return { device: null, err: new MultimediaError("microphone", new DOMException("", "NotFoundError")) };
         }
 
-        return this.selectDevice(this.deviceUsed?.deviceId || this.devices[0].deviceId);
+        return this.selectDevice(this.deviceUsed?.deviceId);
     }
 
-    async selectDevice(id: string) {
-        const device = this.devices.find((device) => device.deviceId === id) || null;
-
-        if (!device)
-            return { device: null, err: new MultimediaError("microphone", new DOMException("", "NotFoundError")) };
-
+    async selectDevice(id?: string) {
         const { stream, err } = await navigator.mediaDevices
-            .getUserMedia({ audio: { deviceId: device.deviceId } })
+            .getUserMedia({ audio: true })
             .then((stream) => ({ stream, err: null }))
             .catch((err: DOMException) => ({ stream: null, err }));
 
         if (!stream) return { device: null, err: new MultimediaError("microphone", err) };
+
+        const device = this.devices.find((d) => d.deviceId === id) as MultimediaDevice;
 
         this.deviceUsed = { ...device, stream };
 
