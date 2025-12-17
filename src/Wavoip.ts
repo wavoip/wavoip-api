@@ -225,6 +225,7 @@ export class Wavoip extends EventEmitter<Events> {
             const device = new DeviceManager(token);
             this._devices.push(device);
             devices.push(device);
+            this.bindDeviceEvents(device);
         }
 
         return devices.map((device) => PublicDeviceBuilder(device, this));
