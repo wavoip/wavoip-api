@@ -3,7 +3,7 @@ import type { CallPeer, CallTransport, CallType } from "@/features/call/types/ca
 import type { DeviceStatus } from "@/features/device/types/device";
 import type { DeviceAllInfo } from "@/features/device/types/device-all-info";
 import type { DeviceSocket } from "@/features/device/types/socket";
-import axios, { type AxiosInstance } from "axios";
+import axios, { isAxiosError, type AxiosInstance } from "axios";
 import { io } from "socket.io-client";
 
 type Events = {
@@ -70,7 +70,7 @@ export class DeviceManager extends EventEmitter<Events> {
             });
         });
 
-        this.getInfos().then((infos) => {
+        this.tryToConnect().then((infos) => {
             if (!infos) {
                 this.status = "error";
                 this.emit("status", this.status);
@@ -205,7 +205,7 @@ export class DeviceManager extends EventEmitter<Events> {
         return this.api
             .get<{ result: DeviceAllInfo }>("/whatsapp/all_info")
             .then((res) => res.data.result)
-            .catch(() => null);
+            .catch((err) => null);
     }
 
     async restart() {
@@ -220,5 +220,29 @@ export class DeviceManager extends EventEmitter<Events> {
             .get<{ result: string }>("/whatsapp/logout")
             .then((res) => res.data.result)
             .catch(() => null);
+    }
+
+    private async tryToConnect() {
+        let allInfo: DeviceAllInfo | null = null;
+
+        let shouldKeepTrying = true;
+        let count = 0;
+        while (shouldKeepTrying) {
+            count++;
+            allInfo = await this.api
+                .get<{ result: DeviceAllInfo }>("/whatsapp/all_info")
+                .then((res) => {
+                    shouldKeepTrying = !allInfo;
+                    return res.data.result;
+                })
+                .catch((err) => {
+                    shouldKeepTrying = !(isAxiosError(err) && err.response);
+                    return null;
+                });
+
+            await new Promise<void>((resolve) => setTimeout(() => resolve(), 3_000));
+        }
+
+        return allInfo;
     }
 }
