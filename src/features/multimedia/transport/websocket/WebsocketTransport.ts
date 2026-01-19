@@ -30,10 +30,11 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     }
 
     async start(transport: CallTransport<"unofficial">, token: string) {
-        if (!this.microphone.deviceUsed?.stream) return;
+        const { device } = await this.microphone.start();
+        if (!device?.stream) return;
 
         await this.in.ready;
-        await this.in.start(this.microphone.deviceUsed.stream);
+        await this.in.start(device.stream);
 
         await this.out.ready;
         await this.out.start();

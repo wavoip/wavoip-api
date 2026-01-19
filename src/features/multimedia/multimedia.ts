@@ -15,16 +15,17 @@ export class Multimedia {
 
     async canCall(): Promise<{ err: MultimediaError | null }> {
         const { device: mic, err: micErr } = await this.microphone.start();
+        this.microphone.stop();
 
         if (!mic) {
             return { err: micErr };
         }
 
-        const { device: speaker, err: speakerErr } = await this.speaker.start();
-
-        if (!speaker) {
-            return { err: speakerErr };
-        }
+        // const { device: speaker, err: speakerErr } = await this.speaker.start();
+        //
+        // if (!speaker) {
+        //     return { err: speakerErr };
+        // }
 
         return { err: null };
     }

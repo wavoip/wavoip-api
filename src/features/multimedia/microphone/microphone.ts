@@ -22,14 +22,6 @@ export class Microphone extends EventEmitter<Events> {
     }
 
     private async updateDeviceList(): Promise<MultimediaDevice[]> {
-        const devicesall: MultimediaDevice[] = await navigator.mediaDevices.enumerateDevices().then((devices) =>
-            devices.map((mic) => ({
-                type: "audio-in",
-                label: mic.label || "Unnamed Microphone",
-                deviceId: mic.deviceId,
-            })),
-        );
-
         const devices: MultimediaDevice[] = await navigator.mediaDevices.enumerateDevices().then((devices) =>
             devices
                 .filter((device) => device.kind === "audioinput")

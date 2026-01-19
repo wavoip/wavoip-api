@@ -1,5 +1,4 @@
 import { EventEmitter } from "@/features/EventEmitter";
-import { MultimediaError } from "@/features/multimedia/MultimediaError";
 import type { MultimediaDevice } from "@/features/multimedia/types/multimedia-device";
 
 export type Events = {
@@ -33,18 +32,18 @@ export class Speaker extends EventEmitter<Events> {
         return devices as MultimediaDevice[];
     }
 
-    async start() {
-        const { stream, err } = await navigator.mediaDevices
-            .getUserMedia({ audio: true })
-            .then((stream) => ({ stream, err: null }))
-            .catch((err: DOMException) => ({ stream: null, err }));
-
-        if (!stream) return { device: null, err: new MultimediaError("audio", err) };
-
-        const device = this.devices.find((device) => device.deviceId === "") as MultimediaDevice;
-
-        this.deviceUsed = { ...device, stream };
-
-        return { device: this.deviceUsed, err: null };
-    }
+    // async start() {
+    //     const { stream, err } = await navigator.mediaDevices
+    //         .getUserMedia({ audio: true })
+    //         .then((stream) => ({ stream, err: null }))
+    //         .catch((err: DOMException) => ({ stream: null, err }));
+    //
+    //     if (!stream) return { device: null, err: new MultimediaError("audio", err) };
+    //
+    //     const device = this.devices.find((device) => device.deviceId === "") as MultimediaDevice;
+    //
+    //     this.deviceUsed = { ...device, stream };
+    //
+    //     return { device: this.deviceUsed, err: null };
+    // }
 }

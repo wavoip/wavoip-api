@@ -52,9 +52,10 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     }
 
     async start(offer: RTCSessionDescriptionInit) {
-        if (!this.microphone.deviceUsed?.stream) return;
+        const { device } = await this.microphone.start();
+        if (!device?.stream) return;
 
-        const localStream = this.microphone.deviceUsed.stream;
+        const localStream = device.stream;
 
         if (this.audioContext.state === "suspended") {
             await this.audioContext.resume();
