@@ -1,6 +1,6 @@
 {
     "name": "@wavoip/wavoip-api",
-    "version": "2.1.9",
+    "version": "2.1.10",
     "license": "MIT",
     "main": "dist/index.umd.js",
     "types": "dist/index.d.ts",
