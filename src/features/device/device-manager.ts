@@ -31,10 +31,7 @@ export class DeviceManager extends EventEmitter<Events> {
             transports: ["websocket"],
             path: `/${device_token}/websocket`,
             autoConnect: false,
-            auth: {
-                upgrade: "true",
-                version: "official",
-            },
+            auth: { version: "official" },
         });
 
         this.socket.on("device:qrcode", (qrcode) => {
@@ -205,7 +202,7 @@ export class DeviceManager extends EventEmitter<Events> {
         return this.api
             .get<{ result: DeviceAllInfo }>("/whatsapp/all_info")
             .then((res) => res.data.result)
-            .catch((err) => null);
+            .catch(() => null);
     }
 
     async restart() {
