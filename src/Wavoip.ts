@@ -220,7 +220,7 @@ export class Wavoip extends EventEmitter<Events> {
     addDevices(tokens: string[] = []): Device[] {
         const devices = [];
         for (const token of tokens) {
-            if (this.devices.find((device) => tokens.includes(device.token))) continue;
+            if (this._devices.some((device) => token === device.token)) continue;
 
             const device = new DeviceManager(token);
             this._devices.push(device);
