@@ -1,21 +1,24 @@
-import type { SRC } from "@alexanderolsen/libsamplerate-js/dist/src";
-
 class ResampleProcessor extends AudioWorkletProcessor {
-    private src: SRC | null = null;
+    private src = null;
     private accumulated_PCM: number[] = [];
 
     constructor(options: AudioWorkletNodeOptions) {
         super(options);
+        this.init();
+    }
+
+    async init() {
+        //@ts-expect-error
+        const { create, ConverterType } = globalThis.LibSampleRate;
 
         const nChannels = 1;
-        const inputSampleRate = options.processorOptions?.sampleRate || 48000;
-        const outputSampleRate = 16000;
-
-        const { create, ConverterType } = globalThis.LibSampleRate;
+        const inputSampleRate = 44100;
+        const outputSampleRate = 16000; // or another target sample rate
 
         create(nChannels, inputSampleRate, outputSampleRate, {
             converterType: ConverterType.SRC_SINC_BEST_QUALITY, // or some other quality
-        }).then((src: SRC) => {
+            //@ts-expect-error
+        }).then((src) => {
             this.src = src;
         });
     }
@@ -40,6 +43,7 @@ class ResampleProcessor extends AudioWorkletProcessor {
 
         // do something w.r.t. resampling
         if (this.src !== null) {
+            //@ts-expect-error
             const resampled = this.src.full(inputs[0][0], null, null);
 
             // Converte o buffer resampleado para PCM e acumula

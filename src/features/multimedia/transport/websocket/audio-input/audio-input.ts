@@ -18,7 +18,7 @@ export class AudioInput extends EventEmitter<Events> {
         this.ready = new Promise<void>((resolve) => {
             this.audio_context.audioWorklet
                 .addModule(
-                    "https://cdn.jsdelivr.net/npm/@alexanderolsen/libsamplerate-js@2.1.2/dist/libsamplerate.min.js",
+                    "https://cdn.jsdelivr.net/npm/@alexanderolsen/libsamplerate-js@2.1.2/dist/libsamplerate.worklet.js",
                 )
                 .then(() =>
                     this.audio_context.audioWorklet
