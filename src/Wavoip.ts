@@ -18,7 +18,7 @@ export class Wavoip extends EventEmitter<Events> {
 
     constructor(params: {
         tokens: string[];
-        platform: string | null | undefined;
+        platform?: string;
     }) {
         super();
 
