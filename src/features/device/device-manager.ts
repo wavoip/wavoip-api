@@ -21,7 +21,7 @@ export class DeviceManager extends EventEmitter<Events> {
 
     private api: AxiosInstance;
 
-    constructor(device_token: string) {
+    constructor(device_token: string, platform: string | null | undefined) {
         super();
 
         this.token = device_token;
@@ -31,7 +31,7 @@ export class DeviceManager extends EventEmitter<Events> {
             transports: ["websocket"],
             path: `/${device_token}/websocket`,
             autoConnect: false,
-            auth: { version: "official" },
+            auth: { version: "official", platform: platform },
         });
 
         this.socket.on("device:qrcode", (qrcode) => {
