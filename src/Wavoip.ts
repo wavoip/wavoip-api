@@ -14,13 +14,16 @@ export class Wavoip extends EventEmitter<Events> {
     private call_manager: CallManager;
     private _devices: DeviceManager[];
     private _multimedia: Multimedia;
+    private platform: string | null | undefined;
 
     constructor(params: {
         tokens: string[];
+        platform?: string;
     }) {
         super();
 
-        this._devices = [...new Set(params.tokens)].map((token) => new DeviceManager(token));
+        this.platform = params.platform;
+        this._devices = [...new Set(params.tokens)].map((token) => new DeviceManager(token, this.platform));
         this._multimedia = new Multimedia();
         this.call_manager = new CallManager(this._multimedia);
 
@@ -222,7 +225,7 @@ export class Wavoip extends EventEmitter<Events> {
         for (const token of tokens) {
             if (this._devices.some((device) => token === device.token)) continue;
 
-            const device = new DeviceManager(token);
+            const device = new DeviceManager(token, this.platform);
             this._devices.push(device);
             devices.push(device);
             this.bindDeviceEvents(device);
