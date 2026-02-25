@@ -5,7 +5,6 @@ import { PublicDeviceBuilder } from "@/features/device/PublicDeviceBuilder";
 import { DeviceManager } from "@/features/device/device-manager";
 import type { Device } from "@/features/device/types/device";
 import { Multimedia } from "@/features/multimedia/multimedia";
-import { platform } from "os";
 
 type Events = {
     offer: [callOffer: CallOffer];
