@@ -2,6 +2,7 @@ import type { DeviceManager } from "../device/device-manager";
 import type { Multimedia } from "../multimedia/multimedia";
 import type { ITransport, TransportStatus } from "../multimedia/transport/ITransport";
 import { WebRTCTransport } from "../multimedia/transport/webrtc/WebRTCTransport";
+import { WebsocketTransport } from "../multimedia/transport/websocket/WebsocketTransport";
 import type { Call, CallStats, CallStatus, CallActive as TActive } from "./types/call";
 
 export function CallActive(call: Call, device: DeviceManager, multimedia: Multimedia, transport: ITransport): TActive {
@@ -10,6 +11,13 @@ export function CallActive(call: Call, device: DeviceManager, multimedia: Multim
     call.callbacks.onEnd = () => {
         transport.stop();
     };
+
+    if (transport instanceof WebsocketTransport) {
+        transport.on("reconnect_timeout", () => {
+            device.endCall();
+            call.callbacks.onEnd?.();
+        });
+    }
 
     if (transport instanceof WebRTCTransport) {
         transport.on("stats", (stats) => call.callbacks.onStats?.(stats));

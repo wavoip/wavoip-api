@@ -8,11 +8,16 @@ import { AudioOutput } from "@/features/multimedia/transport/websocket/audio-out
 type Events = {
     status: [status: TransportStatus];
     a: [];
+    reconnect_timeout: [];
 };
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
-    private readonly SOCKET_RECONNECT_CODES = [1001, 1006, 1011, 1015];
+    private readonly SOCKET_RECONNECT_CODES = [1000, 1001, 1005, 1006, 1011, 1015];
+    private readonly RECONNECT_TIMEOUT_MS = 30_000;
+
     private socket: WebSocket | null = null;
+    private isStopped = false;
+    private reconnectDeadline: ReturnType<typeof setTimeout> | null = null;
 
     private readonly in: AudioInput;
     private readonly out: AudioOutput;
@@ -47,16 +52,11 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
                 this.socket.send(data as ArrayBufferLike);
             }
         });
-        this.socket.addEventListener("message", (event) => {
-            if (new Uint8Array(event.data).length === 4) {
-                this.socket?.send("pong");
-                return;
-            }
-            this.out.sendAudioData(event.data);
-        });
     }
 
     async stop() {
+        this.isStopped = true;
+        this.clearReconnectDeadline();
         this.socket?.close();
         this.socket = null;
 
@@ -82,6 +82,7 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
 
     private bindListeners(socket: WebSocket, transport: CallTransport<"unofficial">, token: string) {
         socket.addEventListener("open", () => {
+            this.clearReconnectDeadline();
             this.status = "connected";
             this.emit("status", this.status);
         });
@@ -92,16 +93,44 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         });
 
         socket.addEventListener("close", (event) => {
-            this.status = "disconnected";
+            this.status = "connecting";
             this.emit("status", this.status);
 
-            if (!this.SOCKET_RECONNECT_CODES.includes(event.code)) {
+            if (this.isStopped || !this.SOCKET_RECONNECT_CODES.includes(event.code)) {
+                this.status = "disconnected";
+                this.emit("status", this.status);
+
                 return;
             }
 
+            if (!this.reconnectDeadline) {
+                this.reconnectDeadline = setTimeout(() => {
+                    this.reconnectDeadline = null;
+                    this.isStopped = true;
+                    this.emit("reconnect_timeout");
+                }, this.RECONNECT_TIMEOUT_MS);
+            }
+
             setTimeout(() => {
-                this.socket = this.connect(transport, token);
-            }, 1000);
+                if (!this.isStopped) {
+                    this.socket = this.connect(transport, token);
+                }
+            }, 250);
         });
+
+        socket.addEventListener("message", (event) => {
+            if (new Uint8Array(event.data).length === 4) {
+                this.socket?.send("pong");
+                return;
+            }
+            this.out.sendAudioData(event.data);
+        });
+    }
+
+    private clearReconnectDeadline() {
+        if (this.reconnectDeadline) {
+            clearTimeout(this.reconnectDeadline);
+            this.reconnectDeadline = null;
+        }
     }
 }
