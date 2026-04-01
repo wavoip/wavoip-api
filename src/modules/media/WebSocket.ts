@@ -3,7 +3,6 @@ import type { Events, ITransport, TransportStatus } from "@/modules/media/ITrans
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
-// Do not reconnect on these codes:
 // 1000 = Normal Closure (server intentionally ended the connection)
 // 1008 = Policy Violation (server rejected the connection, e.g. invalid token)
 const NO_RECONNECT_CODES = [1000, 1008];

@@ -78,7 +78,7 @@ class AudioDataWorkletStream extends AudioWorkletProcessor {
         const decoded = new Float32Array(int16.length);
         for (let i = 0; i < int16.length; i++) {
             const val = int16[i];
-            decoded[i] = val >= 0x8000 ? -(0x10000 - val) / 0x8000 : val / 0x7FFF;
+            decoded[i] = val >= 0x8000 ? -(0x10000 - val) / 0x8000 : val / 0x7fff;
         }
 
         // Resample 16kHz → native rate
