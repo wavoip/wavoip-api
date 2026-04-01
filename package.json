@@ -12,10 +12,7 @@
             "require": "./dist/index.umd.js"
         }
     },
-    "files": [
-        "dist",
-        "LICENSE"
-    ],
+    "files": ["dist", "LICENSE"],
     "sideEffects": false,
     "repository": {
         "type": "git",
@@ -23,22 +20,28 @@
     },
     "scripts": {
         "dev": "vite",
-        "build": "vite build --config vite.config.ts",
-        "build:multimedia": "pnpm build:audio && pnpm build:mic",
-        "build:audio": "vite build --config vite.config.audio-worklet.ts",
-        "build:mic": "vite build --config vite.config.mic-audio-worklet.ts"
+        "lint": "pnpm exec tsc --noEmit && pnpm exec biome lint --fix .",
+        "build": "vite build",
+        "build:pack": "pnpm pre-deploy && pnpm pack",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:coverage": "vitest run --coverage",
+        "pre-deploy": "pnpm lint && pnpm test && pnpm build"
     },
     "packageManager": "pnpm@10.7.1",
     "devDependencies": {
         "@biomejs/biome": "1.9.4",
         "@types/node": "^22.14.0",
+        "@vitest/coverage-v8": "^4.1.2",
+        "happy-dom": "^20.8.9",
         "ts-node": "^10.9.2",
         "typescript": "~5.7.2",
         "vite": "^6.2.0",
         "vite-plugin-dts": "^4.5.3",
         "vite-plugin-externalize-deps": "^0.9.0",
         "vite-plugin-static-copy": "^3.1.2",
-        "vite-tsconfig-paths": "^5.1.4"
+        "vite-tsconfig-paths": "^5.1.4",
+        "vitest": "^4.1.2"
     },
     "dependencies": {
         "@alexanderolsen/libsamplerate-js": "^2.1.2",
