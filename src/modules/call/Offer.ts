@@ -2,6 +2,15 @@ import type { CallActive } from "@/modules/call/CallActive";
 import type { CallBus } from "@/modules/call/CallBus";
 import type { CallPeer } from "@/modules/call/Peer";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
+import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
+
+export type OfferEvents = {
+    acceptedElsewhere: [];
+    rejectedElsewhere: [];
+    unanswered: [];
+    ended: [];
+    status: [status: CallStatus];
+};
 
 export interface Offer {
     id: string;
@@ -12,10 +21,16 @@ export interface Offer {
     status: CallStatus;
     accept(): Promise<{ call: CallActive; err: null } | { call: null; err: string }>;
     reject(): Promise<{ err: null | string }>;
+    on<T extends keyof OfferEvents>(event: T, callback: (...args: OfferEvents[T]) => void): Unsubscribe;
+    /** @deprecated Use `on("acceptedElsewhere", callback)` instead. */
     onAcceptedElsewhere(callback: () => void): void;
+    /** @deprecated Use `on("rejectedElsewhere", callback)` instead. */
     onRejectedElsewhere(callback: () => void): void;
+    /** @deprecated Use `on("unanswered", callback)` instead. */
     onUnanswered(cb: () => void): void;
+    /** @deprecated Use `on("ended", callback)` instead. */
     onEnd(cb: () => void): void;
+    /** @deprecated Use `on("status", callback)` instead. */
     onStatus(cb: (status: CallStatus) => void): void;
 }
 
@@ -27,6 +42,22 @@ export function OfferProxy(
         onReject: (call: Call) => void;
     },
 ): Offer {
+    const emitter = new EventEmitter<OfferEvents>();
+
+    bus.on("ended", () => {
+        emitter.emit("acceptedElsewhere");
+        emitter.emit("ended");
+    });
+    bus.on("rejected", () => emitter.emit("rejectedElsewhere"));
+    bus.on("unanswered", () => emitter.emit("unanswered"));
+    bus.on("status", (status) => emitter.emit("status", status));
+
+    let onAcceptedElsewhereUnsub: Unsubscribe | undefined;
+    let onRejectedElsewhereUnsub: Unsubscribe | undefined;
+    let onUnansweredUnsub: Unsubscribe | undefined;
+    let onEndUnsub: Unsubscribe | undefined;
+    let onStatusUnsub: Unsubscribe | undefined;
+
     return {
         id: call.id,
         type: call.type,
@@ -49,24 +80,38 @@ export function OfferProxy(
             return { err: null };
         },
 
+        on<T extends keyof OfferEvents>(event: T, callback: (...args: OfferEvents[T]) => void): Unsubscribe {
+            return emitter.on(event, callback);
+        },
+
+        /** @deprecated Use `on("acceptedElsewhere", callback)` instead. */
         onAcceptedElsewhere(callback: () => void): void {
-            bus.on("ended", callback);
+            onAcceptedElsewhereUnsub?.();
+            onAcceptedElsewhereUnsub = emitter.on("acceptedElsewhere", callback);
         },
 
+        /** @deprecated Use `on("rejectedElsewhere", callback)` instead. */
         onRejectedElsewhere(callback: () => void): void {
-            bus.on("rejected", callback);
+            onRejectedElsewhereUnsub?.();
+            onRejectedElsewhereUnsub = emitter.on("rejectedElsewhere", callback);
         },
 
+        /** @deprecated Use `on("unanswered", callback)` instead. */
         onUnanswered(cb: () => void): void {
-            bus.on("unanswered", cb);
+            onUnansweredUnsub?.();
+            onUnansweredUnsub = emitter.on("unanswered", cb);
         },
 
+        /** @deprecated Use `on("ended", callback)` instead. */
         onEnd(cb: () => void): void {
-            bus.on("ended", cb);
+            onEndUnsub?.();
+            onEndUnsub = emitter.on("ended", cb);
         },
 
+        /** @deprecated Use `on("status", callback)` instead. */
         onStatus(cb: (status: CallStatus) => void): void {
-            bus.on("status", cb);
+            onStatusUnsub?.();
+            onStatusUnsub = emitter.on("status", cb);
         },
     };
 }

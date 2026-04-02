@@ -12,6 +12,7 @@ type Events = {
 export class Wavoip extends EventEmitter<Events> {
     private readonly mediaManager: MediaManager;
     private _devices: DeviceConnection[] = [];
+    private _onOfferUnsub?: () => void;
 
     constructor(params: {
         tokens: string[];
@@ -28,9 +29,10 @@ export class Wavoip extends EventEmitter<Events> {
         }
     }
 
+    /** @deprecated Use `on("offer", callback)` instead. */
     onOffer(cb: (offer: Offer) => void) {
-        this.removeAllListeners("offer");
-        this.on("offer", cb);
+        this._onOfferUnsub?.();
+        this._onOfferUnsub = this.on("offer", cb);
     }
 
     get multimedia() {

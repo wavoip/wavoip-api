@@ -63,6 +63,13 @@ DeviceConnection    ← one per device token; owns socket, builds call objects
   appropriate transport, then returns the facade to `Wavoip`.
 - **Single MediaManager** — one `MediaManager` instance is shared across all `DeviceConnection`s
   and all active transports. It owns the `AudioContext` and all mic/speaker state.
+- **EventEmitter-based event API** — All consumer-facing objects (`Wavoip`, `Device`/`DeviceConnection`,
+  `Offer`, `CallOutgoing`, `CallActive`) expose a typed `on(event, callback)` method for subscribing
+  to events. This allows multiple listeners per event and returns an `Unsubscribe` function.
+  Legacy `on*()` convenience methods (e.g. `onStatus`, `onEnd`, `onPeerMute`) are **deprecated** —
+  they limit to a single listener per event and silently overwrite the previous one on subsequent calls.
+  Facades use internal `EventEmitter` composition: `CallBus` events are wired to a facade-scoped
+  emitter so consumers never interact with bus internals directly.
 
 
 # Modules
@@ -73,9 +80,9 @@ Pure call-side facades and supporting types. No socket or transport code — rec
 | File | Role |
 |---|---|
 | `CallBus.ts` | Internal event bus; normalizes socket + transport events for one call |
-| `Offer.ts` | Facade for an incoming call awaiting accept/reject |
-| `CallOutgoing.ts` | Facade for an outgoing call awaiting peer answer |
-| `CallActive.ts` | Facade for an in-progress call |
+| `Offer.ts` | Facade for an incoming call awaiting accept/reject. Exports `OfferEvents` |
+| `CallOutgoing.ts` | Facade for an outgoing call awaiting peer answer. Exports `CallOutgoingEvents` |
+| `CallActive.ts` | Facade for an in-progress call. Exports `CallActiveEvents` |
 | `Peer.ts` | `CallPeer` type (phone, displayName, profilePicture, muted) |
 | `Stats.ts` | `CallStats` type (RTT, tx/rx packet counts and loss) |
 
@@ -84,7 +91,7 @@ Device connection, state machine, and call object construction.
 
 | File | Role |
 |---|---|
-| `DeviceConnection.ts` | Socket.IO connection per device; builds Offer/CallOutgoing/CallActive |
+| `DeviceConnection.ts` | Socket.IO connection per device; builds Offer/CallOutgoing/CallActive. Exports `DeviceEvents` |
 | `Device.ts` | Holds device state (status, qrCode, contact); `canCall()` business rules |
 | `Call.ts` | Call model and status state machine (RINGING → ACTIVE → ENDED etc.) |
 | `WebSocket.ts` | Socket.IO factory + full `ServerEvents` / `ClientEvents` type definitions |
@@ -220,4 +227,18 @@ After every change, these commands should run and return success
 pnpm lint
 pnpm test
 pnpm build
+```
+
+# Exceptional bugs 
+## WebRTC audio not playing on chromium
+There's a [bug on chromium](https://issues.chromium.org/issues/40094084) that blocks MediaStream for WebRTC to play audio.
+The workaround is to wire the MediaStream to an Audio element
+```
+this.pc.ontrack = (event) => {
+    const remoteStream = event.streams[0];
+
+    const audio = new Audio();
+    audio.muted = true;
+    audio.srcObject = remoteStream;
+}
 ```

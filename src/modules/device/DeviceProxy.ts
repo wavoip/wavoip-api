@@ -1,6 +1,6 @@
 import type { CallType } from "@/modules/device/Call";
 import type { Contact, DeviceStatus } from "@/modules/device/Device";
-import type { DeviceConnection } from "@/modules/device/DeviceConnection";
+import type { DeviceConnection, DeviceEvents } from "@/modules/device/DeviceConnection";
 import type { Device } from "@/modules/device/DeviceConnection";
 import type { Unsubscribe } from "@/modules/shared/EventEmitter";
 
@@ -10,6 +10,10 @@ export function DeviceProxy(conn: DeviceConnection): Device {
         qrCode: conn.qrCode,
         contact: conn.contact,
         status: conn.status,
+
+        on<T extends keyof DeviceEvents>(event: T, callback: (...args: DeviceEvents[T]) => void): Unsubscribe {
+            return conn.on(event, callback);
+        },
 
         onStatus(cb: (status: DeviceStatus) => void): Unsubscribe {
             return conn.onStatus(cb);

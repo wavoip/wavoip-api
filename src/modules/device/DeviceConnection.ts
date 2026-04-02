@@ -12,10 +12,13 @@ import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import type { AxiosInstance } from "axios";
 import axios from "axios";
 
-type Events = {
+export type DeviceEvents = {
     statusChanged: [status: DeviceStatus];
     qrCodeChanged: [qrCode?: string];
     contactChanged: [type: CallType, contact?: Contact];
+};
+
+type Events = DeviceEvents & {
     offerReceived: [offer: Offer];
 };
 
@@ -24,8 +27,12 @@ export interface Device {
     qrCode?: string;
     contact: DeviceContact;
     status: DeviceStatus;
+    on<T extends keyof DeviceEvents>(event: T, callback: (...args: DeviceEvents[T]) => void): Unsubscribe;
+    /** @deprecated Use `on("statusChanged", callback)` instead. */
     onStatus(cb: (status: DeviceStatus) => void): Unsubscribe;
+    /** @deprecated Use `on("qrCodeChanged", callback)` instead. */
     onQRCode(cb: (qrcode?: string) => void): Unsubscribe;
+    /** @deprecated Use `on("contactChanged", callback)` instead. */
     onContact(cb: (type: CallType, contact?: Contact) => void): Unsubscribe;
     restart(): Promise<void>;
     logout(): Promise<void>;
@@ -39,6 +46,10 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
     private readonly device: DeviceModel;
     private calls: Map<string, Call> = new Map();
+
+    private _onStatusUnsub?: () => void;
+    private _onQRCodeUnsub?: () => void;
+    private _onContactUnsub?: () => void;
 
     constructor(
         private readonly mediaManager: MediaManager,
@@ -119,16 +130,25 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         return promise;
     }
 
+    /** @deprecated Use `on("statusChanged", callback)` instead. */
     onStatus(cb: (status: DeviceStatus) => void): () => void {
-        return this.on("statusChanged", cb);
+        this._onStatusUnsub?.();
+        this._onStatusUnsub = this.on("statusChanged", cb);
+        return this._onStatusUnsub;
     }
 
+    /** @deprecated Use `on("qrCodeChanged", callback)` instead. */
     onQRCode(cb: (qrcode?: string) => void): () => void {
-        return this.on("qrCodeChanged", cb);
+        this._onQRCodeUnsub?.();
+        this._onQRCodeUnsub = this.on("qrCodeChanged", cb);
+        return this._onQRCodeUnsub;
     }
 
+    /** @deprecated Use `on("contactChanged", callback)` instead. */
     onContact(cb: (type: CallType, contact?: Contact) => void): () => void {
-        return this.on("contactChanged", cb);
+        this._onContactUnsub?.();
+        this._onContactUnsub = this.on("contactChanged", cb);
+        return this._onContactUnsub;
     }
 
     async wakeUp(): Promise<boolean> {
@@ -209,7 +229,6 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
                 const { promise: activePromise, resolve: resolveActive } = Promise.withResolvers<CallActive>();
 
                 const webRTC = new WebRTCTransport(this.mediaManager, offerProps.offer, (answer) => {
-                    console.log({ answer });
                     res({ action: "accept", answer: answer.sdp as string });
                     bus.wireTransport(webRTC);
                     resolveActive(

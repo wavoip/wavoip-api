@@ -104,9 +104,16 @@ async function startTransport(transport: WebRTCTransport) {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe.skip("WebRTCTransport", () => {
+describe("WebRTCTransport", () => {
     beforeEach(() => {
         vi.stubGlobal("RTCPeerConnection", MockRTCPeerConnection);
+        vi.stubGlobal(
+            "Audio",
+            class MockAudio {
+                muted = false;
+                srcObject: MediaStream | null = null;
+            },
+        );
     });
 
     afterEach(() => {
