@@ -104,7 +104,7 @@ Audio I/O and transport implementations.
 | `MediaManager.ts` | Mic/speaker enumeration, stream lifecycle, mute, hot-swap, AudioContext |
 | `ITransport.ts` | Interface + event types shared by both transports |
 | `WebRTC.ts` | `WebRTCTransport` — RTCPeerConnection, SDP, stats, mute detection via FFT |
-| `WebSocket.ts` | `WebsocketTransport` — binary WebSocket, PCMU decode, AudioWorklet pipeline |
+| `WebSocket.ts` | `WebsocketTransport` — binary WebSocket, Int16 PCM decode, AudioWorklet pipeline, auto-reconnect |
 
 ## `modules/shared/`
 | File | Role |
@@ -228,6 +228,15 @@ server → binary WebSocket → AudioWorklet(AudioDataWorkletStream)
   Resampling happens inside the worklet rather than creating a separate 16kHz `AudioContext`.
 - Jitter buffer: incoming chunks are queued; if total buffered bytes exceed 25KB, oldest data is dropped
   (10KB at a time) to reduce latency.
+
+### WebSocket reconnection
+- On unexpected close, `WebsocketTransport` automatically reconnects to keep the call alive.
+- **No reconnect** on codes `1000` (Normal Closure — server ended intentionally) and `1008`
+  (Policy Violation — e.g. invalid token). All other close codes trigger reconnection.
+- Reconnect attempts happen after a 1s delay. A 30s deadline timer starts on the first
+  disconnect — if no successful reconnect occurs within that window, the transport gives up
+  and transitions to `"disconnected"`.
+- The `stopped` flag prevents reconnection after `stop()` is called (intentional teardown).
 
 # CI/CD
 After every change, these commands should run and return success

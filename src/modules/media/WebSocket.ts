@@ -3,7 +3,12 @@ import type { Events, ITransport, TransportStatus } from "@/modules/media/ITrans
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
-const SOCKET_RECONNECT_CODES = [1001, 1006, 1011, 1015];
+// Do not reconnect on these codes:
+// 1000 = Normal Closure (server intentionally ended the connection)
+// 1008 = Policy Violation (server rejected the connection, e.g. invalid token)
+const NO_RECONNECT_CODES = [1000, 1008];
+const RECONNECT_DELAY_MS = 1_000;
+const RECONNECT_TIMEOUT_MS = 30_000;
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
     public status: TransportStatus = "connecting";
@@ -16,6 +21,8 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     };
 
     private ws?: WebSocket;
+    private stopped = false;
+    private reconnectDeadline: ReturnType<typeof setTimeout> | null = null;
     private readonly audioIn: AudioInput;
     private readonly audioOut: AudioOutput;
 
@@ -46,16 +53,12 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         });
 
         this.ws = this.connect();
-        this.ws.addEventListener("message", (event: MessageEvent) => {
-            if ((event.data as ArrayBuffer).byteLength === 4) {
-                this.ws?.send("pong");
-                return;
-            }
-            this.audioOut.sendAudioData(event.data as ArrayBuffer);
-        });
     }
 
     async stop(): Promise<void> {
+        this.stopped = true;
+        this.clearReconnectDeadline();
+
         this.ws?.close();
         this.ws = undefined;
 
@@ -83,6 +86,7 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
 
     private bindSocketListeners(socket: WebSocket): void {
         socket.addEventListener("open", () => {
+            this.clearReconnectDeadline();
             this.setStatus("connected");
         });
 
@@ -90,31 +94,41 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
             this.setStatus("disconnected");
         });
 
-        socket.addEventListener("close", (event: CloseEvent) => {
-            this.setStatus("disconnected");
+        socket.addEventListener("message", (event: MessageEvent) => {
+            if ((event.data as ArrayBuffer).byteLength === 4) {
+                this.ws?.send("pong");
+                return;
+            }
+            this.audioOut.sendAudioData(event.data as ArrayBuffer);
+        });
 
-            if (!SOCKET_RECONNECT_CODES.includes(event.code)) return;
+        socket.addEventListener("close", (event: CloseEvent) => {
+            if (this.stopped || NO_RECONNECT_CODES.includes(event.code)) {
+                this.setStatus("disconnected");
+                return;
+            }
+
+            this.setStatus("connecting");
+
+            if (!this.reconnectDeadline) {
+                this.reconnectDeadline = setTimeout(() => {
+                    this.reconnectDeadline = null;
+                    this.setStatus("disconnected");
+                }, RECONNECT_TIMEOUT_MS);
+            }
 
             setTimeout(() => {
+                if (this.stopped) return;
                 this.ws = this.connect();
-
-                this.ws.addEventListener("open", () => {
-                    this.audioIn.on("audio-data", (data) => {
-                        if (this.ws?.readyState === WebSocket.OPEN) {
-                            this.ws.send(data);
-                        }
-                    });
-                });
-
-                this.ws.addEventListener("message", (event: MessageEvent) => {
-                    if ((event.data as ArrayBuffer).byteLength === 4) {
-                        this.ws?.send("pong");
-                        return;
-                    }
-                    this.audioOut.sendAudioData(event.data as ArrayBuffer);
-                });
-            }, 1_000);
+            }, RECONNECT_DELAY_MS);
         });
+    }
+
+    private clearReconnectDeadline(): void {
+        if (this.reconnectDeadline) {
+            clearTimeout(this.reconnectDeadline);
+            this.reconnectDeadline = null;
+        }
     }
 
     private setStatus(status: TransportStatus): void {
