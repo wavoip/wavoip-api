@@ -5,9 +5,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Mock RTCPeerConnection
 // ---------------------------------------------------------------------------
 
+class MockMediaStreamTrack {
+    private listeners = new Map<string, Set<() => void>>();
+
+    addEventListener(event: string, listener: () => void) {
+        if (!this.listeners.has(event)) this.listeners.set(event, new Set());
+        this.listeners.get(event)?.add(listener);
+    }
+
+    dispatchEvent(event: string) {
+        for (const listener of this.listeners.get(event) ?? []) listener();
+    }
+}
+
 let mockPcInstance: MockRTCPeerConnection;
 
 class MockRTCPeerConnection {
+    _remoteTrack: MockMediaStreamTrack | null = null;
     ontrack: ((e: RTCTrackEvent) => void) | null = null;
     onconnectionstatechange: (() => void) | null = null;
     connectionState: RTCPeerConnectionState = "new";
@@ -22,7 +36,9 @@ class MockRTCPeerConnection {
     setLocalDescription = vi.fn().mockImplementation(async () => {
         // Yield a microtask so answerPromise.resolve() fires before we trigger ontrack
         await Promise.resolve();
-        const mockStream = { id: "stream-1" } as MediaStream;
+        const mockRemoteTrack = new MockMediaStreamTrack();
+        const mockStream = { id: "stream-1", getAudioTracks: () => [mockRemoteTrack] } as unknown as MediaStream;
+        mockPcInstance._remoteTrack = mockRemoteTrack;
         mockPcInstance.simulateTrack(mockStream);
         // Simulate ICE gathering completing
         mockPcInstance.iceGatheringState = "complete";
@@ -259,40 +275,35 @@ describe("WebRTCTransport", () => {
         });
     });
 
-    describe("mute detection (checkForMute)", () => {
-        it("emits peerMuted(true) when FFT average < 0.05 (silence)", async () => {
+    describe("mute detection (track events)", () => {
+        it("emits peerMuted(true) when remote track fires 'mute'", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            // getByteTimeDomainData fills with 128 → deviation = 0 → avg = 0 < 0.05 → muted
             const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
             const cb = vi.fn();
             transport.on("peerMuted", cb);
 
-            vi.advanceTimersByTime(1_000);
+            mockPcInstance._remoteTrack?.dispatchEvent("mute");
 
             expect(cb).toHaveBeenCalledWith(true);
             expect(transport.peerMuted).toBe(true);
         });
 
-        it("emits peerMuted(false) when FFT average >= 0.05 after being muted", async () => {
+        it("emits peerMuted(false) when remote track fires 'unmute'", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
             const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
-            // First tick: silence → peerMuted = true
-            vi.advanceTimersByTime(1_000);
+            mockPcInstance._remoteTrack?.dispatchEvent("mute");
             expect(transport.peerMuted).toBe(true);
-
-            // Now simulate audio by filling with values != 128
-            mm._analyser.getByteTimeDomainData = vi.fn((arr: Uint8Array) => arr.fill(200)); // large deviation
 
             const cb = vi.fn();
             transport.on("peerMuted", cb);
 
-            vi.advanceTimersByTime(1_000);
+            mockPcInstance._remoteTrack?.dispatchEvent("unmute");
 
             expect(cb).toHaveBeenCalledWith(false);
             expect(transport.peerMuted).toBe(false);
@@ -301,15 +312,16 @@ describe("WebRTCTransport", () => {
         it("does not re-emit peerMuted when mute state is unchanged", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            // silence throughout
             const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
-            vi.advanceTimersByTime(1_000); // → muted = true, emits once
+            mockPcInstance._remoteTrack?.dispatchEvent("mute");
+
             const cb = vi.fn();
             transport.on("peerMuted", cb);
 
-            vi.advanceTimersByTime(1_000); // still silence → no re-emit
+            // Fire mute again — already muted, should not re-emit
+            mockPcInstance._remoteTrack?.dispatchEvent("mute");
 
             expect(cb).not.toHaveBeenCalled();
         });

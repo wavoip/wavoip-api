@@ -30,7 +30,6 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     private pc: RTCPeerConnection;
     private offer: RTCSessionDescriptionInit;
     private answerResolver: PromiseWithResolvers<RTCSessionDescriptionInit>;
-    private muteCheckJob = 0;
     private statsJob = 0;
 
     constructor(
@@ -54,6 +53,20 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
             const audio = new Audio();
             audio.muted = true;
             audio.srcObject = remoteStream;
+
+            const remoteTrack = remoteStream.getAudioTracks()[0];
+            if (remoteTrack) {
+                remoteTrack.addEventListener("mute", () => {
+                    if (this.peerMuted) return;
+                    this.peerMuted = true;
+                    this.emit("peerMuted", true);
+                });
+                remoteTrack.addEventListener("unmute", () => {
+                    if (!this.peerMuted) return;
+                    this.peerMuted = false;
+                    this.emit("peerMuted", false);
+                });
+            }
 
             const source = this.mediaManager.audioContext.createMediaStreamSource(remoteStream);
             const analyser = this.mediaManager.audioContext.createAnalyser();
@@ -108,14 +121,10 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         this.answerResolver.resolve(this.pc.localDescription as RTCSessionDescription);
 
         this.getStats(this.pc);
-
-        const audioAnalyser = await this.audioAnalyser;
-        this.muteCheckJob = setInterval(() => this.checkForMute(audioAnalyser), 1_000) as unknown as number;
         this.statsJob = setInterval(() => this.getStats(this.pc), 5_000) as unknown as number;
     }
 
     async stop(): Promise<void> {
-        clearInterval(this.muteCheckJob);
         clearInterval(this.statsJob);
 
         this.pc.close();
@@ -125,23 +134,6 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     private setStatus(status: TransportStatus) {
         this.status = status;
         this.emit("statusChanged", status);
-    }
-
-    private checkForMute(analyser: AnalyserNode) {
-        const data = new Uint8Array(analyser.fftSize);
-        analyser.getByteTimeDomainData(data);
-
-        const avg = data.reduce((sum, v) => sum + Math.abs(v - 128), 0) / data.length;
-
-        if (avg < 0.05 && !this.peerMuted) {
-            this.peerMuted = true;
-            this.emit("peerMuted", this.peerMuted);
-        }
-
-        if (avg >= 0.05 && this.peerMuted) {
-            this.peerMuted = false;
-            this.emit("peerMuted", this.peerMuted);
-        }
     }
 
     private async getStats(pc: RTCPeerConnection) {
