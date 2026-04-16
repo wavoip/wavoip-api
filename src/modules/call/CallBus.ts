@@ -1,6 +1,6 @@
 import type { CallStats } from "@/modules/call/Stats";
 import type { Call, CallStatus } from "@/modules/device/Call";
-import type { DeviceSocket } from "@/modules/device/WebSocket";
+import type { DeviceSocket, MediaPlan } from "@/modules/device/WebSocket";
 import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
@@ -8,6 +8,7 @@ type CallBusEvents = {
     status: [status: CallStatus];
     ended: [];
     accepted: [];
+    answered: [mediaPlan: MediaPlan];
     rejected: [];
     unanswered: [];
     failed: [error: string];
@@ -26,16 +27,17 @@ export class CallBus extends EventEmitter<CallBusEvents> {
     constructor(call: Call, socket: DeviceSocket, transport?: ITransport) {
         super();
 
-        socket.on("call:status", (id, status) => {
-            if (id !== call.id) return;
-            this.emit("status", status);
-            if (status === "NOT_ANSWERED") this.emit("unanswered");
-        });
         socket.on("call:ended", (id) => {
             if (id === call.id) this.emit("ended");
         });
         socket.on("call:accepted", (id) => {
             if (id === call.id) this.emit("accepted");
+        });
+        socket.on("call:answered", (id, mediaPlan) => {
+            if (id === call.id) this.emit("answered", mediaPlan);
+        });
+        socket.on("call:unanswered", (id) => {
+            if (id === call.id) this.emit("unanswered");
         });
         socket.on("call:rejected", (id) => {
             if (id === call.id) this.emit("rejected");

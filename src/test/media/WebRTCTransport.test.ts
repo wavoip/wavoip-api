@@ -123,7 +123,7 @@ describe("WebRTCTransport", () => {
 
     it("initial state: status=disconnected, peerMuted=false, stats zeroed", () => {
         const mm = makeMockMediaManager();
-        const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+        const transport = new WebRTCTransport(mm as never, "offer-sdp");
 
         expect(transport.status).toBe("disconnected");
         expect(transport.peerMuted).toBe(false);
@@ -136,7 +136,7 @@ describe("WebRTCTransport", () => {
         it("calls startMedia, addTrack, setRemoteDescription, createAnswer, setLocalDescription", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
 
             await startTransport(transport);
 
@@ -147,21 +147,21 @@ describe("WebRTCTransport", () => {
             expect(mockPcInstance.setLocalDescription).toHaveBeenCalledWith({ type: "answer", sdp: "mock-answer-sdp" });
         });
 
-        it("resolves onAnswer callback with the answer SDP", async () => {
+        it("resolves answer promise with the answer SDP", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            const onAnswer = vi.fn();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", onAnswer);
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
 
             await startTransport(transport);
 
-            expect(onAnswer).toHaveBeenCalledWith({ type: "answer", sdp: "mock-answer-sdp" });
+            const answer = await transport.answer;
+            expect(answer).toEqual({ type: "answer", sdp: "mock-answer-sdp" });
         });
 
         it("enables each mic track before adding to pc", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
 
             await startTransport(transport);
 
@@ -173,7 +173,7 @@ describe("WebRTCTransport", () => {
         it("calls pc.close() and mediaManager.stopMedia()", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
             await transport.stop();
@@ -187,7 +187,7 @@ describe("WebRTCTransport", () => {
         it("resolves audioAnalyser promise after ontrack fires", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
             await expect(transport.audioAnalyser).resolves.toBeDefined();
@@ -196,7 +196,7 @@ describe("WebRTCTransport", () => {
         it("creates analyser node and connects audio graph", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
             expect(mm.audioContext.createMediaStreamSource).toHaveBeenCalledOnce();
@@ -208,7 +208,7 @@ describe("WebRTCTransport", () => {
         it("'connecting' → emits statusChanged 'connecting'", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
             const cb = vi.fn();
@@ -221,7 +221,7 @@ describe("WebRTCTransport", () => {
         it("'connected' → emits statusChanged 'connected'", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
             const cb = vi.fn();
@@ -234,7 +234,7 @@ describe("WebRTCTransport", () => {
         it("'disconnected' → emits statusChanged 'disconnected'", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
             const cb = vi.fn();
@@ -247,7 +247,7 @@ describe("WebRTCTransport", () => {
         it("'closed' → emits statusChanged 'disconnected' AND calls stopMedia", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
             const cb = vi.fn();
@@ -264,7 +264,7 @@ describe("WebRTCTransport", () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
             // getByteTimeDomainData fills with 128 → deviation = 0 → avg = 0 < 0.05 → muted
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
             const cb = vi.fn();
@@ -279,7 +279,7 @@ describe("WebRTCTransport", () => {
         it("emits peerMuted(false) when FFT average >= 0.05 after being muted", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
             // First tick: silence → peerMuted = true
@@ -302,7 +302,7 @@ describe("WebRTCTransport", () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
             // silence throughout
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
             vi.advanceTimersByTime(1_000); // → muted = true, emits once
@@ -334,7 +334,7 @@ describe("WebRTCTransport", () => {
             ]);
             mockPcInstance?.getStats?.mockResolvedValue(statsMap);
 
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
             // Override getStats before start so the initial call in start() uses updated mock
             // The mock is set up on the instance after construction, so we need to re-assign:
             const origGetStats = mockPcInstance.getStats;
@@ -373,7 +373,7 @@ describe("WebRTCTransport", () => {
                 ],
             ]);
 
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", vi.fn());
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
             mockPcInstance.getStats = vi.fn().mockResolvedValue(statsMap);
 
             await startTransport(transport);

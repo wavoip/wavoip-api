@@ -40,45 +40,6 @@ const emitSocket = (socket: ReturnType<typeof makeMockSocket>, event: keyof Serv
 
 describe("CallBus", () => {
     describe("socket event routing", () => {
-        it("emits 'status' when call:status fires for matching call id", () => {
-            const call = makeCall();
-            const socket = makeMockSocket();
-            const bus = new CallBus(call, socket as never);
-            const cb = vi.fn();
-            bus.on("status", cb);
-
-            (socket as unknown as EventEmitter<Record<string, unknown[]>>).emit("call:status", call.id, "ACTIVE");
-
-            expect(cb).toHaveBeenCalledWith("ACTIVE");
-        });
-
-        it("ignores call:status for different call id", () => {
-            const call = makeCall("call-1");
-            const socket = makeMockSocket();
-            const bus = new CallBus(call, socket as never);
-            const cb = vi.fn();
-            bus.on("status", cb);
-
-            (socket as unknown as EventEmitter<Record<string, unknown[]>>).emit("call:status", "other-call", "ACTIVE");
-
-            expect(cb).not.toHaveBeenCalled();
-        });
-
-        it("call:status with NOT_ANSWERED also emits 'unanswered'", () => {
-            const call = makeCall();
-            const socket = makeMockSocket();
-            const bus = new CallBus(call, socket as never);
-            const statusCb = vi.fn();
-            const unansweredCb = vi.fn();
-            bus.on("status", statusCb);
-            bus.on("unanswered", unansweredCb);
-
-            (socket as unknown as EventEmitter<Record<string, unknown[]>>).emit("call:status", call.id, "NOT_ANSWERED");
-
-            expect(statusCb).toHaveBeenCalledWith("NOT_ANSWERED");
-            expect(unansweredCb).toHaveBeenCalledOnce();
-        });
-
         it("call:ended emits 'ended'", () => {
             const call = makeCall();
             const socket = makeMockSocket();
@@ -123,6 +84,58 @@ describe("CallBus", () => {
             bus.on("accepted", cb);
 
             (socket as unknown as EventEmitter<Record<string, unknown[]>>).emit("call:accepted", "other-call");
+
+            expect(cb).not.toHaveBeenCalled();
+        });
+
+        it("call:answered emits 'answered' with mediaPlan", () => {
+            const call = makeCall();
+            const socket = makeMockSocket();
+            const bus = new CallBus(call, socket as never);
+            const cb = vi.fn();
+            bus.on("answered", cb);
+
+            const mediaPlan = { type: "webRTC", sdp: "answer-sdp" };
+            (socket as unknown as EventEmitter<Record<string, unknown[]>>).emit("call:answered", call.id, mediaPlan);
+
+            expect(cb).toHaveBeenCalledWith(mediaPlan);
+        });
+
+        it("ignores call:answered for different call id", () => {
+            const call = makeCall("call-1");
+            const socket = makeMockSocket();
+            const bus = new CallBus(call, socket as never);
+            const cb = vi.fn();
+            bus.on("answered", cb);
+
+            (socket as unknown as EventEmitter<Record<string, unknown[]>>).emit("call:answered", "other-call", {
+                type: "webRTC",
+                sdp: "sdp",
+            });
+
+            expect(cb).not.toHaveBeenCalled();
+        });
+
+        it("call:unanswered emits 'unanswered'", () => {
+            const call = makeCall();
+            const socket = makeMockSocket();
+            const bus = new CallBus(call, socket as never);
+            const cb = vi.fn();
+            bus.on("unanswered", cb);
+
+            (socket as unknown as EventEmitter<Record<string, unknown[]>>).emit("call:unanswered", call.id);
+
+            expect(cb).toHaveBeenCalledOnce();
+        });
+
+        it("ignores call:unanswered for different call id", () => {
+            const call = makeCall("call-1");
+            const socket = makeMockSocket();
+            const bus = new CallBus(call, socket as never);
+            const cb = vi.fn();
+            bus.on("unanswered", cb);
+
+            (socket as unknown as EventEmitter<Record<string, unknown[]>>).emit("call:unanswered", "other-call");
 
             expect(cb).not.toHaveBeenCalled();
         });

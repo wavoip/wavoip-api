@@ -25,16 +25,17 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         },
     };
 
+    readonly answer: Promise<RTCSessionDescriptionInit>;
+
     private pc: RTCPeerConnection;
     private offer: RTCSessionDescriptionInit;
-    private answerPromise: PromiseWithResolvers<RTCSessionDescriptionInit>;
+    private answerResolver: PromiseWithResolvers<RTCSessionDescriptionInit>;
     private muteCheckJob = 0;
     private statsJob = 0;
 
     constructor(
         private readonly mediaManager: MediaManager,
         offer: string,
-        onAnswer: (answer: RTCSessionDescriptionInit) => void,
     ) {
         super();
 
@@ -44,8 +45,8 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         const { promise: audioAnalyserPromise, resolve: resolveAudioAnalyser } = Promise.withResolvers<AnalyserNode>();
         this.audioAnalyser = audioAnalyserPromise;
 
-        this.answerPromise = Promise.withResolvers<RTCSessionDescriptionInit>();
-        this.answerPromise.promise.then((answer) => onAnswer(answer));
+        this.answerResolver = Promise.withResolvers<RTCSessionDescriptionInit>();
+        this.answer = this.answerResolver.promise;
 
         this.pc.ontrack = (event) => {
             const remoteStream = event.streams[0];
@@ -104,7 +105,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
             });
         }
 
-        this.answerPromise.resolve(this.pc.localDescription as RTCSessionDescription);
+        this.answerResolver.resolve(this.pc.localDescription as RTCSessionDescription);
 
         this.getStats(this.pc);
 

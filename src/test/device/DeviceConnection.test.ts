@@ -83,7 +83,7 @@ function callsMap(dc: DeviceConnection): Map<string, unknown> {
 const offerProps = (id: string) => ({
     id,
     peer,
-    offer: "v=0\r\n...",
+    offer: { type: "webRTC" as const, sdp: "v=0\r\n..." },
 });
 
 // ---------------------------------------------------------------------------
@@ -95,7 +95,7 @@ describe("DeviceConnection — calls map cleanup", () => {
         it("adds call to map when offer arrives", () => {
             const { dc, socket } = makeDeviceConnection();
 
-            socket.receive("call:offer:official", offerProps("call-1"), vi.fn());
+            socket.receive("call:offer", offerProps("call-1"), vi.fn());
 
             expect(callsMap(dc).has("call-1")).toBe(true);
         });
@@ -103,7 +103,7 @@ describe("DeviceConnection — calls map cleanup", () => {
         it("removes call from map when remote hangs up (call:ended)", () => {
             const { dc, socket } = makeDeviceConnection();
 
-            socket.receive("call:offer:official", offerProps("call-1"), vi.fn());
+            socket.receive("call:offer", offerProps("call-1"), vi.fn());
             expect(callsMap(dc).has("call-1")).toBe(true);
 
             socket.receive("call:ended", "call-1");
@@ -114,19 +114,19 @@ describe("DeviceConnection — calls map cleanup", () => {
         it("ignores call:ended for a different call id", () => {
             const { dc, socket } = makeDeviceConnection();
 
-            socket.receive("call:offer:official", offerProps("call-1"), vi.fn());
+            socket.receive("call:offer", offerProps("call-1"), vi.fn());
             socket.receive("call:ended", "other-call");
 
             expect(callsMap(dc).has("call-1")).toBe(true);
         });
 
-        it("removes call from map on timeout (call:status NOT_ANSWERED)", () => {
+        it("removes call from map on timeout (call:unanswered)", () => {
             const { dc, socket } = makeDeviceConnection();
 
-            socket.receive("call:offer:official", offerProps("call-1"), vi.fn());
+            socket.receive("call:offer", offerProps("call-1"), vi.fn());
             expect(callsMap(dc).has("call-1")).toBe(true);
 
-            socket.receive("call:status", "call-1", "NOT_ANSWERED");
+            socket.receive("call:unanswered", "call-1");
 
             expect(callsMap(dc).has("call-1")).toBe(false);
         });
@@ -136,7 +136,7 @@ describe("DeviceConnection — calls map cleanup", () => {
             const received: Array<{ reject: () => Promise<unknown> }> = [];
             dc.on("offerReceived", (offer) => received.push(offer));
 
-            socket.receive("call:offer:official", offerProps("call-1"), vi.fn());
+            socket.receive("call:offer", offerProps("call-1"), vi.fn());
             expect(callsMap(dc).has("call-1")).toBe(true);
             expect(received).toHaveLength(1);
 
@@ -148,8 +148,8 @@ describe("DeviceConnection — calls map cleanup", () => {
         it("handles multiple concurrent official calls independently", () => {
             const { dc, socket } = makeDeviceConnection();
 
-            socket.receive("call:offer:official", offerProps("call-A"), vi.fn());
-            socket.receive("call:offer:official", offerProps("call-B"), vi.fn());
+            socket.receive("call:offer", offerProps("call-A"), vi.fn());
+            socket.receive("call:offer", offerProps("call-B"), vi.fn());
             expect(callsMap(dc).size).toBe(2);
 
             socket.receive("call:ended", "call-A");
@@ -159,19 +159,19 @@ describe("DeviceConnection — calls map cleanup", () => {
         });
     });
 
-    describe("unofficial outgoing call", () => {
+    describe("outgoing call", () => {
         function setupStartCall(id: string) {
             const { dc, socket } = makeDeviceConnection();
 
             // Simulate device being UP so canCall() passes
-            socket.receive("device:status", "UP");
+            socket.receive("device:init", "UP", "official", null, null);
 
             socket.emit.mockImplementation((event: string, ...args: unknown[]) => {
                 if (event === "call.start") {
                     const callback = args[args.length - 1] as (r: unknown) => void;
                     callback({
                         type: "success",
-                        result: { id, peer, transport: { host: "server.example.com", port: "5000" } },
+                        result: { id, type: "official", peer },
                     });
                 }
             });
@@ -209,13 +209,13 @@ describe("DeviceConnection — calls map cleanup", () => {
             expect(callsMap(dc).has("call-out-1")).toBe(false);
         });
 
-        it("removes call from map on timeout (call:status NOT_ANSWERED)", async () => {
+        it("removes call from map on timeout (call:unanswered)", async () => {
             const { dc, socket } = setupStartCall("call-out-1");
 
             await dc.startCall("5511999999999");
             expect(callsMap(dc).has("call-out-1")).toBe(true);
 
-            socket.receive("call:status", "call-out-1", "NOT_ANSWERED");
+            socket.receive("call:unanswered", "call-out-1");
 
             expect(callsMap(dc).has("call-out-1")).toBe(false);
         });
@@ -231,7 +231,7 @@ describe("DeviceConnection — calls map cleanup", () => {
 
         it("returns error and does not add call when device cannot call", async () => {
             const { dc, socket } = makeDeviceConnection();
-            socket.receive("device:status", "error");
+            socket.receive("device:init", "error", "official", null, null);
 
             const result = await dc.startCall("5511999999999");
 

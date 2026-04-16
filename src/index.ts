@@ -5,7 +5,7 @@ export type { CallOutgoing, CallOutgoingEvents } from "@/modules/call/CallOutgoi
 export type { Offer, OfferEvents } from "@/modules/call/Offer";
 export type { CallPeer } from "@/modules/call/Peer";
 
-export type { DeviceStatus, Contact, DeviceContact } from "@/modules/device/Device";
+export type { DeviceStatus, Contact } from "@/modules/device/Device";
 export type { Device, DeviceEvents } from "@/modules/device/DeviceConnection";
 
 export type { TransportStatus } from "@/modules/media/ITransport";

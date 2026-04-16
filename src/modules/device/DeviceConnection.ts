@@ -2,12 +2,14 @@ import { type CallActive, CallActiveProxy } from "@/modules/call/CallActive";
 import { CallBus } from "@/modules/call/CallBus";
 import { type CallOutgoing, CallOutgoingProxy } from "@/modules/call/CallOutgoing";
 import { type Offer, OfferProxy } from "@/modules/call/Offer";
-import { Call, type CallType } from "@/modules/device/Call";
+import { Call } from "@/modules/device/Call";
 import { DeviceModel } from "@/modules/device/Device";
-import type { Contact, DeviceContact, DeviceStatus } from "@/modules/device/Device";
+import type { Contact, DeviceStatus } from "@/modules/device/Device";
 import { type DeviceSocket, DeviceWebSocketFactory } from "@/modules/device/WebSocket";
+import type { MediaPlan, MediaPlanRelay, MediaPlanWebRTC } from "@/modules/device/WebSocket";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
+import { WebsocketTransport } from "@/modules/media/WebSocket";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import type { AxiosInstance } from "axios";
 import axios from "axios";
@@ -15,7 +17,7 @@ import axios from "axios";
 export type DeviceEvents = {
     statusChanged: [status: DeviceStatus];
     qrCodeChanged: [qrCode?: string];
-    contactChanged: [type: CallType, contact?: Contact];
+    contactChanged: [contact?: Contact];
 };
 
 type Events = DeviceEvents & {
@@ -25,7 +27,7 @@ type Events = DeviceEvents & {
 export interface Device {
     readonly token: string;
     qrCode?: string;
-    contact: DeviceContact;
+    contact?: Contact;
     status: DeviceStatus;
     on<T extends keyof DeviceEvents>(event: T, callback: (...args: DeviceEvents[T]) => void): Unsubscribe;
     /** @deprecated Use `on("statusChanged", callback)` instead. */
@@ -33,7 +35,7 @@ export interface Device {
     /** @deprecated Use `on("qrCodeChanged", callback)` instead. */
     onQRCode(cb: (qrcode?: string) => void): Unsubscribe;
     /** @deprecated Use `on("contactChanged", callback)` instead. */
-    onContact(cb: (type: CallType, contact?: Contact) => void): Unsubscribe;
+    onContact(cb: (contact?: Contact) => void): Unsubscribe;
     restart(): Promise<void>;
     logout(): Promise<void>;
     wakeUp(): Promise<boolean>;
@@ -63,20 +65,53 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         this.wss = DeviceWebSocketFactory(token, platform);
         this.wss.on("disconnect", this.onDisconnect.bind(this));
 
-        this.wss.on("device:qrcode", (qrCode) => {
+        this.wss.on("device:init", (status, callType, contact, qrCode) => {
+            this.device.status = status;
+            this.device.callType = callType;
+            this.device.contact = contact ?? undefined;
             this.device.qrCode = qrCode ?? undefined;
+            this.emit("statusChanged", this.device.status);
+            this.emit("contactChanged", this.device.contact);
             this.emit("qrCodeChanged", this.device.qrCode);
         });
-        this.wss.on("device:status", (status) => {
-            this.device.status = status;
+        this.wss.on("device:building", () => {
+            this.device.status = "BUILDING";
             this.emit("statusChanged", this.device.status);
         });
-        this.wss.on("device:contact", (type, contact) => {
-            this.device.contact[type] = contact ?? undefined;
-            this.emit("contactChanged", type, this.device.contact[type]);
+        this.wss.on("device:open", (contact) => {
+            this.device.status = "open";
+            this.device.contact = contact;
+            this.device.qrCode = undefined;
+            this.emit("statusChanged", this.device.status);
+            this.emit("contactChanged", this.device.contact);
+            this.emit("qrCodeChanged", this.device.qrCode);
+        });
+        this.wss.on("device:connecting", (qrcode) => {
+            this.device.status = "connecting";
+            this.device.contact = undefined;
+            this.device.qrCode = qrcode ?? undefined;
+            this.emit("statusChanged", this.device.status);
+            this.emit("contactChanged", this.device.contact);
+            this.emit("qrCodeChanged", this.device.qrCode);
+        });
+        this.wss.on("device:close", () => {
+            this.device.status = "close";
+            this.device.contact = undefined;
+            this.device.qrCode = undefined;
+            this.emit("statusChanged", this.device.status);
+            this.emit("contactChanged", this.device.contact);
+            this.emit("qrCodeChanged", this.device.qrCode);
+        });
+        this.wss.on("device:restarting", () => {
+            this.device.status = "restarting";
+            this.emit("statusChanged", this.device.status);
+        });
+        this.wss.on("device:hibernating", () => {
+            this.device.status = "hibernating";
+            this.emit("statusChanged", this.device.status);
         });
 
-        this.wss.on("call:offer:official", this.onOfficialOffer.bind(this));
+        this.wss.on("call:offer", this.onOffer.bind(this));
 
         this.connect();
     }
@@ -89,7 +124,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         return this.device.qrCode;
     }
 
-    get contact(): DeviceContact {
+    get contact(): Contact | undefined {
         return this.device.contact;
     }
 
@@ -116,13 +151,13 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         this.wss.emit("call.start", to, (response) => {
             if (response.type === "error") return resolve({ err: response.result });
 
-            const { id, peer, transport: server } = response.result;
-            const call = new Call(id, "unofficial", "OUTGOING", peer, this.device.token, "RINGING");
+            const { id, type, peer } = response.result;
+            const call = new Call(id, type, "OUTGOING", peer, this.device.token, "RINGING");
             const bus = new CallBus(call, this.wss);
             bus.on("ended", () => this.calls.delete(id));
             bus.on("unanswered", () => this.calls.delete(id));
             bus.on("rejected", () => this.calls.delete(id));
-            const outgoing = CallOutgoingProxy(call, bus, this.wss, this.mediaManager, server);
+            const outgoing = CallOutgoingProxy(call, bus, this.wss, this.mediaManager);
             this.calls.set(id, call);
             resolve({ call: outgoing });
         });
@@ -145,7 +180,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     }
 
     /** @deprecated Use `on("contactChanged", callback)` instead. */
-    onContact(cb: (type: CallType, contact?: Contact) => void): () => void {
+    onContact(cb: (contact?: Contact) => void): () => void {
         this._onContactUnsub?.();
         this._onContactUnsub = this.on("contactChanged", cb);
         return this._onContactUnsub;
@@ -211,47 +246,75 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             .catch(() => null);
     }
 
-    private onOfficialOffer(
+    private onOffer(
         offerProps: {
             id: string;
             peer: { phone: string; displayName: string | null; profilePicture: string | null };
-            offer: string;
+            offer: MediaPlan;
         },
-        res: (response: { action: "accept"; answer: string } | { action: "reject" }) => void,
+        ackOffer: () => void,
     ) {
-        const call = this.device.receiveOffer(offerProps.id, "official", offerProps.peer);
+        ackOffer();
+
+        const call = this.device.receiveOffer(offerProps.id, this.device.callType, offerProps.peer);
         const bus = new CallBus(call, this.wss);
         bus.on("ended", () => this.calls.delete(call.id));
         bus.on("unanswered", () => this.calls.delete(call.id));
 
         const offer = OfferProxy(call, bus, {
             onAccept: (call) => {
-                const { promise: activePromise, resolve: resolveActive } = Promise.withResolvers<CallActive>();
+                const mediaPlan = offerProps.offer;
 
-                const webRTC = new WebRTCTransport(this.mediaManager, offerProps.offer, (answer) => {
-                    res({ action: "accept", answer: answer.sdp as string });
-                    bus.wireTransport(webRTC);
-                    resolveActive(
-                        CallActiveProxy(call, bus, webRTC, this.mediaManager, {
-                            onEnd: (call) => {
-                                this.wss.emit("call.end", call.id, () => {
-                                    this.calls.delete(call.id);
-                                });
-                            },
-                        }),
-                    );
-                });
+                if (mediaPlan.type === "webRTC") {
+                    return this.acceptWebRTCOffer(call, bus, mediaPlan);
+                }
 
-                webRTC.start();
-                return activePromise;
+                if (mediaPlan.type === "relay") {
+                    return this.acceptRelayOffer(call, bus, mediaPlan);
+                }
+
+                return Promise.reject("Unsupported media plan type");
             },
             onReject: (call) => {
-                res({ action: "reject" });
+                this.wss.emit("call.reject", call.id, () => {});
                 this.calls.delete(call.id);
             },
         });
 
         this.calls.set(call.id, call);
         this.emit("offerReceived", offer);
+    }
+
+    private async acceptWebRTCOffer(call: Call, bus: CallBus, mediaPlan: MediaPlanWebRTC): Promise<CallActive> {
+        const webRTC = new WebRTCTransport(this.mediaManager, mediaPlan.sdp);
+        await webRTC.start();
+
+        const answer = await webRTC.answer;
+        this.wss.emit("call.accept", call.id, { type: "webRTC", sdp: answer.sdp as string }, () => {});
+        bus.wireTransport(webRTC);
+
+        return CallActiveProxy(call, bus, webRTC, this.mediaManager, {
+            onEnd: (call) => {
+                this.wss.emit("call.end", call.id, () => {
+                    this.calls.delete(call.id);
+                });
+            },
+        });
+    }
+
+    private acceptRelayOffer(call: Call, bus: CallBus, mediaPlan: MediaPlanRelay): Promise<CallActive> {
+        const wsTransport = new WebsocketTransport(this.mediaManager, mediaPlan, call.deviceToken);
+        call.accept();
+        bus.wireTransport(wsTransport);
+        const active = CallActiveProxy(call, bus, wsTransport, this.mediaManager, {
+            onEnd: (call) => {
+                this.wss.emit("call.end", call.id, () => {
+                    this.calls.delete(call.id);
+                });
+            },
+        });
+        this.wss.emit("call.accept", call.id, { type: "none" }, () => {});
+        wsTransport.start();
+        return Promise.resolve(active);
     }
 }

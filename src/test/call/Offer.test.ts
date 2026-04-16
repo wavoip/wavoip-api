@@ -115,14 +115,14 @@ describe("Offer", () => {
     });
 
     describe("event subscriptions", () => {
-        it("onAcceptedElsewhere fires when bus emits 'ended'", () => {
+        it("onAcceptedElsewhere fires when bus emits 'accepted'", () => {
             const call = makeCall();
             const bus = makeMockBus(call);
             const offer = OfferProxy(call, bus, { onAccept: vi.fn(), onReject: vi.fn() });
             const cb = vi.fn();
             offer.onAcceptedElsewhere(cb);
 
-            bus.emit("ended");
+            bus.emit("accepted");
 
             expect(cb).toHaveBeenCalledOnce();
         });

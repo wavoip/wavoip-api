@@ -1,4 +1,3 @@
-import type { CallType } from "@/modules/device/Call";
 import type { Contact, DeviceStatus } from "@/modules/device/Device";
 import type { DeviceConnection, DeviceEvents } from "@/modules/device/DeviceConnection";
 import type { Device } from "@/modules/device/DeviceConnection";
@@ -16,15 +15,15 @@ export function DeviceProxy(conn: DeviceConnection): Device {
         },
 
         onStatus(cb: (status: DeviceStatus) => void): Unsubscribe {
-            return conn.onStatus(cb);
+            return conn.on("statusChanged", cb);
         },
 
         onQRCode(cb: (qrcode?: string) => void): Unsubscribe {
-            return conn.onQRCode(cb);
+            return conn.on("qrCodeChanged", cb);
         },
 
-        onContact(cb: (type: CallType, contact?: Contact) => void): Unsubscribe {
-            return conn.onContact(cb);
+        onContact(cb: (contact?: Contact) => void): Unsubscribe {
+            return conn.on("contactChanged", cb);
         },
 
         restart(): Promise<void> {

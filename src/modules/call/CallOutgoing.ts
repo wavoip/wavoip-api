@@ -2,8 +2,10 @@ import { type CallActive, CallActiveProxy } from "@/modules/call/CallActive";
 import type { CallBus } from "@/modules/call/CallBus";
 import type { CallPeer } from "@/modules/call/Peer";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
-import type { DeviceSocket } from "@/modules/device/WebSocket";
+import type { DeviceSocket, MediaPlan } from "@/modules/device/WebSocket";
+import type { ITransport } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
+import { WebRTCTransport } from "@/modules/media/WebRTC";
 import { WebsocketTransport } from "@/modules/media/WebSocket";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 
@@ -43,26 +45,39 @@ export function CallOutgoingProxy(
     bus: CallBus,
     wss: DeviceSocket,
     mediaManager: MediaManager,
-    transport: { host: string; port: string },
 ): CallOutgoing {
     const emitter = new EventEmitter<CallOutgoingEvents>();
 
-    bus.on("accepted", () => {
-        const wsTransport = new WebsocketTransport(mediaManager, transport, call.deviceToken);
+    bus.on("answered", async (mediaPlan) => {
         call.accept();
-        bus.wireTransport(wsTransport);
-        const active = CallActiveProxy(call, bus, wsTransport, mediaManager, {
+        const transport = createTransport(mediaPlan, mediaManager, call.deviceToken);
+        await transport.start();
+
+        if (mediaPlan.type === "webRTC") {
+            const answer = await (transport as WebRTCTransport).answer;
+            wss.emit("call.accept", call.id, { type: "webRTC", sdp: answer.sdp as string }, () => {});
+        }
+
+        bus.wireTransport(transport);
+        const active = CallActiveProxy(call, bus, transport, mediaManager, {
             onEnd: () => {
                 wss.emit("call.end", call.id, () => {});
             },
         });
-        wsTransport.start();
         emitter.emit("peerAccept", active);
     });
-    bus.on("rejected", () => emitter.emit("peerReject"));
-    bus.on("unanswered", () => emitter.emit("unanswered"));
-    bus.on("ended", () => emitter.emit("ended"));
-    bus.on("status", (status) => emitter.emit("status", status));
+    bus.on("rejected", () => {
+        emitter.emit("peerReject");
+    });
+    bus.on("unanswered", () => {
+        emitter.emit("unanswered");
+    });
+    bus.on("ended", () => {
+        emitter.emit("ended");
+    });
+    bus.on("status", (status) => {
+        emitter.emit("status", status);
+    });
 
     let onPeerAcceptUnsub: Unsubscribe | undefined;
     let onPeerRejectUnsub: Unsubscribe | undefined;
@@ -142,4 +157,16 @@ export function CallOutgoingProxy(
             onStatusUnsub = emitter.on("status", cb);
         },
     };
+}
+
+function createTransport(mediaPlan: MediaPlan, mediaManager: MediaManager, deviceToken: string): ITransport {
+    if (mediaPlan.type === "webRTC") {
+        return new WebRTCTransport(mediaManager, mediaPlan.sdp);
+    }
+
+    if (mediaPlan.type === "relay") {
+        return new WebsocketTransport(mediaManager, mediaPlan, deviceToken);
+    }
+
+    throw new Error(`Unsupported media plan type: ${mediaPlan.type}`);
 }

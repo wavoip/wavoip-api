@@ -62,10 +62,7 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         await this.audioIn.stop();
         this.audioOut.stop();
 
-        const ctx = this.mediaManager.audioContext;
-        if (ctx.state === "running") {
-            await ctx.suspend();
-        }
+        await this.mediaManager.stopMedia();
 
         this.audioAnalyser = (this.audioOut as unknown as { audioAnalyser: Promise<AnalyserNode> }).audioAnalyser;
 

@@ -115,7 +115,7 @@ Audio I/O and transport implementations.
 | File | Role |
 |---|---|
 | `AudioWorkletMic.ts` | `ResampleProcessor` — mic Float32 → 16 kHz Int16 PCM (LibSampleRate) |
-| `AudioWorkletOut.ts` | `AudioDataWorkletStream` — PCMU bytes → Float32 → native rate (LibSampleRate) |
+| `AudioWorkletOut.ts` | `AudioDataWorkletStream` — Int16 PCM → Float32 → LibSampleRate (16kHz → native) → output |
 
 
 # Models
@@ -216,10 +216,18 @@ Peer mute is detected via 1-second FFT analysis on the remote audio stream.
 ## Unofficial calls (WebSocket binary)
 ```
 Mic → AudioWorklet(ResampleProcessor) → 16kHz Int16 PCM → binary WebSocket → server
-server → binary WebSocket → AudioWorklet(AudioDataWorkletStream) → PCMU decode
-       → LibSampleRate (16kHz → native) → AudioContext destination → Speaker
+server → binary WebSocket → AudioWorklet(AudioDataWorkletStream)
+       → Int16 PCM decode → LibSampleRate (16kHz → native) → AudioContext destination → Speaker
 ```
-Output worklet maintains a 500 ms jitter buffer; drops oldest frames on overflow.
+
+### Output worklet details
+- Server sends raw **Int16 PCM at 16kHz** (little-endian, 2 bytes per sample) — **not** µ-law/PCMU encoded.
+- The worklet decodes Int16 pairs to Float32, then resamples from 16kHz to the AudioContext's native
+  sample rate (typically 48kHz) using **LibSampleRate** (already loaded in the worklet scope).
+- A single shared `AudioContext` (owned by `MediaManager`) is used for both input and output.
+  Resampling happens inside the worklet rather than creating a separate 16kHz `AudioContext`.
+- Jitter buffer: incoming chunks are queued; if total buffered bytes exceed 25KB, oldest data is dropped
+  (10KB at a time) to reduce latency.
 
 # CI/CD
 After every change, these commands should run and return success

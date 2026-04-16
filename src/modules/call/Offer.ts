@@ -43,13 +43,27 @@ export function OfferProxy(
     },
 ): Offer {
     const emitter = new EventEmitter<OfferEvents>();
+    const dispose = () => {
+        bus.removeAllListeners();
+        emitter.removeAllListeners();
+    };
 
-    bus.on("ended", () => {
+    bus.on("accepted", () => {
         emitter.emit("acceptedElsewhere");
-        emitter.emit("ended");
+        dispose();
     });
-    bus.on("rejected", () => emitter.emit("rejectedElsewhere"));
-    bus.on("unanswered", () => emitter.emit("unanswered"));
+    bus.on("ended", () => {
+        emitter.emit("ended");
+        dispose();
+    });
+    bus.on("rejected", () => {
+        emitter.emit("rejectedElsewhere");
+        dispose();
+    });
+    bus.on("unanswered", () => {
+        emitter.emit("unanswered");
+        dispose();
+    });
     bus.on("status", (status) => emitter.emit("status", status));
 
     let onAcceptedElsewhereUnsub: Unsubscribe | undefined;
@@ -68,6 +82,7 @@ export function OfferProxy(
 
         async accept(): Promise<{ call: CallActive; err: null } | { call: null; err: string }> {
             try {
+                dispose();
                 const active = await callbacks.onAccept(call);
                 return { call: active, err: null };
             } catch (e) {
@@ -77,6 +92,7 @@ export function OfferProxy(
 
         async reject(): Promise<{ err: string | null }> {
             callbacks.onReject(call);
+            dispose();
             return { err: null };
         },
 

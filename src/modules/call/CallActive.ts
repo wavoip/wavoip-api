@@ -56,15 +56,25 @@ export function CallActiveProxy(
 ): CallActive {
     const emitter = new EventEmitter<CallActiveEvents>();
 
-    bus.on("failed", (err) => emitter.emit("error", err));
+    bus.on("failed", (err) => {
+        emitter.emit("error", err);
+    });
     bus.on("peerMuted", (muted) => {
         if (muted) emitter.emit("peerMute");
         else emitter.emit("peerUnmute");
     });
-    bus.on("ended", () => emitter.emit("ended"));
-    bus.on("stats", (stats) => emitter.emit("stats", stats));
-    bus.on("connectionStatus", (status) => emitter.emit("connectionStatus", status));
-    bus.on("status", (status) => emitter.emit("status", status));
+    bus.on("ended", () => {
+        emitter.emit("ended");
+    });
+    bus.on("stats", (stats) => {
+        emitter.emit("stats", stats);
+    });
+    bus.on("connectionStatus", (status) => {
+        emitter.emit("connectionStatus", status);
+    });
+    bus.on("status", (status) => {
+        emitter.emit("status", status);
+    });
 
     let onErrorUnsub: Unsubscribe | undefined;
     let onPeerMuteUnsub: Unsubscribe | undefined;

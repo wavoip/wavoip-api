@@ -14,12 +14,12 @@ export type DeviceStatus =
     | "EXTERNAL_INTEGRATION_ERROR";
 
 export type Contact = { phone: string };
-export type DeviceContact = Partial<{ [k in CallType]: Contact }>;
 
 export class DeviceModel {
     public qrCode?: string = undefined;
-    public contact: DeviceContact = {};
+    public contact?: Contact;
     public status: DeviceStatus = "disconnected";
+    public callType: CallType = "official";
 
     constructor(public readonly token: string) {}
 
