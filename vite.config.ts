@@ -1,21 +1,12 @@
 import path from "node:path";
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
-import { viteStaticCopy } from "vite-plugin-static-copy";
 import tsconfigPaths from "vite-tsconfig-paths";
 import pkg from "./package.json";
+import { workletPlugin } from "./vite-plugin-worklet";
 
 export default defineConfig({
-    plugins: [
-        tsconfigPaths(),
-        dts({ rollupTypes: true }),
-        viteStaticCopy({
-            targets: [
-                { src: "src/features/multimedia/transport/websocket/audio-output/AudioWorklet.js", dest: "" },
-                { src: "src/features/multimedia/transport/websocket/audio-input/AudioWorkletMic.js", dest: "" },
-            ],
-        }),
-    ],
+    plugins: [tsconfigPaths(), dts({ rollupTypes: true }), workletPlugin()],
     resolve: {
         alias: {
             "@": path.resolve(__dirname, "src"),
