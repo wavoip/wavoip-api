@@ -6,7 +6,7 @@ icon: phone
 
 ## Introdução
 
-Essa biblioteca foi feita com o intuito de facilitar a realização de ligações por dispositivos da Wavoip. Ela disponibiliza uma interface customizável e isolada do projeto onde está instalada. Esse webphone usa o [wavoip-api-websocket.md](wavoip-api-websocket.md "mention") por debaixo dos panos
+Essa biblioteca foi feita com o intuito de facilitar a realização de ligações por dispositivos da Wavoip. Ela disponibiliza uma interface customizável e isolada do projeto onde está instalada. Esse webphone usa o [Broken link](/broken/pages/OqClCmWiSo55Tzq3YeKl "mention") por debaixo dos panos
 
 ## Instalação
 
@@ -160,7 +160,7 @@ type CallProps = {
 ```
 {% endcode %}
 
-Para informações sobre como iniciar uma call leia: [#realizando-uma-ligacao-outgoing](wavoip-api-websocket.md#realizando-uma-ligacao-outgoing "mention")
+Para informações sobre como iniciar uma call leia: [Broken link](/broken/pages/OqClCmWiSo55Tzq3YeKl#realizando-uma-ligacao-outgoing "mention")
 
 * **setInput()**: Seta o input de número para ligar na interface do webphone
 
@@ -183,7 +183,7 @@ type DeviceAPI = {
 ```
 {% endcode %}
 
-Para informações sobre os dispositivos, leia [#dispositivos](wavoip-api-websocket.md#dispositivos "mention")
+Para informações sobre os dispositivos, leia [Broken link](/broken/pages/OqClCmWiSo55Tzq3YeKl#dispositivos "mention")
 
 Ao adicionar um dispositivo com **addDevice** passando o parâmetro persist como _True_ o dispositivo e suas configurações serão salvas no [Local Storage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) do navegador, persistindo entre sessões
 

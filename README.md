@@ -1,39 +1,55 @@
-# Introdução
+---
+description: >-
+  É um prazer receber você aqui. Neste tópico vamos introduzir os principais
+  assuntos sobre o funcionamento da Wavoip.
+icon: circle-exclamation
+---
 
-Essa biblioteca foi feita com o intuito de facilitar a utilização dos dispositivos da Wavoip por meio de websockets. Ela abstrai toda comunicação de eventos entre o cliente e o dispositivo, além de toda parte de áudio de chamadas
+# Bem-vindo (a) a Wavoip
 
-Como a comunicação de websockets se dá por meio de eventos, a biblioteca foi feita para ser utilizada por meio callbacks.
+## O que é a Wavoip?
 
-## Instalação
+Essa é a dúvida mais comum para os recém chegados, Let's go! Basicamente, a Wavoip é um serviço que permite que você integre as funcionalidades de ligações do Whatsapp através de APIs.
 
-Instale a biblioteca utilizando seu gerenciador de dependências favorito
 
-{% tabs %}
-{% tab title="PNPM" %}
-```bash
-pnpm add @wavoip/wavoip-api
-```
-{% endtab %}
 
-{% tab title="NPM" %}
-```bash
-npm install @wavoip/wavoip-api
-```
-{% endtab %}
-{% endtabs %}
+## Mas, o que é possível fazer usando a Wavoip?
 
-## Classe Wavoip
+São infinitas possibilidades de construções utilizando a Wavoip. Aqui estão alguns exemplos básicos:
 
-Instancie a classe Wavoip e passe os tokens de seus dispositivos como parâmetros
+* Automatizar atendimento ao cliente usando IA ou Fila de atendimentos.
+* Automatizar portaria de um condominio ligando diretamente no Whatsapp do morador
+* Complemento de canais para plataforma de multi atendimento.
+* Agendamento de consultas.
+* Humanização dos atendimentos ao cliente.
 
-{% hint style="info" %}
-É possível adicionar ou remover tokens de dispositivos após a classe ser instanciada&#x20;
-{% endhint %}
 
-```typescript
-import { Wavoip } from "@wavoip/wavoip-api"
 
-const wavoip = new Wavoip({
-    tokens: ["token 1", "token 2", ...]
-})
-```
+## É possível fazer chamadas simultâneas?
+
+Sim, cada dispostivo escaneado faz 1 chamadas simultânea, para fazer mais de uma chamada você deve vincular dois dispositivos com o mesmo número de whatsapp.
+
+
+
+## Quais os riscos de banimento?
+
+O banimento é relativo ao uso. Até mesmo na API oficial, a principal causa dos banimentos usando ligações são denúncias ao ligar para números desconhecidos, então tudo vai depender de como vai usar a API. Temos uma seção para explicar mais a fundo sobre os banimentos.
+
+
+
+## Qual módulo de API devo utilizar?
+
+Tudo vai depender do seu caso de uso. Vamos iniciar uma pequena abordagem sobre cada API assim a que melhor atender sua necessidade:
+
+*   **Click To Call**
+
+    Simples e fácil de integrar, não exige conhecimento técnico, você pode finalizar a integração em até 10 minutos. Permite que você faça ligações com apenas um click. Indicado para CRMs, Wordpress e similares.
+*   **wavoip-api (Websocket)**
+
+    Permite que você construa uma integração web e modularize o fluxo das chamadas da forma que você quiser. Permite que você receba e faça chamadas e é indicado para sistema de atendimento ao cliente mais complexos.
+*   **SIP**
+
+    Permite que você integre a qualquer PABX já funcional sem qualquer tipo de dificuldade, através de um Sip Trunk. Essa integração é indicada para quem já trabalha com PABX, Discadores ou SoftSwitches.
+
+
+
