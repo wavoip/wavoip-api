@@ -10,7 +10,8 @@
 * [Click To Call](modulos/editor/README.md)
   * [Primeiros Passos](modulos/editor/primeiros-passos.md)
   * [Parâmetros](modulos/editor/parametros.md)
-* [Wavoip API (Websocket)](https://wavoip.gitbook.io/api/wavoip-api)
+* [Wavoip API](https://app.gitbook.com/o/Pjg7DisYvBC4236LvBOn/s/yP0muqGlwZafxEaUwSvS/)
+* [Webphone](https://app.gitbook.com/o/Pjg7DisYvBC4236LvBOn/s/PKD5hsLcYS34FOHjLmtx/)
 
 ***
 
