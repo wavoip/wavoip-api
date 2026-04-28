@@ -238,6 +238,43 @@ server → binary WebSocket → AudioWorklet(AudioDataWorkletStream)
   and transitions to `"disconnected"`.
 - The `stopped` flag prevents reconnection after `stop()` is called (intentional teardown).
 
+# Documentation
+
+Documentation lives in `docs/` and is formatted for GitBook (synced via Git). `.gitbook.yaml` at the repo root points GitBook at `./docs/`.
+
+## GitBook file layout
+```
+docs/
+  README.md          ← homepage
+  SUMMARY.md         ← table of contents / sidebar
+  getting-started/
+    installation.md
+    initialization.md
+  device.md
+  calls/
+    incoming.md
+    outgoing.md
+    active.md
+  media.md
+  types.md
+```
+
+## Key GitBook syntax rules
+- **Frontmatter**: YAML block at the very top — `description:`, `icon:`, `hidden:`, `layout:` fields.
+- **Hints**: `{% hint style="info|warning|danger|success" %}...{% endhint %}`
+- **Tabs**: `{% tabs %}{% tab title="..." %}...{% endtab %}{% endtabs %}`
+- **Stepper**: `{% stepper %}{% step %}## Title\ncontent{% endstep %}{% endstepper %}`
+- **Expandable**: `<details><summary>Title</summary>content</details>`
+- **Columns** (max 2): `{% columns %}{% column %}...{% endcolumn %}{% endcolumns %}`
+- **Buttons**: `<a href="..." class="button primary">Label</a>`
+- **Cards**: `<table data-view="cards">` with `<th data-card-target data-type="content-ref">`
+- Internal links use relative `.md` paths: `[text](../device.md)`
+- Always close custom blocks exactly — mismatched tags silently break rendering.
+
+## When to update docs
+Update `docs/` whenever public-facing types, methods, events, or call flows change.
+Keep `SUMMARY.md` in sync with the actual file structure — GitBook uses it as the authoritative sidebar.
+
 # CI/CD
 After every change, these commands should run and return success
 ```
