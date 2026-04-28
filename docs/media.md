@@ -1,15 +1,15 @@
 ---
-description: Enumerate and switch microphones and speakers during calls.
+description: Enumere e troque microfones e alto-falantes durante chamadas.
 icon: microphone
 ---
 
-# Media
+# Mídia
 
-The library manages all audio I/O through a single shared `MediaManager`. You interact with it through methods on the `Wavoip` instance.
+A biblioteca gerencia todo o I/O de áudio através de um único `MediaManager` compartilhado. Você interage com ele através de métodos na instância `Wavoip`.
 
 ---
 
-## Listing available devices
+## Listando dispositivos disponíveis
 
 ```typescript
 const devices = wavoip.getMultimediaDevices()
@@ -19,38 +19,38 @@ const mics     = devices.filter((d) => d.kind === "audioinput")
 const speakers = devices.filter((d) => d.kind === "audiooutput")
 ```
 
-`MediaDeviceInfo` is the standard browser type. Key fields:
+`MediaDeviceInfo` é o tipo padrão do navegador. Campos principais:
 
-| Field        | Description                             |
-| ------------ | --------------------------------------- |
-| `deviceId`   | Unique identifier for the device.       |
-| `kind`       | `"audioinput"` or `"audiooutput"`.      |
-| `label`      | Human-readable name (e.g. `"Built-in Microphone"`). |
+| Campo      | Descrição                                              |
+| ---------- | ------------------------------------------------------ |
+| `deviceId` | Identificador único do dispositivo.                    |
+| `kind`     | `"audioinput"` ou `"audiooutput"`.                     |
+| `label`    | Nome legível (ex: `"Microfone integrado"`).            |
 
 ---
 
-## Active devices
+## Dispositivos ativos
 
 ```typescript
 const { microphone, speaker } = wavoip.multimedia
 // MediaDeviceInfo | undefined
 ```
 
-Returns the currently selected input and output devices.
+Retorna os dispositivos de entrada e saída atualmente selecionados.
 
 ---
 
-## Switching microphone
+## Trocando o microfone
 
-Call `setMicrophone` on a device retrieved from `getDevices()`, or access the underlying `MediaManager` through the device's internal socket. In practice, you get the `MediaManager` indirectly: the library performs a seamless hot-swap while a call is active — there is no interruption.
+Chame `setMicrophone` em um dispositivo obtido via `getDevices()`, ou acesse o `MediaManager` subjacente pelo socket interno do dispositivo. Na prática, o `MediaManager` é acessado indiretamente: a biblioteca realiza uma troca a quente sem interrupção enquanto uma chamada está ativa.
 
 {% hint style="info" %}
-Microphone and speaker switching is handled internally by the shared `MediaManager`. Device preferences are applied to all active and future calls automatically.
+A troca de microfone e alto-falante é tratada internamente pelo `MediaManager` compartilhado. As preferências de dispositivo são aplicadas a todas as chamadas ativas e futuras automaticamente.
 {% endhint %}
 
 ---
 
-## Typical device picker pattern
+## Padrão típico de seletor de dispositivo
 
 ```typescript
 async function buildDevicePicker(wavoip) {
@@ -60,32 +60,32 @@ async function buildDevicePicker(wavoip) {
     const mics     = devices.filter((d) => d.kind === "audioinput")
     const speakers = devices.filter((d) => d.kind === "audiooutput")
 
-    // Render dropdowns using mics / speakers
-    // Mark microphone.deviceId and speaker.deviceId as selected
+    // Renderize dropdowns usando mics / speakers
+    // Marque microphone.deviceId e speaker.deviceId como selecionados
 }
 ```
 
 ---
 
-## Audio context notes
+## Notas sobre o AudioContext
 
-A single `AudioContext` is shared across all calls. It is created on `Wavoip` construction and suspended until the first call starts. It resumes automatically when audio capture begins and suspends when all calls end.
+Um único `AudioContext` é compartilhado entre todas as chamadas. Ele é criado na construção do `Wavoip` e suspenso até o início da primeira chamada. Retoma automaticamente quando a captura de áudio começa e suspende quando todas as chamadas terminam.
 
 {% hint style="warning" %}
-Browsers require a user gesture before the `AudioContext` can resume. Ensure `offer.accept()` or `wavoip.startCall()` is called from a click or touch event handler.
+Os navegadores exigem um gesto do usuário antes que o `AudioContext` possa retomar. Certifique-se de que `offer.accept()` ou `wavoip.startCall()` seja chamado a partir de um handler de clique ou toque.
 {% endhint %}
 
 ---
 
-## Call quality stats
+## Estatísticas de qualidade de chamada
 
-Per-call audio quality is reported through the `stats` event on `CallActive`:
+A qualidade de áudio por chamada é reportada pelo evento `stats` no `CallActive`:
 
 ```typescript
 call.on("stats", (stats) => {
-    console.log("Round-trip time:", stats.rtt.avg, "ms")
-    console.log("RX packet loss:", stats.rx.loss)
+    console.log("Tempo de ida e volta:", stats.rtt.avg, "ms")
+    console.log("Perda de pacotes RX:", stats.rx.loss)
 })
 ```
 
-See [Active Call → Call statistics](calls/active.md#call-statistics) for the full `CallStats` type.
+Veja [Chamada Ativa → Estatísticas de chamada](calls/active.md#estatísticas-de-chamada) para o tipo completo de `CallStats`.

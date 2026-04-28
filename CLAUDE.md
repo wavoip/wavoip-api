@@ -271,6 +271,9 @@ docs/
 - Internal links use relative `.md` paths: `[text](../device.md)`
 - Always close custom blocks exactly — mismatched tags silently break rendering.
 
+## Language
+All documentation in `docs/` must be written in **Portuguese (pt-BR)**. This includes descriptions, table headers, prose, hints, step titles, and code comments. Code identifiers, type names, and GitBook block syntax remain in English.
+
 ## When to update docs
 Update `docs/` whenever public-facing types, methods, events, or call flows change.
 Keep `SUMMARY.md` in sync with the actual file structure — GitBook uses it as the authoritative sidebar.

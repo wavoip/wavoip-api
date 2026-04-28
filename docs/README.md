@@ -1,5 +1,5 @@
 ---
-description: WebSocket-based library for integrating WhatsApp audio calls into web projects.
+description: Biblioteca baseada em WebSocket para integrar chamadas de áudio do WhatsApp em projetos web.
 icon: phone
 layout:
   title:
@@ -16,77 +16,77 @@ layout:
 
 # wavoip-api
 
-`@wavoip/wavoip-api` handles the full lifecycle of WhatsApp audio calls — incoming and outgoing — directly in the browser. It abstracts WebSocket (Socket.IO) signalling, WebRTC media transport, and audio device management behind a simple event-driven API.
+`@wavoip/wavoip-api` gerencia todo o ciclo de vida de chamadas de áudio do WhatsApp — recebidas e realizadas — diretamente no navegador. Abstrai a sinalização via WebSocket (Socket.IO), transporte de mídia via WebRTC e o gerenciamento de dispositivos de áudio por trás de uma API simples orientada a eventos.
 
 {% hint style="info" %}
-Version **2.2.0** — supports both official (WebRTC) and unofficial (WebSocket relay) call types.
+Versão **2.2.0** — suporta chamadas do tipo oficial (WebRTC) e não oficial (relay via WebSocket).
 {% endhint %}
 
-## What it does
+## O que faz
 
-* Connects to one or more Wavoip devices via WebSocket
-* Receives and dispatches incoming call offers
-* Initiates outgoing calls with automatic device fallback
-* Manages microphone and speaker selection with hot-swap support
-* Exposes typed events for every call state change
+* Conecta-se a um ou mais dispositivos Wavoip via WebSocket
+* Recebe e despacha ofertas de chamadas recebidas
+* Inicia chamadas com fallback automático entre dispositivos
+* Gerencia seleção de microfone e alto-falante com suporte a troca a quente
+* Expõe eventos tipados para cada mudança de estado da chamada
 
-## Quick start
+## Início rápido
 
 ```typescript
 import { Wavoip } from "@wavoip/wavoip-api"
 
-const wavoip = new Wavoip({ tokens: ["your-device-token"] })
+const wavoip = new Wavoip({ tokens: ["seu-token-de-dispositivo"] })
 
-// Receive incoming calls
+// Receber chamadas
 wavoip.on("offer", async (offer) => {
     const { call } = await offer.accept()
     if (!call) return
 
-    call.on("ended", () => console.log("Call ended"))
+    call.on("ended", () => console.log("Chamada encerrada"))
 })
 
-// Make outgoing calls
+// Realizar chamadas
 const { call, err } = await wavoip.startCall({ to: "+5511999999999" })
 if (call) {
     call.on("peerAccept", (active) => {
-        console.log("Call connected!")
+        console.log("Chamada conectada!")
     })
 }
 ```
 
-## Explore the docs
+## Explore a documentação
 
 <table data-view="cards">
     <thead>
         <tr>
-            <th>Section</th>
+            <th>Seção</th>
             <th data-card-target data-type="content-ref">Link</th>
         </tr>
     </thead>
     <tbody>
         <tr>
-            <td>Installation &amp; setup</td>
-            <td><a href="getting-started/installation.md">Installation</a></td>
+            <td>Instalação e configuração</td>
+            <td><a href="getting-started/installation.md">Instalação</a></td>
         </tr>
         <tr>
-            <td>Device management</td>
-            <td><a href="device.md">Device</a></td>
+            <td>Gerenciamento de dispositivos</td>
+            <td><a href="device.md">Dispositivo</a></td>
         </tr>
         <tr>
-            <td>Incoming calls</td>
-            <td><a href="calls/incoming.md">Incoming Calls</a></td>
+            <td>Chamadas recebidas</td>
+            <td><a href="calls/incoming.md">Chamadas Recebidas</a></td>
         </tr>
         <tr>
-            <td>Outgoing calls</td>
-            <td><a href="calls/outgoing.md">Outgoing Calls</a></td>
+            <td>Chamadas realizadas</td>
+            <td><a href="calls/outgoing.md">Chamadas Realizadas</a></td>
         </tr>
         <tr>
-            <td>Active call control</td>
-            <td><a href="calls/active.md">Active Call</a></td>
+            <td>Controle de chamada ativa</td>
+            <td><a href="calls/active.md">Chamada Ativa</a></td>
         </tr>
         <tr>
-            <td>Audio devices</td>
-            <td><a href="media.md">Media</a></td>
+            <td>Dispositivos de áudio</td>
+            <td><a href="media.md">Mídia</a></td>
         </tr>
     </tbody>
 </table>

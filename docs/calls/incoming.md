@@ -1,51 +1,51 @@
 ---
-description: Handle incoming call offers — accept or reject them and transition to an active call.
+description: Trate ofertas de chamadas recebidas — aceite ou rejeite e transicione para uma chamada ativa.
 icon: phone-incoming
 ---
 
-# Incoming Calls
+# Chamadas Recebidas
 
-When a call arrives on any connected device, the `Wavoip` instance emits an `"offer"` event with an `Offer` object. You have a limited window to accept or reject before the offer expires.
+Quando uma chamada chega em qualquer dispositivo conectado, a instância `Wavoip` emite um evento `"offer"` com um objeto `Offer`. Você tem uma janela limitada para aceitar ou rejeitar antes que a oferta expire.
 
 ---
 
-## Receiving an offer
+## Recebendo uma oferta
 
 ```typescript
 wavoip.on("offer", async (offer) => {
-    console.log("Incoming call from", offer.peer.phone)
+    console.log("Chamada recebida de", offer.peer.phone)
 
     const { call, err } = await offer.accept()
     if (err) {
-        console.error("Accept failed:", err)
+        console.error("Falha ao aceitar:", err)
         return
     }
 
-    // call is now a CallActive
-    call.on("ended", () => console.log("Call ended"))
+    // call agora é um CallActive
+    call.on("ended", () => console.log("Chamada encerrada"))
 })
 ```
 
 ---
 
-## Offer properties
+## Propriedades do Offer
 
-| Property       | Type            | Description                                      |
-| -------------- | --------------- | ------------------------------------------------ |
-| `id`           | `string`        | Unique call identifier.                          |
-| `type`         | `CallType`      | `"official"` (WebRTC) or `"unofficial"` (relay). |
-| `direction`    | `CallDirection` | Always `"INCOMING"` for offers.                  |
-| `peer`         | `CallPeer`      | Caller's phone, display name, profile picture.   |
-| `device_token` | `string`        | Token of the device that received this call.     |
-| `status`       | `CallStatus`    | Current call state (e.g. `"CALLING"`).           |
+| Propriedade    | Tipo            | Descrição                                               |
+| -------------- | --------------- | ------------------------------------------------------- |
+| `id`           | `string`        | Identificador único da chamada.                         |
+| `type`         | `CallType`      | `"official"` (WebRTC) ou `"unofficial"` (relay).        |
+| `direction`    | `CallDirection` | Sempre `"INCOMING"` para ofertas.                       |
+| `peer`         | `CallPeer`      | Telefone, nome de exibição e foto de perfil do chamador.|
+| `device_token` | `string`        | Token do dispositivo que recebeu a chamada.             |
+| `status`       | `CallStatus`    | Estado atual da chamada (ex: `"CALLING"`).              |
 
 ---
 
-## Methods
+## Métodos
 
 ### `accept()`
 
-Accepts the call. Starts audio capture and returns an active call object.
+Aceita a chamada. Inicia a captura de áudio e retorna um objeto de chamada ativa.
 
 ```typescript
 const { call, err } = await offer.accept()
@@ -54,14 +54,14 @@ const { call, err } = await offer.accept()
 ```
 
 {% hint style="warning" %}
-`accept()` requests microphone permission if not already granted. Make sure to call it from a user gesture context (button click, etc.) to avoid browser autoplay policy restrictions.
+`accept()` solicita permissão de microfone se ainda não concedida. Certifique-se de chamá-la a partir de um contexto de gesto do usuário (clique em botão, etc.) para evitar restrições de política de autoplay do navegador.
 {% endhint %}
 
 ---
 
 ### `reject()`
 
-Rejects the call.
+Rejeita a chamada.
 
 ```typescript
 const { err } = await offer.reject()
@@ -69,37 +69,37 @@ const { err } = await offer.reject()
 
 ---
 
-## Events
+## Eventos
 
-Subscribe with `offer.on(event, callback)`. Returns an `Unsubscribe` function.
+Assine com `offer.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
-| Event                | Payload | Description                                             |
-| -------------------- | ------- | ------------------------------------------------------- |
-| `acceptedElsewhere`  | —       | Another client (browser tab / device) accepted the call.|
-| `rejectedElsewhere`  | —       | Another client rejected the call.                       |
-| `unanswered`         | —       | Offer timed out with no response.                       |
-| `ended`              | —       | Call ended before it was answered.                      |
-| `status`             | `CallStatus` | Call status changed.                               |
+| Evento               | Payload      | Descrição                                                     |
+| -------------------- | ------------ | ------------------------------------------------------------- |
+| `acceptedElsewhere`  | —            | Outro cliente (aba/dispositivo) aceitou a chamada.            |
+| `rejectedElsewhere`  | —            | Outro cliente rejeitou a chamada.                             |
+| `unanswered`         | —            | Oferta expirou sem resposta.                                  |
+| `ended`              | —            | Chamada encerrada antes de ser atendida.                      |
+| `status`             | `CallStatus` | Status da chamada mudou.                                      |
 
 ```typescript
 offer.on("acceptedElsewhere", () => {
-    console.log("Call picked up elsewhere")
+    console.log("Chamada atendida em outro lugar")
 })
 
 offer.on("unanswered", () => {
-    console.log("No one answered")
+    console.log("Ninguém atendeu")
 })
 ```
 
 ---
 
-## Full example
+## Exemplo completo
 
 ```typescript
 wavoip.on("offer", async (offer) => {
     const { peer } = offer
 
-    // Show incoming call UI
+    // Exibir interface de chamada recebida
     showIncomingCallUI({
         name: peer.displayName ?? peer.phone,
         avatar: peer.profilePicture ?? undefined,
@@ -118,4 +118,4 @@ wavoip.on("offer", async (offer) => {
 })
 ```
 
-After `accept()` resolves, see [Active Call](active.md) for how to manage the in-progress call.
+Após `accept()` resolver, veja [Chamada Ativa](active.md) para gerenciar a chamada em andamento.

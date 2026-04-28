@@ -1,15 +1,15 @@
 ---
-description: Initiate outgoing calls and handle peer responses.
+description: Inicie chamadas e trate respostas do destinatário.
 icon: phone-outgoing
 ---
 
-# Outgoing Calls
+# Chamadas Realizadas
 
-Use `wavoip.startCall()` to initiate a call. The method returns a `CallOutgoing` object that emits events as the peer responds.
+Use `wavoip.startCall()` para iniciar uma chamada. O método retorna um objeto `CallOutgoing` que emite eventos conforme o destinatário responde.
 
 ---
 
-## Starting a call
+## Iniciando uma chamada
 
 ```typescript
 const { call, err } = await wavoip.startCall({
@@ -17,84 +17,84 @@ const { call, err } = await wavoip.startCall({
 })
 
 if (err) {
-    console.error("Could not start call:", err.message)
-    // err.devices lists which devices were tried and why each failed
+    console.error("Não foi possível iniciar a chamada:", err.message)
+    // err.devices lista quais dispositivos foram tentados e por que cada um falhou
     return
 }
 
-// call is a CallOutgoing
+// call é um CallOutgoing
 call.on("peerAccept", (active) => {
-    console.log("Call connected!")
+    console.log("Chamada conectada!")
     handleActiveCall(active)
 })
 
-call.on("peerReject", () => console.log("Peer rejected the call"))
-call.on("unanswered", () => console.log("No answer"))
+call.on("peerReject", () => console.log("Destinatário rejeitou a chamada"))
+call.on("unanswered", () => console.log("Sem resposta"))
 ```
 
 ---
 
-## `startCall` parameters
+## Parâmetros de `startCall`
 
-| Parameter    | Type       | Required | Description                                              |
-| ------------ | ---------- | -------- | -------------------------------------------------------- |
-| `to`         | `string`   | Yes      | Destination phone number (E.164 format recommended).     |
-| `fromTokens` | `string[]` | No       | Restrict which devices to try. Default: all devices.     |
+| Parâmetro    | Tipo       | Obrigatório | Descrição                                                          |
+| ------------ | ---------- | ----------- | ------------------------------------------------------------------ |
+| `to`         | `string`   | Sim         | Número de telefone de destino (formato E.164 recomendado).         |
+| `fromTokens` | `string[]` | Não         | Restringe quais dispositivos tentar. Padrão: todos os dispositivos.|
 
-### Return value
+### Valor de retorno
 
-**Success** — `{ call: CallOutgoing; err: null }`
+**Sucesso** — `{ call: CallOutgoing; err: null }`
 
-**Failure** — `{ call: null; err: { message: string; devices: { token: string; reason: string }[] } }`
+**Falha** — `{ call: null; err: { message: string; devices: { token: string; reason: string }[] } }`
 
 {% hint style="info" %}
-`startCall` tries each eligible device in sequence. The first device that successfully initiates the call is used; the rest are not tried. Use `fromTokens` to control which devices participate.
+`startCall` tenta cada dispositivo elegível em sequência. O primeiro dispositivo que iniciar a chamada com sucesso é usado; os demais não são tentados. Use `fromTokens` para controlar quais dispositivos participam.
 {% endhint %}
 
 ---
 
-## CallOutgoing properties
+## Propriedades do CallOutgoing
 
-| Property       | Type            | Description                                        |
-| -------------- | --------------- | -------------------------------------------------- |
-| `id`           | `string`        | Unique call identifier.                            |
-| `type`         | `CallType`      | `"official"` or `"unofficial"`.                    |
-| `direction`    | `CallDirection` | Always `"OUTGOING"`.                               |
-| `peer`         | `CallPeer`      | Recipient's phone, display name, profile picture.  |
-| `device_token` | `string`        | Token of the device placing the call.              |
-| `status`       | `CallStatus`    | Current call state.                                |
+| Propriedade    | Tipo            | Descrição                                                  |
+| -------------- | --------------- | ---------------------------------------------------------- |
+| `id`           | `string`        | Identificador único da chamada.                            |
+| `type`         | `CallType`      | `"official"` ou `"unofficial"`.                            |
+| `direction`    | `CallDirection` | Sempre `"OUTGOING"`.                                       |
+| `peer`         | `CallPeer`      | Telefone, nome de exibição e foto de perfil do destinatário.|
+| `device_token` | `string`        | Token do dispositivo que está realizando a chamada.        |
+| `status`       | `CallStatus`    | Estado atual da chamada.                                   |
 
 ---
 
-## Events
+## Eventos
 
-Subscribe with `call.on(event, callback)`. Returns an `Unsubscribe` function.
+Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
-| Event        | Payload        | Description                                       |
-| ------------ | -------------- | ------------------------------------------------- |
-| `peerAccept` | `CallActive`   | Peer answered — a `CallActive` is provided.       |
-| `peerReject` | —              | Peer declined the call.                           |
-| `unanswered` | —              | Call timed out with no response.                  |
-| `ended`      | —              | Call ended (e.g. peer hung up before answering).  |
-| `status`     | `CallStatus`   | Call status changed.                              |
+| Evento       | Payload        | Descrição                                               |
+| ------------ | -------------- | ------------------------------------------------------- |
+| `peerAccept` | `CallActive`   | Destinatário atendeu — um `CallActive` é fornecido.     |
+| `peerReject` | —              | Destinatário recusou a chamada.                         |
+| `unanswered` | —              | Chamada expirou sem resposta.                           |
+| `ended`      | —              | Chamada encerrada (ex: destinatário desligou antes de atender). |
+| `status`     | `CallStatus`   | Status da chamada mudou.                                |
 
 ```typescript
 call.on("peerAccept", (active) => {
-    // Transition to active call UI
+    // Transicionar para interface de chamada ativa
     active.on("ended", () => showCallEndedScreen())
 })
 
-call.on("peerReject", () => showNotification("Call rejected"))
-call.on("unanswered", () => showNotification("No answer"))
+call.on("peerReject", () => showNotification("Chamada recusada"))
+call.on("unanswered", () => showNotification("Sem resposta"))
 ```
 
 ---
 
-## Methods
+## Métodos
 
 ### `mute()` / `unmute()`
 
-Mute or unmute the microphone for this call.
+Silencia ou ativa o microfone para esta chamada.
 
 ```typescript
 await call.mute()    // { err: string | null }
@@ -105,7 +105,7 @@ await call.unmute()
 
 ### `end()`
 
-End the outgoing call.
+Encerra a chamada realizada.
 
 ```typescript
 await call.end()
@@ -113,26 +113,26 @@ await call.end()
 
 ---
 
-## Multiple device fallback example
+## Exemplo com fallback entre dispositivos
 
-Use `startCallIterator` to display per-device feedback while trying devices in sequence:
+Use `startCallIterator` para exibir feedback por dispositivo enquanto tenta em sequência:
 
 ```typescript
 const iter = wavoip.startCallIterator({ to: "+5511999999999" })
 
-// Yield for each failed attempt
+// Yield para cada tentativa falha
 for await (const attempt of iter) {
-    console.warn(`Device ${attempt.token} unavailable: ${attempt.err}`)
+    console.warn(`Dispositivo ${attempt.token} indisponível: ${attempt.err}`)
     updateUI({ tryingNext: true })
 }
 
-// Final result
+// Resultado final
 const final = await iter.return(undefined)
 if (final.value?.call) {
     handleOutgoingCall(final.value.call)
 } else {
-    showError("All devices failed")
+    showError("Todos os dispositivos falharam")
 }
 ```
 
-After the peer answers, see [Active Call](active.md) for managing the in-progress call.
+Após o destinatário atender, veja [Chamada Ativa](active.md) para gerenciar a chamada em andamento.

@@ -1,11 +1,11 @@
 ---
-description: Complete reference for all exported types.
+description: Referência completa de todos os tipos exportados.
 icon: brackets-curly
 ---
 
-# Types
+# Tipos
 
-All types listed here are re-exported from the package root and can be imported directly:
+Todos os tipos listados aqui são re-exportados da raiz do pacote e podem ser importados diretamente:
 
 ```typescript
 import type {
@@ -22,22 +22,22 @@ import type {
 
 ---
 
-## Call types
+## Tipos de chamada
 
 ### `CallStatus`
 
-All possible states a call can be in.
+Todos os estados possíveis de uma chamada.
 
 ```typescript
 type CallStatus =
-    | "CALLING"       // Incoming offer received, not yet answered
-    | "RINGING"       // Outgoing call ringing on the peer's end
-    | "ACTIVE"        // Call is connected and audio is flowing
-    | "ENDED"         // Call ended normally
-    | "REJECTED"      // Call was rejected
-    | "NOT_ANSWERED"  // No response before timeout
-    | "FAILED"        // Transport-level failure during the call
-    | "DISCONNECTED"  // Connection was lost
+    | "CALLING"       // Oferta recebida, ainda não atendida
+    | "RINGING"       // Chamada realizada tocando no destinatário
+    | "ACTIVE"        // Chamada conectada com áudio fluindo
+    | "ENDED"         // Chamada encerrada normalmente
+    | "REJECTED"      // Chamada foi rejeitada
+    | "NOT_ANSWERED"  // Sem resposta antes do tempo limite
+    | "FAILED"        // Falha no nível de transporte durante a chamada
+    | "DISCONNECTED"  // Conexão perdida
 ```
 
 ### `CallType`
@@ -46,10 +46,10 @@ type CallStatus =
 type CallType = "official" | "unofficial"
 ```
 
-| Value         | Transport  | Description                                    |
-| ------------- | ---------- | ---------------------------------------------- |
-| `"official"`  | WebRTC     | Native WhatsApp call using SRTP.               |
-| `"unofficial"`| WebSocket relay | Audio relayed through Wavoip servers.     |
+| Valor          | Transporte          | Descrição                                          |
+| -------------- | ------------------- | -------------------------------------------------- |
+| `"official"`   | WebRTC              | Chamada nativa do WhatsApp usando SRTP.            |
+| `"unofficial"` | Relay via WebSocket | Áudio retransmitido pelos servidores Wavoip.       |
 
 ### `CallDirection`
 
@@ -59,72 +59,72 @@ type CallDirection = "INCOMING" | "OUTGOING"
 
 ---
 
-## Peer
+## Par
 
 ```typescript
 type CallPeer = {
-    phone: string               // E.164 phone number
-    displayName: string | null  // WhatsApp display name
-    profilePicture: string | null  // Profile picture URL
-    muted: boolean              // Whether the peer is currently muted
+    phone: string               // Número no formato E.164
+    displayName: string | null  // Nome de exibição do WhatsApp
+    profilePicture: string | null  // URL da foto de perfil
+    muted: boolean              // Se o par está silenciado no momento
 }
 ```
 
 ---
 
-## Call statistics
+## Estatísticas de chamada
 
 ```typescript
 type CallStats = {
     rtt: {
-        min: number   // Minimum round-trip time (ms)
-        max: number   // Maximum round-trip time (ms)
-        avg: number   // Average round-trip time (ms)
+        min: number   // Tempo mínimo de ida e volta (ms)
+        max: number   // Tempo máximo de ida e volta (ms)
+        avg: number   // Tempo médio de ida e volta (ms)
     }
     tx: {
-        total:       number  // Packets sent
-        total_bytes: number  // Bytes sent
-        loss:        number  // Packet loss (0–1)
+        total:       number  // Pacotes enviados
+        total_bytes: number  // Bytes enviados
+        loss:        number  // Perda de pacotes (0–1)
     }
     rx: {
-        total:       number  // Packets received
-        total_bytes: number  // Bytes received
-        loss:        number  // Packet loss (0–1)
+        total:       number  // Pacotes recebidos
+        total_bytes: number  // Bytes recebidos
+        loss:        number  // Perda de pacotes (0–1)
     }
 }
 ```
 
 ---
 
-## Device types
+## Tipos de dispositivo
 
 ### `DeviceStatus`
 
 ```typescript
 type DeviceStatus =
-    | "UP"                        // (legacy) Device is running
-    | "disconnected"              // WebSocket not connected
-    | "close"                     // Connected, no WhatsApp linked
-    | "connecting"                // QR code ready, awaiting scan
-    | "open"                      // Linked and ready for calls
-    | "restarting"                // Restarting; no new calls
-    | "hibernating"               // Inactive; call wakeUp()
-    | "BUILDING"                  // Initialising
-    | "WAITING_PAYMENT"           // Account payment required
-    | "EXTERNAL_INTEGRATION_ERROR"// External integration failure
+    | "UP"                        // (legado) Dispositivo em execução
+    | "disconnected"              // WebSocket não conectado
+    | "close"                     // Conectado, sem WhatsApp vinculado
+    | "connecting"                // QR code pronto, aguardando leitura
+    | "open"                      // Vinculado e pronto para chamadas
+    | "restarting"                // Reiniciando; sem novas chamadas
+    | "hibernating"               // Inativo; chame wakeUp()
+    | "BUILDING"                  // Inicializando
+    | "WAITING_PAYMENT"           // Pagamento da conta necessário
+    | "EXTERNAL_INTEGRATION_ERROR"// Falha na integração externa
 ```
 
 ### `Contact`
 
 ```typescript
 type Contact = {
-    phone: string  // Linked WhatsApp number
+    phone: string  // Número WhatsApp vinculado
 }
 ```
 
 ---
 
-## Transport
+## Transporte
 
 ### `TransportStatus`
 
@@ -134,7 +134,7 @@ type TransportStatus = "disconnected" | "connecting" | "connected" | "reconnecti
 
 ---
 
-## Event maps
+## Mapas de eventos
 
 ### `OfferEvents`
 
@@ -186,16 +186,16 @@ type DeviceEvents = {
 
 ---
 
-## Utilities
+## Utilitários
 
 ### `Unsubscribe`
 
-The return type of every `on()` call. Invoke it to remove the listener.
+O tipo de retorno de cada chamada `on()`. Invoque-o para remover o listener.
 
 ```typescript
 type Unsubscribe = () => void
 
 const unsub = wavoip.on("offer", handler)
-// Later:
+// Depois:
 unsub()
 ```

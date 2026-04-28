@@ -1,80 +1,80 @@
 ---
-description: Create a Wavoip instance and understand its top-level API.
+description: Crie uma instância Wavoip e entenda sua API de alto nível.
 icon: rocket
 ---
 
-# Initialization
+# Inicialização
 
-## Constructor
+## Construtor
 
 ```typescript
 import { Wavoip } from "@wavoip/wavoip-api"
 
 const wavoip = new Wavoip({
     tokens: ["token-1", "token-2"],
-    platform?: string,        // optional — identifies the client platform
+    platform?: string,        // opcional — identifica a plataforma do cliente
 })
 ```
 
-| Parameter  | Type       | Required | Description                                          |
-| ---------- | ---------- | -------- | ---------------------------------------------------- |
-| `tokens`   | `string[]` | Yes      | One or more Wavoip device tokens. Duplicates are ignored. |
-| `platform` | `string`   | No       | Platform identifier sent to the server on connection. |
+| Parâmetro  | Tipo       | Obrigatório | Descrição                                                       |
+| ---------- | ---------- | ----------- | --------------------------------------------------------------- |
+| `tokens`   | `string[]` | Sim         | Um ou mais tokens de dispositivo Wavoip. Duplicatas são ignoradas. |
+| `platform` | `string`   | Não         | Identificador de plataforma enviado ao servidor na conexão.     |
 
-Each token creates a persistent WebSocket connection to the Wavoip infrastructure. The library immediately begins connecting on construction — no explicit `.connect()` call is needed.
+Cada token cria uma conexão WebSocket persistente com a infraestrutura Wavoip. A biblioteca começa a se conectar imediatamente na construção — nenhuma chamada explícita a `.connect()` é necessária.
 
 ---
 
-## Events
+## Eventos
 
 ### `offer`
 
-Emitted when an incoming call arrives on any connected device.
+Emitido quando uma chamada recebida chega em qualquer dispositivo conectado.
 
 ```typescript
 const unsub = wavoip.on("offer", (offer) => {
-    console.log("Incoming call from", offer.peer.phone)
-    // See Incoming Calls for what to do with `offer`
+    console.log("Chamada recebida de", offer.peer.phone)
+    // Veja Chamadas Recebidas para saber o que fazer com `offer`
 })
 
-// Stop listening
+// Parar de escutar
 unsub()
 ```
 
 ---
 
-## Methods
+## Métodos
 
 ### `getDevices()`
 
-Returns a snapshot of all registered devices.
+Retorna um snapshot de todos os dispositivos registrados.
 
 ```typescript
 const devices = wavoip.getDevices()
 // Device[]
 ```
 
-See [Device](../device.md) for the full `Device` interface.
+Veja [Dispositivo](../device.md) para a interface completa de `Device`.
 
 ---
 
 ### `addDevices(tokens)`
 
-Adds new devices to the instance at runtime. Already-registered tokens are silently ignored.
+Adiciona novos dispositivos à instância em tempo de execução. Tokens já registrados são silenciosamente ignorados.
 
 ```typescript
-const added = wavoip.addDevices(["new-token"])
-// Device[]  — only the newly added devices
+const added = wavoip.addDevices(["novo-token"])
+// Device[]  — apenas os dispositivos recém-adicionados
 ```
 
 ---
 
 ### `removeDevices(tokens)`
 
-Disconnects and removes devices by token. Returns the devices that remain.
+Desconecta e remove dispositivos pelo token. Retorna os dispositivos que permanecem.
 
 ```typescript
-const remaining = wavoip.removeDevices(["token-to-remove"])
+const remaining = wavoip.removeDevices(["token-a-remover"])
 // Device[]
 ```
 
@@ -82,23 +82,23 @@ const remaining = wavoip.removeDevices(["token-to-remove"])
 
 ### `startCall(params)`
 
-Initiates an outgoing call. Tries each eligible device in sequence and returns on the first success.
+Inicia uma chamada. Tenta cada dispositivo elegível em sequência e retorna no primeiro sucesso.
 
 ```typescript
 const result = await wavoip.startCall({
     to: "+5511999999999",
-    fromTokens?: string[],    // restrict which devices to try; default: all
+    fromTokens?: string[],    // restringe quais dispositivos tentar; padrão: todos
 })
 ```
 
-**Success:**
+**Sucesso:**
 
 ```typescript
 const { call, err } = result
 // call: CallOutgoing  —  err: null
 ```
 
-**Failure (all devices failed):**
+**Falha (todos os dispositivos falharam):**
 
 ```typescript
 const { call, err } = result
@@ -106,23 +106,23 @@ const { call, err } = result
 // err: { message: string; devices: { token: string; reason: string }[] }
 ```
 
-See [Outgoing Calls](../calls/outgoing.md) for the full `CallOutgoing` API.
+Veja [Chamadas Realizadas](../calls/outgoing.md) para a API completa de `CallOutgoing`.
 
 ---
 
 ### `startCallIterator(params)`
 
-An async generator variant of `startCall` that yields each device attempt before returning the final result. Useful when you want to show per-device feedback in the UI.
+Variante de gerador assíncrono de `startCall` que emite cada tentativa de dispositivo antes de retornar o resultado final. Útil para exibir feedback por dispositivo na interface.
 
 ```typescript
 const iter = wavoip.startCallIterator({ to: "+5511999999999" })
 
-// Each yield is a failed attempt on one device
+// Cada yield é uma tentativa falha em um dispositivo
 for await (const attempt of iter) {
-    console.warn(`Device ${attempt.token} failed:`, attempt.err)
+    console.warn(`Dispositivo ${attempt.token} falhou:`, attempt.err)
 }
 
-// .return() holds the final result
+// .return() contém o resultado final
 const result = await iter.return(undefined)
 if (result.value?.call) {
     const call = result.value.call
@@ -130,31 +130,31 @@ if (result.value?.call) {
 ```
 
 {% hint style="info" %}
-`startCall` is simpler for most use cases. Use `startCallIterator` only when per-device progress matters to the user.
+`startCall` é mais simples para a maioria dos casos. Use `startCallIterator` apenas quando o progresso por dispositivo importa para o usuário.
 {% endhint %}
 
 ---
 
 ### `wakeUpDevices(tokens?)`
 
-Wakes hibernating devices. Returns an array of Promises so you can `Promise.all` them or handle results individually.
+Acorda dispositivos em hibernação. Retorna um array de Promises para que você possa usar `Promise.all` ou tratar os resultados individualmente.
 
 ```typescript
 const results = await Promise.all(wavoip.wakeUpDevices())
 // { token: string; waken: boolean }[]
 ```
 
-Pass an array of tokens to target specific devices; omit to wake all.
+Passe um array de tokens para atingir dispositivos específicos; omita para acordar todos.
 
 ---
 
 ### `wakeUpDevicesIterator(tokens?)`
 
-Async generator variant — yields each wake result as it completes.
+Variante de gerador assíncrono — emite cada resultado de wake conforme concluído.
 
 ```typescript
 for await (const result of wavoip.wakeUpDevicesIterator()) {
-    console.log(result.token, result.waken ? "woke up" : "failed")
+    console.log(result.token, result.waken ? "acordou" : "falhou")
 }
 ```
 
@@ -162,7 +162,7 @@ for await (const result of wavoip.wakeUpDevicesIterator()) {
 
 ### `getMultimediaDevices()`
 
-Lists all available microphone and speaker devices.
+Lista todos os microfones e alto-falantes disponíveis.
 
 ```typescript
 const devices = wavoip.getMultimediaDevices()
@@ -171,9 +171,9 @@ const devices = wavoip.getMultimediaDevices()
 
 ---
 
-### `multimedia` (property)
+### `multimedia` (propriedade)
 
-Returns the currently active microphone and speaker.
+Retorna o microfone e alto-falante ativos no momento.
 
 ```typescript
 const { microphone, speaker } = wavoip.multimedia

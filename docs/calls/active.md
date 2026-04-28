@@ -1,34 +1,34 @@
 ---
-description: Control and monitor an in-progress call — mute, stats, peer state, and teardown.
+description: Controle e monitore uma chamada em andamento — mudo, estatísticas, estado do par e encerramento.
 icon: phone
 ---
 
-# Active Call
+# Chamada Ativa
 
-A `CallActive` object is provided either when an incoming offer is accepted or when an outgoing call is answered by the peer. It gives full control over the in-progress call.
-
----
-
-## Properties
-
-| Property            | Type              | Description                                                          |
-| ------------------- | ----------------- | -------------------------------------------------------------------- |
-| `id`                | `string`          | Unique call identifier.                                              |
-| `type`              | `CallType`        | `"official"` (WebRTC) or `"unofficial"` (relay).                    |
-| `direction`         | `CallDirection`   | `"INCOMING"` or `"OUTGOING"`.                                        |
-| `peer`              | `CallPeer`        | Remote party — phone, display name, profile picture, and mute state. |
-| `device_token`      | `string`          | Token of the device handling this call.                              |
-| `status`            | `CallStatus`      | Current call state.                                                  |
-| `connection_status` | `TransportStatus` | Media transport state: `"connecting"`, `"connected"`, `"reconnecting"`, or `"disconnected"`. |
-| `audio_analyser`    | `Promise<AnalyserNode>` | Resolves to a Web Audio `AnalyserNode` connected to the remote audio stream. |
+Um objeto `CallActive` é fornecido quando uma oferta recebida é aceita ou quando uma chamada realizada é atendida pelo destinatário. Ele oferece controle total sobre a chamada em andamento.
 
 ---
 
-## Methods
+## Propriedades
+
+| Propriedade         | Tipo                    | Descrição                                                              |
+| ------------------- | ----------------------- | ---------------------------------------------------------------------- |
+| `id`                | `string`                | Identificador único da chamada.                                        |
+| `type`              | `CallType`              | `"official"` (WebRTC) ou `"unofficial"` (relay).                       |
+| `direction`         | `CallDirection`         | `"INCOMING"` ou `"OUTGOING"`.                                          |
+| `peer`              | `CallPeer`              | Parte remota — telefone, nome de exibição, foto de perfil e mudo.      |
+| `device_token`      | `string`                | Token do dispositivo que gerencia esta chamada.                        |
+| `status`            | `CallStatus`            | Estado atual da chamada.                                               |
+| `connection_status` | `TransportStatus`       | Estado do transporte de mídia: `"connecting"`, `"connected"`, `"reconnecting"` ou `"disconnected"`. |
+| `audio_analyser`    | `Promise<AnalyserNode>` | Resolve para um `AnalyserNode` do Web Audio conectado ao stream de áudio remoto. |
+
+---
+
+## Métodos
 
 ### `mute()` / `unmute()`
 
-Toggle microphone mute. Operates on the audio track — no stream teardown, no re-negotiation.
+Alterna o mudo do microfone. Opera na faixa de áudio — sem interrupção do stream, sem renegociação.
 
 ```typescript
 await call.mute()    // { err: string | null }
@@ -39,7 +39,7 @@ await call.unmute()
 
 ### `end()`
 
-Terminate the call and clean up all media resources.
+Encerra a chamada e libera todos os recursos de mídia.
 
 ```typescript
 await call.end()
@@ -47,19 +47,19 @@ await call.end()
 
 ---
 
-## Events
+## Eventos
 
-Subscribe with `call.on(event, callback)`. Returns an `Unsubscribe` function.
+Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
-| Event              | Payload           | Description                                              |
-| ------------------ | ----------------- | -------------------------------------------------------- |
-| `ended`            | —                 | Call ended (by either party).                            |
-| `peerMute`         | —                 | Remote party muted their microphone.                     |
-| `peerUnmute`       | —                 | Remote party unmuted their microphone.                   |
-| `connectionStatus` | `TransportStatus` | Media transport connection state changed.                |
-| `stats`            | `CallStats`       | Periodic call quality statistics (RTT, packet loss).     |
-| `error`            | `string`          | A transport-level error occurred.                        |
-| `status`           | `CallStatus`      | Call status changed.                                     |
+| Evento             | Payload           | Descrição                                                    |
+| ------------------ | ----------------- | ------------------------------------------------------------ |
+| `ended`            | —                 | Chamada encerrada (por qualquer uma das partes).             |
+| `peerMute`         | —                 | Parte remota silenciou o microfone.                          |
+| `peerUnmute`       | —                 | Parte remota ativou o microfone.                             |
+| `connectionStatus` | `TransportStatus` | Estado de conexão do transporte de mídia mudou.              |
+| `stats`            | `CallStats`       | Estatísticas periódicas de qualidade (RTT, perda de pacotes).|
+| `error`            | `string`          | Ocorreu um erro no nível de transporte.                      |
+| `status`           | `CallStatus`      | Status da chamada mudou.                                     |
 
 ```typescript
 call.on("ended", () => {
@@ -75,41 +75,41 @@ call.on("peerUnmute", () => {
 })
 
 call.on("connectionStatus", (status) => {
-    console.log("Transport:", status)
+    console.log("Transporte:", status)
 })
 
 call.on("stats", (stats) => {
-    console.log(`RTT avg: ${stats.rtt.avg}ms | RX loss: ${stats.rx.loss}`)
+    console.log(`RTT médio: ${stats.rtt.avg}ms | Perda RX: ${stats.rx.loss}`)
 })
 
 call.on("error", (err) => {
-    console.error("Call error:", err)
+    console.error("Erro na chamada:", err)
 })
 ```
 
 ---
 
-## Audio analysis
+## Análise de áudio
 
-`audio_analyser` resolves to a Web Audio `AnalyserNode` connected to the remote audio stream. Use it to visualise the call waveform or detect silence.
+`audio_analyser` resolve para um `AnalyserNode` do Web Audio conectado ao stream de áudio remoto. Use-o para visualizar a forma de onda da chamada ou detectar silêncio.
 
 ```typescript
 const analyser = await call.audio_analyser
 
 const dataArray = new Uint8Array(analyser.frequencyBinCount)
 analyser.getByteFrequencyData(dataArray)
-// Draw dataArray on a canvas…
+// Desenhe dataArray em um canvas…
 ```
 
 ---
 
-## Call statistics
+## Estatísticas de chamada
 
-The `stats` event fires periodically with a `CallStats` object:
+O evento `stats` é emitido periodicamente com um objeto `CallStats`:
 
 ```typescript
 type CallStats = {
-    rtt: { min: number; max: number; avg: number }  // milliseconds
+    rtt: { min: number; max: number; avg: number }  // milissegundos
     tx: { total: number; total_bytes: number; loss: number }
     rx: { total: number; total_bytes: number; loss: number }
 }
@@ -117,35 +117,35 @@ type CallStats = {
 
 ---
 
-## Connection recovery
+## Recuperação de conexão
 
-For unofficial (relay) calls, the WebSocket transport reconnects automatically on unexpected disconnections. The `connectionStatus` event tracks this:
+Para chamadas não oficiais (relay), o transporte WebSocket se reconecta automaticamente em desconexões inesperadas. O evento `connectionStatus` rastreia isso:
 
 {% stepper %}
 {% step %}
-## Connected
+## Conectado
 
-Call is running normally. `connection_status === "connected"`.
+Chamada funcionando normalmente. `connection_status === "connected"`.
 {% endstep %}
 
 {% step %}
-## Reconnecting
+## Reconectando
 
-WebSocket dropped unexpectedly. Library retries every 1 second for up to 30 seconds.
+WebSocket caiu inesperadamente. A biblioteca tenta reconectar a cada 1 segundo por até 30 segundos.
 `connection_status === "reconnecting"`.
 {% endstep %}
 
 {% step %}
-## Disconnected
+## Desconectado
 
-30-second deadline exceeded with no successful reconnect.
-`connection_status === "disconnected"` — treat the call as lost.
+Prazo de 30 segundos excedido sem reconexão bem-sucedida.
+`connection_status === "disconnected"` — trate a chamada como perdida.
 {% endstep %}
 {% endstepper %}
 
 ---
 
-## Full example
+## Exemplo completo
 
 ```typescript
 wavoip.on("offer", async (offer) => {
@@ -168,12 +168,12 @@ wavoip.on("offer", async (offer) => {
         closeCallUI()
     })
 
-    // Mute button handler
+    // Botão de mudo
     document.getElementById("mute-btn")?.addEventListener("click", () => {
         call.mute()
     })
 
-    // End call button handler
+    // Botão de encerrar chamada
     document.getElementById("end-btn")?.addEventListener("click", () => {
         call.end()
     })

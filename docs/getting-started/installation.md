@@ -1,20 +1,20 @@
 ---
-description: Add @wavoip/wavoip-api to your project.
+description: Adicione @wavoip/wavoip-api ao seu projeto.
 icon: download
 ---
 
-# Installation
+# Instalação
 
-## Requirements
+## Requisitos
 
-* A modern browser with WebRTC support (Chrome 80+, Firefox 75+, Safari 14.1+)
-* A Wavoip device token — obtained from the [Wavoip control panel](https://wavoip.com)
+* Um navegador moderno com suporte a WebRTC (Chrome 80+, Firefox 75+, Safari 14.1+)
+* Um token de dispositivo Wavoip — obtido no [painel de controle Wavoip](https://wavoip.com)
 
 {% hint style="warning" %}
-This library runs in the **browser only**. It depends on `navigator.mediaDevices`, `AudioContext`, `RTCPeerConnection`, and Socket.IO — none of which are available in Node.js.
+Esta biblioteca funciona **apenas no navegador**. Ela depende de `navigator.mediaDevices`, `AudioContext`, `RTCPeerConnection` e Socket.IO — nenhum destes está disponível no Node.js.
 {% endhint %}
 
-## Install the package
+## Instalar o pacote
 
 {% tabs %}
 {% tab title="pnpm" %}
@@ -36,10 +36,10 @@ yarn add @wavoip/wavoip-api
 {% endtab %}
 {% endtabs %}
 
-## Framework notes
+## Notas sobre frameworks
 
-The library is framework-agnostic. Use it in React, Vue, Svelte, vanilla JS, or any other browser environment.
+A biblioteca é independente de framework. Use-a com React, Vue, Svelte, JS puro ou qualquer outro ambiente de navegador.
 
 {% hint style="info" %}
-If you're using a bundler like Vite or webpack, the AudioWorklet files are bundled automatically. No extra configuration is needed.
+Se você estiver usando um bundler como Vite ou webpack, os arquivos AudioWorklet são empacotados automaticamente. Nenhuma configuração extra é necessária.
 {% endhint %}

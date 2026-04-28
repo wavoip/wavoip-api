@@ -1,22 +1,22 @@
-# Summary
+# Sumário
 
-## Getting Started
+## Primeiros Passos
 
-* [Introduction](README.md)
-* [Installation](getting-started/installation.md)
-* [Initialization](getting-started/initialization.md)
+* [Introdução](README.md)
+* [Instalação](getting-started/installation.md)
+* [Inicialização](getting-started/initialization.md)
 
-## Core Concepts
+## Conceitos Fundamentais
 
-* [Device](device.md)
-* [Media](media.md)
+* [Dispositivo](device.md)
+* [Mídia](media.md)
 
-## Calls
+## Chamadas
 
-* [Incoming Calls](calls/incoming.md)
-* [Outgoing Calls](calls/outgoing.md)
-* [Active Call](calls/active.md)
+* [Chamadas Recebidas](calls/incoming.md)
+* [Chamadas Realizadas](calls/outgoing.md)
+* [Chamada Ativa](calls/active.md)
 
-## Reference
+## Referência
 
-* [Types](types.md)
+* [Tipos](types.md)

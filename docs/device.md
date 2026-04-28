@@ -1,50 +1,50 @@
 ---
-description: Manage individual Wavoip devices — status, pairing, and lifecycle.
+description: Gerencie dispositivos Wavoip individualmente — status, pareamento e ciclo de vida.
 icon: mobile
 ---
 
-# Device
+# Dispositivo
 
-A `Device` represents a single Wavoip device identified by its token. Each device maintains a persistent WebSocket connection and exposes real-time status, QR code, and contact information.
+Um `Device` representa um único dispositivo Wavoip identificado pelo seu token. Cada dispositivo mantém uma conexão WebSocket persistente e expõe status em tempo real, QR code e informações de contato.
 
-Devices are returned by `wavoip.getDevices()`, `wavoip.addDevices()`, and `wavoip.removeDevices()`.
-
----
-
-## Properties
-
-| Property  | Type            | Description                                      |
-| --------- | --------------- | ------------------------------------------------ |
-| `token`   | `string`        | Unique device token (read-only).                 |
-| `status`  | `DeviceStatus`  | Current connection/pairing state.                |
-| `qrCode`  | `string \| undefined` | QR code string when device is in `connecting` state. |
-| `contact` | `Contact \| undefined` | Linked WhatsApp number when device is `open`. |
+Os dispositivos são retornados por `wavoip.getDevices()`, `wavoip.addDevices()` e `wavoip.removeDevices()`.
 
 ---
 
-## Device status
+## Propriedades
 
-| Status                      | Meaning                                                                 |
-| --------------------------- | ----------------------------------------------------------------------- |
-| `disconnected`              | WebSocket is not connected. Auto-reconnect is in progress.              |
-| `close`                     | Connected but no WhatsApp number linked. May enter hibernation.         |
-| `connecting`                | QR code is ready — waiting for WhatsApp to be scanned.                  |
-| `open`                      | Linked and ready to make/receive calls.                                 |
-| `restarting`                | Device is restarting; new calls are blocked.                            |
-| `hibernating`               | Inactive for 2.5+ minutes. Call `wakeUp()` to reactivate.              |
-| `BUILDING`                  | Device is initialising; calls unavailable.                              |
-| `WAITING_PAYMENT`           | Account payment required.                                               |
-| `EXTERNAL_INTEGRATION_ERROR`| External WhatsApp integration error; restart required.                  |
+| Propriedade | Tipo                  | Descrição                                                    |
+| ----------- | --------------------- | ------------------------------------------------------------ |
+| `token`     | `string`              | Token único do dispositivo (somente leitura).                |
+| `status`    | `DeviceStatus`        | Estado atual de conexão/pareamento.                          |
+| `qrCode`    | `string \| undefined` | String do QR code quando o dispositivo está em `connecting`. |
+| `contact`   | `Contact \| undefined`| Número WhatsApp vinculado quando o dispositivo está `open`.  |
+
+---
+
+## Status do dispositivo
+
+| Status                       | Significado                                                                  |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| `disconnected`               | WebSocket não está conectado. Reconexão automática em andamento.             |
+| `close`                      | Conectado, mas sem número WhatsApp vinculado. Pode entrar em hibernação.     |
+| `connecting`                 | QR code pronto — aguardando leitura pelo WhatsApp.                           |
+| `open`                       | Vinculado e pronto para realizar/receber chamadas.                           |
+| `restarting`                 | Dispositivo está reiniciando; novas chamadas estão bloqueadas.               |
+| `hibernating`                | Inativo por 2,5+ minutos. Chame `wakeUp()` para reativar.                   |
+| `BUILDING`                   | Dispositivo inicializando; chamadas indisponíveis.                           |
+| `WAITING_PAYMENT`            | Pagamento da conta necessário.                                               |
+| `EXTERNAL_INTEGRATION_ERROR` | Erro de integração externa com o WhatsApp; reinicialização necessária.       |
 
 {% hint style="info" %}
-The device auto-reconnects on unexpected WebSocket drops. `disconnected` is transient — the library tries up to three reconnection attempts before giving up.
+O dispositivo se reconecta automaticamente em quedas inesperadas do WebSocket. `disconnected` é transitório — a biblioteca tenta até três reconexões antes de desistir.
 {% endhint %}
 
 ---
 
-## Events
+## Eventos
 
-Subscribe with `device.on(event, callback)`. Returns an `Unsubscribe` function.
+Assine com `device.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
 ### `statusChanged`
 
@@ -56,32 +56,32 @@ const unsub = device.on("statusChanged", (status: DeviceStatus) => {
 
 ### `qrCodeChanged`
 
-Emitted whenever the QR code string changes (including when it clears after successful pairing).
+Emitido sempre que a string do QR code muda (inclusive quando é limpa após o pareamento bem-sucedido).
 
 ```typescript
 device.on("qrCodeChanged", (qrCode?: string) => {
     if (qrCode) renderQR(qrCode)
-    else console.log("QR code cleared")
+    else console.log("QR code limpo")
 })
 ```
 
 ### `contactChanged`
 
-Emitted when the linked WhatsApp contact changes — on pairing, logout, or reconnect.
+Emitido quando o contato WhatsApp vinculado muda — no pareamento, logout ou reconexão.
 
 ```typescript
 device.on("contactChanged", (contact?: Contact) => {
-    if (contact) console.log("Linked to:", contact.phone)
+    if (contact) console.log("Vinculado a:", contact.phone)
 })
 ```
 
 ---
 
-## Methods
+## Métodos
 
 ### `restart()`
 
-Restarts the Wavoip device. Ongoing calls finish before restart begins.
+Reinicia o dispositivo Wavoip. Chamadas em andamento são finalizadas antes do reinício.
 
 ```typescript
 await device.restart()
@@ -91,7 +91,7 @@ await device.restart()
 
 ### `logout()`
 
-Unlinks the WhatsApp number from the device.
+Desvincula o número WhatsApp do dispositivo.
 
 ```typescript
 await device.logout()
@@ -101,7 +101,7 @@ await device.logout()
 
 ### `wakeUp()`
 
-Wakes a hibernating device. Returns `true` if the device responded.
+Acorda um dispositivo em hibernação. Retorna `true` se o dispositivo respondeu.
 
 ```typescript
 const woken = await device.wakeUp()
@@ -111,7 +111,7 @@ const woken = await device.wakeUp()
 
 ### `pairingCode(phone)`
 
-Requests a pairing code for linking a phone number without QR code scanning.
+Solicita um código de pareamento para vincular um número de telefone sem precisar escanear o QR code.
 
 ```typescript
 const result = await device.pairingCode("+5511999999999")
@@ -119,38 +119,38 @@ const result = await device.pairingCode("+5511999999999")
 if (result.err) {
     console.error(result.err)
 } else {
-    console.log("Pairing code:", result.pairingCode)
+    console.log("Código de pareamento:", result.pairingCode)
 }
 ```
 
-| Return field   | Type              | Description                          |
-| -------------- | ----------------- | ------------------------------------ |
-| `pairingCode`  | `string \| null`  | The code to enter on the phone.      |
-| `err`          | `string \| null`  | Error message if the request failed. |
+| Campo de retorno | Tipo              | Descrição                                       |
+| ---------------- | ----------------- | ----------------------------------------------- |
+| `pairingCode`    | `string \| null`  | O código a ser inserido no telefone.            |
+| `err`            | `string \| null`  | Mensagem de erro se a solicitação falhou.        |
 
 ---
 
-## Full example
+## Exemplo completo
 
 ```typescript
 import { Wavoip } from "@wavoip/wavoip-api"
 
-const wavoip = new Wavoip({ tokens: ["my-token"] })
+const wavoip = new Wavoip({ tokens: ["meu-token"] })
 
 const [device] = wavoip.getDevices()
 
 device.on("statusChanged", (status) => {
-    console.log("Device status:", status)
+    console.log("Status do dispositivo:", status)
 })
 
 device.on("qrCodeChanged", (qrCode) => {
     if (qrCode) {
-        // Render with any QR library, e.g. node-qrcode
+        // Renderize com qualquer biblioteca de QR, ex: node-qrcode
         renderQRCode(qrCode)
     }
 })
 
 device.on("contactChanged", (contact) => {
-    if (contact) console.log("Paired with:", contact.phone)
+    if (contact) console.log("Pareado com:", contact.phone)
 })
 ```
