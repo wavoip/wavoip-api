@@ -6,7 +6,7 @@ icon: phone
 
 ## Introdução
 
-Essa biblioteca foi feita com o intuito de facilitar a realização de ligações por dispositivos da Wavoip. Ela disponibiliza uma interface customizável e isolada do projeto onde está instalada. Esse webphone usa o [Broken link](/broken/pages/OqClCmWiSo55Tzq3YeKl "mention") por debaixo dos panos
+Essa biblioteca foi feita com o intuito de facilitar a realização de ligações por dispositivos da Wavoip. Ela disponibiliza uma interface customizável e isolada do projeto onde está instalada. Esse webphone usa o [Wavoip API](https://wavoip.gitbook.io/api/wavoip-api) por debaixo dos panos
 
 ## Instalação
 
