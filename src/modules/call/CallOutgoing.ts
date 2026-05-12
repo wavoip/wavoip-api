@@ -113,8 +113,8 @@ export function CallOutgoingProxy(
 
         end(): Promise<{ err: string | null }> {
             return new Promise((resolve) => {
-                wss.emit("call.end", call.id, (res) => {
-                    call.end();
+                wss.emit("call.cancel", call.id, (res) => {
+                    call.cancel();
                     resolve(res.type === "error" ? { err: res.result } : { err: null });
                 });
             });

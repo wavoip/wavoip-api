@@ -20,6 +20,12 @@ export class Call {
         return true;
     }
 
+    cancel(): boolean {
+        if (this.status === "ACTIVE") return false;
+        this.status = "ENDED";
+        return true;
+    }
+
     end(): boolean {
         if (this.status !== "ACTIVE") return false;
         this.status = "ENDED";
