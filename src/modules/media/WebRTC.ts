@@ -28,18 +28,19 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     readonly answer: Promise<RTCSessionDescriptionInit>;
 
     private pc: RTCPeerConnection;
-    private offer: RTCSessionDescriptionInit;
+    private remoteOffer?: RTCSessionDescriptionInit;
     private answerResolver: PromiseWithResolvers<RTCSessionDescriptionInit>;
     private statsJob = 0;
+    private started = false;
 
     constructor(
         private readonly mediaManager: MediaManager,
-        offer: string,
+        offer?: string,
     ) {
         super();
 
         this.pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
-        this.offer = { type: "offer", sdp: offer };
+        if (offer) this.remoteOffer = { type: "offer", sdp: offer };
 
         const { promise: audioAnalyserPromise, resolve: resolveAudioAnalyser } = Promise.withResolvers<AnalyserNode>();
         this.audioAnalyser = audioAnalyserPromise;
@@ -98,6 +99,31 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     }
 
     async start(): Promise<void> {
+        if (this.started) return;
+        this.started = true;
+
+        if (this.remoteOffer) {
+            const micStream = await this.mediaManager.startMedia();
+
+            for (const track of micStream.getTracks()) {
+                track.enabled = true;
+                this.pc.addTrack(track, micStream);
+            }
+
+            await this.pc.setRemoteDescription(this.remoteOffer);
+            const answer = await this.pc.createAnswer();
+            await this.pc.setLocalDescription(answer);
+
+            await this.waitForIceGathering();
+
+            this.answerResolver.resolve(this.pc.localDescription as RTCSessionDescription);
+        }
+
+        this.getStats(this.pc);
+        this.statsJob = setInterval(() => this.getStats(this.pc), 5_000) as unknown as number;
+    }
+
+    async createOffer(): Promise<string> {
         const micStream = await this.mediaManager.startMedia();
 
         for (const track of micStream.getTracks()) {
@@ -105,23 +131,25 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
             this.pc.addTrack(track, micStream);
         }
 
-        await this.pc.setRemoteDescription(this.offer);
-        const answer = await this.pc.createAnswer();
-        await this.pc.setLocalDescription(answer);
+        const offer = await this.pc.createOffer();
+        await this.pc.setLocalDescription(offer);
 
-        // Wait for ICE gathering to complete so the answer SDP contains all candidates.
-        if (this.pc.iceGatheringState !== "complete") {
-            await new Promise<void>((resolve) => {
-                this.pc.addEventListener("icegatheringstatechange", () => {
-                    if (this.pc.iceGatheringState === "complete") resolve();
-                });
+        await this.waitForIceGathering();
+
+        return this.pc.localDescription?.sdp as string;
+    }
+
+    async setAnswer(sdp: string): Promise<void> {
+        await this.pc.setRemoteDescription({ type: "answer", sdp });
+    }
+
+    private async waitForIceGathering(): Promise<void> {
+        if (this.pc.iceGatheringState === "complete") return;
+        await new Promise<void>((resolve) => {
+            this.pc.addEventListener("icegatheringstatechange", () => {
+                if (this.pc.iceGatheringState === "complete") resolve();
             });
-        }
-
-        this.answerResolver.resolve(this.pc.localDescription as RTCSessionDescription);
-
-        this.getStats(this.pc);
-        this.statsJob = setInterval(() => this.getStats(this.pc), 5_000) as unknown as number;
+        });
     }
 
     async stop(): Promise<void> {

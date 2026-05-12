@@ -144,12 +144,30 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         const { err } = this.device.canCall();
         if (err) return { err };
 
+        let mediaPlan: MediaPlan;
+        let preBuiltTransport: WebRTCTransport | undefined;
+        if (this.device.callType === "OFFICIAL") {
+            preBuiltTransport = new WebRTCTransport(this.mediaManager);
+            try {
+                const sdp = await preBuiltTransport.createOffer();
+                mediaPlan = { type: "webRTC", sdp };
+            } catch (e) {
+                await preBuiltTransport.stop();
+                return { err: e instanceof Error ? e.message : "Failed to create WebRTC offer" };
+            }
+        } else {
+            mediaPlan = { type: "none" };
+        }
+
         const { promise, resolve } = Promise.withResolvers<
             { call: CallOutgoing; err?: undefined } | { call?: undefined; err: string }
         >();
 
-        this.wss.emit("call.start", to, (response) => {
-            if (response.type === "error") return resolve({ err: response.result });
+        this.wss.emit("call.start", to, mediaPlan, async (response) => {
+            if (response.type === "error") {
+                await preBuiltTransport?.stop();
+                return resolve({ err: response.result });
+            }
 
             const { id, type, peer } = response.result;
             const call = new Call(id, type, "OUTGOING", peer, this.device.token, "RINGING");
@@ -157,7 +175,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             bus.on("ended", () => this.calls.delete(id));
             bus.on("unanswered", () => this.calls.delete(id));
             bus.on("rejected", () => this.calls.delete(id));
-            const outgoing = CallOutgoingProxy(call, bus, this.wss, this.mediaManager);
+            const outgoing = CallOutgoingProxy(call, bus, this.wss, this.mediaManager, preBuiltTransport);
             this.calls.set(id, call);
             resolve({ call: outgoing });
         });

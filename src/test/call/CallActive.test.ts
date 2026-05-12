@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
 
 function makeCall() {
-    const call = Call.CreateOffer("call-1", "official", peer, "device-token");
+    const call = Call.CreateOffer("call-1", "OFFICIAL", peer, "device-token");
     call.accept(); // move to ACTIVE
     return call;
 }
@@ -53,7 +53,7 @@ describe("CallActive", () => {
             const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
 
             expect(active.id).toBe("call-1");
-            expect(active.type).toBe("official");
+            expect(active.type).toBe("OFFICIAL");
             expect(active.direction).toBe("INCOMING");
             expect(active.device_token).toBe("device-token");
             expect(active.status).toBe("ACTIVE");

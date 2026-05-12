@@ -51,12 +51,25 @@ vi.mock("axios", () => ({
     },
 }));
 
+vi.mock("@/modules/media/WebRTC", () => ({
+    WebRTCTransport: class {
+        createOffer = vi.fn().mockResolvedValue("v=0\r\nfake-offer-sdp");
+        setAnswer = vi.fn().mockResolvedValue(undefined);
+        start = vi.fn().mockResolvedValue(undefined);
+        stop = vi.fn().mockResolvedValue(undefined);
+        on = vi.fn();
+        emit = vi.fn();
+        off = vi.fn();
+    },
+}));
+
 // ---------------------------------------------------------------------------
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
 import { DeviceConnection } from "@/modules/device/DeviceConnection";
 import type { MediaManager } from "@/modules/media/MediaManager";
+import type { CallType } from "@/modules/device/Call";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -160,18 +173,18 @@ describe("DeviceConnection — calls map cleanup", () => {
     });
 
     describe("outgoing call", () => {
-        function setupStartCall(id: string) {
+        function setupStartCall(id: string, callType: CallType = "UNOFFICIAL") {
             const { dc, socket } = makeDeviceConnection();
 
             // Simulate device being UP so canCall() passes
-            socket.receive("device:init", "UP", "official", null, null);
+            socket.receive("device:init", "UP", callType, null, null);
 
             socket.emit.mockImplementation((event: string, ...args: unknown[]) => {
                 if (event === "call.start") {
                     const callback = args[args.length - 1] as (r: unknown) => void;
                     callback({
                         type: "success",
-                        result: { id, type: "official", peer },
+                        result: { id, type: callType, peer },
                     });
                 }
             });
@@ -237,6 +250,30 @@ describe("DeviceConnection — calls map cleanup", () => {
 
             expect(result.err).toBeDefined();
             expect(callsMap(dc).size).toBe(0);
+        });
+
+        it("sends webRTC mediaplan in call.start when device callType is official", async () => {
+            const { dc, socket } = setupStartCall("call-out-1", "OFFICIAL");
+
+            await dc.startCall("5511999999999");
+
+            const callStartEmit = socket.emit.mock.calls.find((c: unknown[]) => c[0] === "call.start");
+            expect(callStartEmit).toBeDefined();
+            const [, phone, mediaPlan] = callStartEmit as [string, string, { type: string; sdp?: string }];
+            expect(phone).toBe("5511999999999");
+            expect(mediaPlan.type).toBe("webRTC");
+            expect(mediaPlan.sdp).toBe("v=0\r\nfake-offer-sdp");
+        });
+
+        it("sends none mediaplan in call.start when device callType is unofficial", async () => {
+            const { dc, socket } = setupStartCall("call-out-1", "UNOFFICIAL");
+
+            await dc.startCall("5511999999999");
+
+            const callStartEmit = socket.emit.mock.calls.find((c: unknown[]) => c[0] === "call.start");
+            expect(callStartEmit).toBeDefined();
+            const [, , mediaPlan] = callStartEmit as [string, string, { type: string }];
+            expect(mediaPlan.type).toBe("none");
         });
     });
 });

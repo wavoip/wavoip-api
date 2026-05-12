@@ -5,17 +5,17 @@ import { describe, expect, it } from "vitest";
 const peer: Peer = { phone: "5511999999999", displayName: "Test User", profilePicture: null };
 
 function makeCall(status: ConstructorParameters<typeof Call>[5] = "CALLING") {
-    return new Call("call-1", "official", "INCOMING", peer, "device-token", status);
+    return new Call("call-1", "OFFICIAL", "INCOMING", peer, "device-token", status);
 }
 
 describe("Call", () => {
     describe("CreateOffer", () => {
         it("sets direction=INCOMING and status=CALLING", () => {
-            const call = Call.CreateOffer("id-1", "official", peer, "token-1");
+            const call = Call.CreateOffer("id-1", "OFFICIAL", peer, "token-1");
             expect(call.direction).toBe("INCOMING");
             expect(call.status).toBe("CALLING");
             expect(call.id).toBe("id-1");
-            expect(call.type).toBe("official");
+            expect(call.type).toBe("OFFICIAL");
             expect(call.deviceToken).toBe("token-1");
         });
     });

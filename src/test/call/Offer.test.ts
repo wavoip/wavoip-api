@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
 
 function makeCall() {
-    return Call.CreateOffer("call-1", "official", peer, "device-token");
+    return Call.CreateOffer("call-1", "OFFICIAL", peer, "device-token");
 }
 
 function makeMockBus(call: Call) {
@@ -30,7 +30,7 @@ describe("Offer", () => {
             const call = makeCall();
             const bus = makeMockBus(call);
             const offer = OfferProxy(call, bus, { onAccept: vi.fn(), onReject: vi.fn() });
-            expect(offer.type).toBe("official");
+            expect(offer.type).toBe("OFFICIAL");
         });
 
         it("direction proxies to call.direction", () => {

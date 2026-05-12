@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 const peer = { phone: "5511999999999", displayName: null, profilePicture: null };
 
 function makeCall(id = "call-1") {
-    return Call.CreateOffer(id, "official", peer, "device-token");
+    return Call.CreateOffer(id, "OFFICIAL", peer, "device-token");
 }
 
 function makeMockSocket() {

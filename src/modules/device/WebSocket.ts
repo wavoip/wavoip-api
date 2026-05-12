@@ -73,6 +73,7 @@ export type ClientEvents = {
 
     "call.start": (
         phone: string,
+        offer: MediaPlan,
         callback: (response: WssResponse<{ id: string; type: CallType; peer: CallPeer }>) => void,
     ) => void;
     "call.cancel": (callId: string, callback: (response: WssResponse) => void) => void;

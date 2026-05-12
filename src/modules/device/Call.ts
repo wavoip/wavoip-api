@@ -59,7 +59,7 @@ export type CallStatus =
     | "FAILED"
     | "DISCONNECTED";
 
-export type CallType = "official" | "unofficial";
+export type CallType = "OFFICIAL" | "UNOFFICIAL";
 
 export type Peer = {
     phone: string;

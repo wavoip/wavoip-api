@@ -45,17 +45,26 @@ export function CallOutgoingProxy(
     bus: CallBus,
     wss: DeviceSocket,
     mediaManager: MediaManager,
+    preBuiltTransport?: WebRTCTransport,
 ): CallOutgoing {
     const emitter = new EventEmitter<CallOutgoingEvents>();
 
     bus.on("answered", async (mediaPlan) => {
         call.accept();
-        const transport = createTransport(mediaPlan, mediaManager, call.deviceToken);
-        await transport.start();
 
-        if (mediaPlan.type === "webRTC") {
-            const answer = await (transport as WebRTCTransport).answer;
-            wss.emit("call.accept", call.id, { type: "webRTC", sdp: answer.sdp as string }, () => {});
+        let transport: ITransport;
+        if (preBuiltTransport && mediaPlan.type === "webRTC") {
+            await preBuiltTransport.setAnswer(mediaPlan.sdp);
+            await preBuiltTransport.start();
+            transport = preBuiltTransport;
+        } else {
+            transport = createTransport(mediaPlan, mediaManager, call.deviceToken);
+            await transport.start();
+
+            if (mediaPlan.type === "webRTC") {
+                const answer = await (transport as WebRTCTransport).answer;
+                wss.emit("call.accept", call.id, { type: "webRTC", sdp: answer.sdp as string }, () => {});
+            }
         }
 
         bus.wireTransport(transport);

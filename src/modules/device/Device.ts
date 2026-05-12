@@ -19,7 +19,7 @@ export class DeviceModel {
     public qrCode?: string = undefined;
     public contact?: Contact;
     public status: DeviceStatus = "disconnected";
-    public callType: CallType = "official";
+    public callType: CallType = "OFFICIAL";
 
     constructor(public readonly token: string) {}
 
