@@ -117,6 +117,10 @@ export class Wavoip extends EventEmitter<Events> {
         return { call: null, err: "Não foi possível realizar a chamada" };
     }
 
+    get devices(): Device[] {
+        return this._devices.map((d) => DeviceProxy(d));
+    }
+
     getDevices(): Device[] {
         return this._devices.map((d) => DeviceProxy(d));
     }
