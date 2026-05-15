@@ -57,7 +57,7 @@ export type ServerEvents = {
     "device:hibernating": () => void;
 
     "call:offer": (call: { id: string; peer: CallPeer; offer: MediaPlan }, ackOffer: () => void) => void;
-    "call:calling": (callId: string) => void;
+    "call:ringing": (callId: string) => void;
     "call:answered": (callId: string, mediaPlan: MediaPlan) => void;
     "call:accepted": (callId: string) => void;
     "call:rejected": (callId: string) => void;
