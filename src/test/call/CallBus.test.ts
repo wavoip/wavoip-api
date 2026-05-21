@@ -1,5 +1,5 @@
 import { CallBus } from "@/modules/call/CallBus";
-import type { CallStats } from "@/modules/call/Stats";
+import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import { Call } from "@/modules/device/Call";
 import type { ServerEvents } from "@/modules/device/WebSocket";
 import type { ITransport, Events as TransportEvents } from "@/modules/media/ITransport";
@@ -246,6 +246,48 @@ describe("CallBus", () => {
             (transport as unknown as EventEmitter<TransportEvents>).emit("statsChanged", stats);
 
             expect(cb).toHaveBeenCalledWith(stats);
+        });
+
+        it("socket call:stats → bus emits serverStats", () => {
+            const call = makeCall();
+            const socket = makeMockSocket();
+            const bus = new CallBus(call, socket as never);
+            const cb = vi.fn();
+            bus.on("serverStats", cb);
+
+            const stats: ServerCallStats = {
+                rtt: {
+                    client: { min: 10, max: 30, avg: 20 },
+                    whatsapp: { min: 5, max: 15, avg: 9 },
+                },
+                tx: { total: 100, total_bytes: 5000, loss: 2 },
+                rx: { total: 98, total_bytes: 4900, loss: 1 },
+            };
+
+            (socket as unknown as EventEmitter<Record<string, unknown[]>>).emit("call:stats", call.id, stats);
+
+            expect(cb).toHaveBeenCalledWith(stats);
+        });
+
+        it("ignores call:stats for different call id", () => {
+            const call = makeCall("call-1");
+            const socket = makeMockSocket();
+            const bus = new CallBus(call, socket as never);
+            const cb = vi.fn();
+            bus.on("serverStats", cb);
+
+            const stats: ServerCallStats = {
+                rtt: {
+                    client: { min: 0, max: 0, avg: 0 },
+                    whatsapp: { min: 0, max: 0, avg: 0 },
+                },
+                tx: { total: 0, total_bytes: 0, loss: 0 },
+                rx: { total: 0, total_bytes: 0, loss: 0 },
+            };
+
+            (socket as unknown as EventEmitter<Record<string, unknown[]>>).emit("call:stats", "other-call", stats);
+
+            expect(cb).not.toHaveBeenCalled();
         });
     });
 });

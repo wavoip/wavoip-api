@@ -1,4 +1,4 @@
-import type { CallStats } from "@/modules/call/Stats";
+import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import type { Call, CallStatus } from "@/modules/device/Call";
 import type { DeviceSocket, MediaPlan } from "@/modules/device/WebSocket";
 import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
@@ -16,6 +16,7 @@ type CallBusEvents = {
     connectionStatus: [status: TransportStatus];
     peerMuted: [muted: boolean];
     stats: [stats: CallStats];
+    serverStats: [stats: ServerCallStats];
 };
 
 /**
@@ -62,6 +63,10 @@ export class CallBus extends EventEmitter<CallBusEvents> {
             if (id !== call.id) return;
             this.emit("failed", err);
             this.emit("status", "FAILED");
+        });
+        socket.on("call:stats", (id, stats) => {
+            if (id !== call.id) return;
+            this.emit("serverStats", stats);
         });
 
         if (transport) this.wireTransport(transport);

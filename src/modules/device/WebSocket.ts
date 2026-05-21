@@ -1,5 +1,5 @@
 import type { CallPeer } from "@/modules/call/Peer";
-import type { CallStats } from "@/modules/call/Stats";
+import type { ServerCallStats } from "@/modules/call/Stats";
 import type { CallType } from "@/modules/device/Call";
 import type { Contact, DeviceStatus } from "@/modules/device/Device";
 import { io } from "socket.io-client";
@@ -34,14 +34,6 @@ export type WssCallback<TSuccessResult extends string | object | undefined = und
     response: WssResponse<TSuccessResult>,
 ) => void;
 
-export type Stats = {
-    rtt: {
-        client: { min: number; max: number; avg: number };
-        whatsapp: { min: number; max: number; avg: number };
-    };
-    tx: { total: number; total_bytes: number; loss: number };
-    rx: { total: number; total_bytes: number; loss: number };
-};
 export type MediaPlanRelay = { type: "relay"; host: string; port: string };
 export type MediaPlanWebRTC = { type: "webRTC"; sdp: string };
 export type MediaPlanNull = { type: "none" };
@@ -64,7 +56,7 @@ export type ServerEvents = {
     "call:ended": (callId: string) => void;
     "call:unanswered": (callId: string) => void;
     "call:failed": (callId: string, error: string) => void;
-    "call:stats": (callId: string, stats: CallStats) => void;
+    "call:stats": (callId: string, stats: ServerCallStats) => void;
     "call:peer:muted": (callId: string, muted: boolean) => void;
 };
 
