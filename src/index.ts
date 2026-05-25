@@ -1,5 +1,5 @@
 export type { CallDirection, CallStatus, CallType } from "@/modules/device/Call";
-export type { CallStats } from "@/modules/call/Stats";
+export type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 export type { CallActive, CallActiveEvents } from "@/modules/call/CallActive";
 export type { CallOutgoing, CallOutgoingEvents } from "@/modules/call/CallOutgoing";
 export type { Offer, OfferEvents } from "@/modules/call/Offer";

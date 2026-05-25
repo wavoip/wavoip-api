@@ -1,6 +1,6 @@
 import { CallActiveProxy } from "@/modules/call/CallActive";
 import { CallBus } from "@/modules/call/CallBus";
-import type { CallStats } from "@/modules/call/Stats";
+import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import { Call } from "@/modules/device/Call";
 import type { ITransport, Events as TransportEvents } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
@@ -202,6 +202,28 @@ describe("CallActive", () => {
                 rx: { total: 98, total_bytes: 4900, loss: 1 },
             };
             bus.emit("stats", stats);
+
+            expect(cb).toHaveBeenCalledWith(stats);
+        });
+
+        it("on('serverStats') fires when bus emits 'serverStats'", () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const cb = vi.fn();
+            active.on("serverStats", cb);
+
+            const stats: ServerCallStats = {
+                rtt: {
+                    client: { min: 10, max: 30, avg: 20 },
+                    whatsapp: { min: 5, max: 15, avg: 9 },
+                },
+                tx: { total: 100, total_bytes: 5000, loss: 2 },
+                rx: { total: 98, total_bytes: 4900, loss: 1 },
+            };
+            bus.emit("serverStats", stats);
 
             expect(cb).toHaveBeenCalledWith(stats);
         });

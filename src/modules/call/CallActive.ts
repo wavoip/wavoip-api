@@ -1,6 +1,6 @@
 import type { CallBus } from "@/modules/call/CallBus";
 import type { CallPeer } from "@/modules/call/Peer";
-import type { CallStats } from "@/modules/call/Stats";
+import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
 import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
@@ -12,6 +12,7 @@ export type CallActiveEvents = {
     peerUnmute: [];
     ended: [];
     stats: [stats: CallStats];
+    serverStats: [stats: ServerCallStats];
     connectionStatus: [status: TransportStatus];
     status: [status: CallStatus];
 };
@@ -68,6 +69,9 @@ export function CallActiveProxy(
     });
     bus.on("stats", (stats) => {
         emitter.emit("stats", stats);
+    });
+    bus.on("serverStats", (stats) => {
+        emitter.emit("serverStats", stats);
     });
     bus.on("connectionStatus", (status) => {
         emitter.emit("connectionStatus", status);
