@@ -52,6 +52,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     private _onStatusUnsub?: () => void;
     private _onQRCodeUnsub?: () => void;
     private _onContactUnsub?: () => void;
+    private stopped = false;
 
     constructor(
         private readonly mediaManager: MediaManager,
@@ -224,11 +225,13 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
     connect() {
         if (this.wss.connected) return;
+        this.stopped = false;
         this.wss.connect();
     }
 
     disconnect() {
         if (this.wss.disconnected) return;
+        this.stopped = true;
         this.wss.disconnect();
     }
 
@@ -242,6 +245,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
     private onDisconnect() {
         this.device.status = "disconnected";
+        if (this.stopped) return;
         if (this.wss.active) return;
         this.reconnect();
     }
