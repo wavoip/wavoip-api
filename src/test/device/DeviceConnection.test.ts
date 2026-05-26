@@ -103,6 +103,24 @@ const offerProps = (id: string) => ({
 // Tests
 // ---------------------------------------------------------------------------
 
+describe("DeviceConnection — manual disconnect", () => {
+    it("does not auto-reconnect after manual disconnect()", async () => {
+        vi.useFakeTimers();
+        const { dc, socket } = makeDeviceConnection();
+        socket.disconnected = false;
+        socket.connect.mockClear();
+
+        dc.disconnect();
+        expect(socket.disconnect).toHaveBeenCalledTimes(1);
+
+        socket.receive("disconnect");
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(socket.connect).not.toHaveBeenCalled();
+        vi.useRealTimers();
+    });
+});
+
 describe("DeviceConnection — calls map cleanup", () => {
     describe("official incoming call", () => {
         it("adds call to map when offer arrives", () => {
