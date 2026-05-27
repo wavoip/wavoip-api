@@ -40,13 +40,20 @@ export type MediaPlanNull = { type: "none" };
 export type MediaPlan = MediaPlanRelay | MediaPlanWebRTC | MediaPlanNull;
 
 export type ServerEvents = {
-    "device:init": (status: DeviceStatus, callType: CallType, contact: Contact | null, qrCode: string | null) => void;
+    "device:init": (
+        status: DeviceStatus,
+        callType: CallType,
+        contact: Contact | null,
+        qrCode: string | null,
+        restricted: boolean,
+    ) => void;
     "device:building": () => void;
     "device:open": (contact: Contact) => void;
     "device:connecting": (qrcode: string | null) => void;
     "device:close": () => void;
     "device:restarting": () => void;
     "device:hibernating": () => void;
+    "device:restriction:changed": (restricted: boolean) => void;
 
     "call:offer": (call: { id: string; peer: CallPeer; offer: MediaPlan }, ackOffer: () => void) => void;
     "call:ringing": (callId: string) => void;

@@ -11,5 +11,6 @@ export type { Device, DeviceEvents } from "@/modules/device/DeviceConnection";
 export type { TransportStatus } from "@/modules/media/ITransport";
 export type { MediaManagerState } from "@/modules/media/MediaManager";
 export type { Unsubscribe } from "@/modules/shared/EventEmitter";
+export type { Language } from "@/modules/shared/i18n";
 
 export { Wavoip } from "@/Wavoip";

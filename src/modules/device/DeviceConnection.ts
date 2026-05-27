@@ -18,6 +18,7 @@ export type DeviceEvents = {
     statusChanged: [status: DeviceStatus];
     qrCodeChanged: [qrCode?: string];
     contactChanged: [contact?: Contact];
+    restrictedChanged: [restricted: boolean];
 };
 
 type Events = DeviceEvents & {
@@ -29,6 +30,7 @@ export interface Device {
     qrCode?: string;
     contact?: Contact;
     status: DeviceStatus;
+    restricted: boolean;
     on<T extends keyof DeviceEvents>(event: T, callback: (...args: DeviceEvents[T]) => void): Unsubscribe;
     /** @deprecated Use `on("statusChanged", callback)` instead. */
     onStatus(cb: (status: DeviceStatus) => void): Unsubscribe;
@@ -66,14 +68,20 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         this.wss = DeviceWebSocketFactory(token, platform);
         this.wss.on("disconnect", this.onDisconnect.bind(this));
 
-        this.wss.on("device:init", (status, callType, contact, qrCode) => {
+        this.wss.on("device:init", (status, callType, contact, qrCode, restricted) => {
             this.device.status = status;
             this.device.callType = callType;
             this.device.contact = contact ?? undefined;
             this.device.qrCode = qrCode ?? undefined;
+            this.device.restricted = restricted;
             this.emit("statusChanged", this.device.status);
             this.emit("contactChanged", this.device.contact);
             this.emit("qrCodeChanged", this.device.qrCode);
+            this.emit("restrictedChanged", this.device.restricted);
+        });
+        this.wss.on("device:restriction:changed", (restricted) => {
+            this.device.restricted = restricted;
+            this.emit("restrictedChanged", this.device.restricted);
         });
         this.wss.on("device:building", () => {
             this.device.status = "BUILDING";
@@ -131,6 +139,10 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
     get status(): DeviceStatus {
         return this.device.status;
+    }
+
+    get restricted(): boolean {
+        return this.device.restricted;
     }
 
     get socket(): DeviceSocket {

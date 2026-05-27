@@ -4,6 +4,7 @@ import { type Device, DeviceConnection } from "@/modules/device/DeviceConnection
 import { DeviceProxy } from "@/modules/device/DeviceProxy";
 import { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
+import { type Language, setLanguage } from "@/modules/shared/i18n";
 
 type Events = {
     offer: [offer: Offer];
@@ -17,8 +18,11 @@ export class Wavoip extends EventEmitter<Events> {
     constructor(params: {
         tokens: string[];
         platform?: string;
+        language?: Language;
     }) {
         super();
+
+        setLanguage(params.language ?? "pt-BR");
 
         this.mediaManager = new MediaManager();
 

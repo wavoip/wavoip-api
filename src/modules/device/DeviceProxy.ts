@@ -9,6 +9,7 @@ export function DeviceProxy(conn: DeviceConnection): Device {
         qrCode: conn.qrCode,
         contact: conn.contact,
         status: conn.status,
+        restricted: conn.restricted,
 
         on<T extends keyof DeviceEvents>(event: T, callback: (...args: DeviceEvents[T]) => void): Unsubscribe {
             return conn.on(event, callback);
