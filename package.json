@@ -1,6 +1,6 @@
 {
     "name": "@wavoip/wavoip-api",
-    "version": "2.4.1",
+    "version": "2.4.2",
     "license": "MIT",
     "main": "dist/index.umd.js",
     "types": "dist/index.d.ts",
@@ -47,6 +47,7 @@
         "vitest": "^4.1.2"
     },
     "dependencies": {
+        "a18n": "^1.12.4",
         "axios": "^1.12.2",
         "socket.io-client": "^4.8.1"
     }

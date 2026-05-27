@@ -195,7 +195,7 @@ describe("DeviceConnection — calls map cleanup", () => {
             const { dc, socket } = makeDeviceConnection();
 
             // Simulate device being UP so canCall() passes
-            socket.receive("device:init", "UP", callType, null, null);
+            socket.receive("device:init", "UP", callType, null, null, false);
 
             socket.emit.mockImplementation((event: string, ...args: unknown[]) => {
                 if (event === "call.start") {
@@ -262,7 +262,7 @@ describe("DeviceConnection — calls map cleanup", () => {
 
         it("returns error and does not add call when device cannot call", async () => {
             const { dc, socket } = makeDeviceConnection();
-            socket.receive("device:init", "error", "official", null, null);
+            socket.receive("device:init", "error", "official", null, null, false);
 
             const result = await dc.startCall("5511999999999");
 
@@ -292,6 +292,45 @@ describe("DeviceConnection — calls map cleanup", () => {
             expect(callStartEmit).toBeDefined();
             const [, , mediaPlan] = callStartEmit as [string, string, { type: string }];
             expect(mediaPlan.type).toBe("none");
+        });
+    });
+
+    describe("restriction", () => {
+        it("device:init with restricted=true updates state and fires restrictedChanged", () => {
+            const { dc, socket } = makeDeviceConnection();
+            const cb = vi.fn();
+            dc.on("restrictedChanged", cb);
+
+            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, true);
+
+            expect(dc.restricted).toBe(true);
+            expect(cb).toHaveBeenCalledWith(true);
+        });
+
+        it("device:restriction:changed updates state and fires restrictedChanged", () => {
+            const { dc, socket } = makeDeviceConnection();
+            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, false);
+
+            const cb = vi.fn();
+            dc.on("restrictedChanged", cb);
+
+            socket.receive("device:restriction:changed", true);
+            expect(dc.restricted).toBe(true);
+            expect(cb).toHaveBeenLastCalledWith(true);
+
+            socket.receive("device:restriction:changed", false);
+            expect(dc.restricted).toBe(false);
+            expect(cb).toHaveBeenLastCalledWith(false);
+        });
+
+        it("startCall returns error when device is restricted", async () => {
+            const { dc, socket } = makeDeviceConnection();
+            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, true);
+
+            const result = await dc.startCall("5511999999999");
+
+            expect(result.err).toBeDefined();
+            expect(callsMap(dc).size).toBe(0);
         });
     });
 });

@@ -4,6 +4,7 @@ import { type Device, DeviceConnection } from "@/modules/device/DeviceConnection
 import { DeviceProxy } from "@/modules/device/DeviceProxy";
 import { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
+import { type Language, setLanguage } from "@/modules/shared/i18n";
 
 type Events = {
     offer: [offer: Offer];
@@ -17,8 +18,11 @@ export class Wavoip extends EventEmitter<Events> {
     constructor(params: {
         tokens: string[];
         platform?: string;
+        language?: Language;
     }) {
         super();
+
+        setLanguage(params.language ?? "pt-BR");
 
         this.mediaManager = new MediaManager();
 
@@ -33,6 +37,18 @@ export class Wavoip extends EventEmitter<Events> {
     onOffer(cb: (offer: Offer) => void) {
         this._onOfferUnsub?.();
         this._onOfferUnsub = this.on("offer", cb);
+    }
+
+    /**
+     * Switch the locale used by `canCall()` error messages and any other
+     * library-emitted strings. Affects every Wavoip instance — locale state is
+     * module-global within the `wavoip-api` a18n namespace.
+     *
+     * @example
+     * wavoip.setLanguage("es")
+     */
+    setLanguage(lang: Language): void {
+        setLanguage(lang);
     }
 
     get multimedia() {

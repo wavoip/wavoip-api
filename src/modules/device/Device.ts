@@ -1,4 +1,5 @@
 import { Call, type CallType, type Peer } from "@/modules/device/Call";
+import { t } from "@/modules/shared/i18n";
 
 export type DeviceStatus =
     | "UP"
@@ -20,6 +21,7 @@ export class DeviceModel {
     public contact?: Contact;
     public status: DeviceStatus = "disconnected";
     public callType: CallType = "OFFICIAL";
+    public restricted = false;
 
     constructor(public readonly token: string) {}
 
@@ -30,15 +32,19 @@ export class DeviceModel {
 
     canCall(): { err?: string } {
         if (this.status === "error") {
-            return { err: "Erro no dispositivo" };
+            return { err: t("Device error") };
         }
 
         if (this.status === "connecting") {
-            return { err: "É preciso vincular um número ao dispositivo" };
+            return { err: t("A phone number must be linked to the device") };
         }
 
         if (this.status === "restarting") {
-            return { err: "Dispositivo está sendo reiniciado" };
+            return { err: t("Device is restarting") };
+        }
+
+        if (this.restricted) {
+            return { err: t("Device is restricted") };
         }
 
         return {};
