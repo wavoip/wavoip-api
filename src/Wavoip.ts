@@ -39,6 +39,18 @@ export class Wavoip extends EventEmitter<Events> {
         this._onOfferUnsub = this.on("offer", cb);
     }
 
+    /**
+     * Switch the locale used by `canCall()` error messages and any other
+     * library-emitted strings. Affects every Wavoip instance — locale state is
+     * module-global within the `wavoip-api` a18n namespace.
+     *
+     * @example
+     * wavoip.setLanguage("es")
+     */
+    setLanguage(lang: Language): void {
+        setLanguage(lang);
+    }
+
     get multimedia() {
         return {
             microphone: this.mediaManager.activeMic,
