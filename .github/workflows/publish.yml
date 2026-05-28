@@ -37,6 +37,38 @@ jobs:
       - name: Purge jsDelivr cache
         run: |
           PKG_VERSION=$(node -p "require('./package.json').version")
-          curl -fsSL "https://purge.jsdelivr.net/npm/@wavoip/wavoip-api@${PKG_VERSION}" || true
-          curl -fsSL "https://purge.jsdelivr.net/npm/@wavoip/wavoip-api@latest" || true
-          curl -fsSL "https://purge.jsdelivr.net/npm/@wavoip/wavoip-api" || true
+          PKG_MAJOR="${PKG_VERSION%%.*}"
+          PKG_MINOR="${PKG_VERSION%.*}"
+
+          RESPONSE=$(curl -fsSL -X POST https://purge.jsdelivr.net/ \
+            -H 'content-type: application/json' \
+            -d "{
+              \"path\": [
+                \"/npm/@wavoip/wavoip-api\",
+                \"/npm/@wavoip/wavoip-api@latest\",
+                \"/npm/@wavoip/wavoip-api@${PKG_MAJOR}\",
+                \"/npm/@wavoip/wavoip-api@${PKG_MINOR}\"
+              ]
+            }")
+          echo "Purge response: $RESPONSE"
+
+          PURGE_ID=$(echo "$RESPONSE" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).id")
+          echo "Purge id: $PURGE_ID"
+
+          for i in $(seq 1 60); do
+            STATUS_BODY=$(curl -fsSL "https://purge.jsdelivr.net/status/${PURGE_ID}")
+            STATUS=$(echo "$STATUS_BODY" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).status")
+            echo "Attempt $i: $STATUS"
+            if [ "$STATUS" = "finished" ]; then
+              echo "$STATUS_BODY"
+              exit 0
+            fi
+            if [ "$STATUS" = "failed" ]; then
+              echo "$STATUS_BODY"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          echo "Purge timed out"
+          exit 1
