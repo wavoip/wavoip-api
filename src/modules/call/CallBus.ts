@@ -88,5 +88,10 @@ export class CallBus extends EventEmitter<CallBusEvents> {
         transport.on("statsChanged", (s) => this.emit("stats", s));
         transport.on("iceDiagnostics", (d) => this.emit("iceDiagnostics", d));
         transport.on("connectivityIssue", (i) => this.emit("connectivityIssue", i));
+
+        if (transport.lastDiagnostics) this.emit("iceDiagnostics", transport.lastDiagnostics);
+        if (transport.emittedIssues) {
+            for (const issue of transport.emittedIssues) this.emit("connectivityIssue", issue);
+        }
     }
 }
