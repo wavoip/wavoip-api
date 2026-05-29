@@ -80,6 +80,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
             }
             if (this.pc.iceConnectionState === "connected" || this.pc.iceConnectionState === "completed") {
                 this.connectedAt = Date.now();
+                clearTimeout(this.symmetricNatTimer);
             }
         };
 

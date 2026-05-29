@@ -8,7 +8,8 @@ import type { ITransport } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
 import { WebsocketTransport } from "@/modules/media/WebSocket";
-import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
+import type { Unsubscribe } from "@/modules/shared/EventEmitter";
+import { StickyDiagnosticsEmitter } from "@/modules/shared/StickyDiagnosticsEmitter";
 
 export type CallOutgoingEvents = {
     peerAccept: [call: CallActive];
@@ -50,7 +51,7 @@ export function CallOutgoingProxy(
     mediaManager: MediaManager,
     preBuiltTransport?: WebRTCTransport,
 ): CallOutgoing {
-    const emitter = new EventEmitter<CallOutgoingEvents>();
+    const emitter = new StickyDiagnosticsEmitter<CallOutgoingEvents>();
 
     bus.on("answered", async (mediaPlan) => {
         call.accept();
@@ -87,19 +88,9 @@ export function CallOutgoingProxy(
     bus.on("ended", () => {
         emitter.emit("ended");
     });
-    bus.on("status", (status) => {
-        emitter.emit("status", status);
-    });
-    let lastIceDiagnostics: IceDiagnostics | null = null;
-    const emittedIssues = new Set<ConnectivityIssue>();
-    bus.on("iceDiagnostics", (diag) => {
-        lastIceDiagnostics = diag;
-        emitter.emit("iceDiagnostics", diag);
-    });
-    bus.on("connectivityIssue", (issue) => {
-        emittedIssues.add(issue);
-        emitter.emit("connectivityIssue", issue);
-    });
+    bus.on("status", (status) => emitter.emit("status", status));
+    bus.on("iceDiagnostics", (diag) => emitter.emit("iceDiagnostics", diag));
+    bus.on("connectivityIssue", (issue) => emitter.emit("connectivityIssue", issue));
 
     let onPeerAcceptUnsub: Unsubscribe | undefined;
     let onPeerRejectUnsub: Unsubscribe | undefined;
@@ -146,14 +137,7 @@ export function CallOutgoingProxy(
             event: T,
             callback: (...args: CallOutgoingEvents[T]) => void,
         ): Unsubscribe {
-            const unsub = emitter.on(event, callback);
-            if (event === "iceDiagnostics" && lastIceDiagnostics) {
-                (callback as (d: IceDiagnostics) => void)(lastIceDiagnostics);
-            }
-            if (event === "connectivityIssue") {
-                for (const issue of emittedIssues) (callback as (i: ConnectivityIssue) => void)(issue);
-            }
-            return unsub;
+            return emitter.on(event, callback);
         },
 
         /** @deprecated Use `on("peerAccept", callback)` instead. */

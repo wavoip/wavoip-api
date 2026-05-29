@@ -3,7 +3,8 @@ import type { CallBus } from "@/modules/call/CallBus";
 import type { CallPeer } from "@/modules/call/Peer";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
-import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
+import type { Unsubscribe } from "@/modules/shared/EventEmitter";
+import { StickyDiagnosticsEmitter } from "@/modules/shared/StickyDiagnosticsEmitter";
 
 export type OfferEvents = {
     acceptedElsewhere: [];
@@ -45,7 +46,7 @@ export function OfferProxy(
         onReject: (call: Call) => void;
     },
 ): Offer {
-    const emitter = new EventEmitter<OfferEvents>();
+    const emitter = new StickyDiagnosticsEmitter<OfferEvents>();
     const dispose = () => {
         bus.removeAllListeners();
         emitter.removeAllListeners();
@@ -68,16 +69,8 @@ export function OfferProxy(
         dispose();
     });
     bus.on("status", (status) => emitter.emit("status", status));
-    let lastIceDiagnostics: IceDiagnostics | null = null;
-    const emittedIssues = new Set<ConnectivityIssue>();
-    bus.on("iceDiagnostics", (diag) => {
-        lastIceDiagnostics = diag;
-        emitter.emit("iceDiagnostics", diag);
-    });
-    bus.on("connectivityIssue", (issue) => {
-        emittedIssues.add(issue);
-        emitter.emit("connectivityIssue", issue);
-    });
+    bus.on("iceDiagnostics", (diag) => emitter.emit("iceDiagnostics", diag));
+    bus.on("connectivityIssue", (issue) => emitter.emit("connectivityIssue", issue));
 
     let onAcceptedElsewhereUnsub: Unsubscribe | undefined;
     let onRejectedElsewhereUnsub: Unsubscribe | undefined;
@@ -110,14 +103,7 @@ export function OfferProxy(
         },
 
         on<T extends keyof OfferEvents>(event: T, callback: (...args: OfferEvents[T]) => void): Unsubscribe {
-            const unsub = emitter.on(event, callback);
-            if (event === "iceDiagnostics" && lastIceDiagnostics) {
-                (callback as (d: IceDiagnostics) => void)(lastIceDiagnostics);
-            }
-            if (event === "connectivityIssue") {
-                for (const issue of emittedIssues) (callback as (i: ConnectivityIssue) => void)(issue);
-            }
-            return unsub;
+            return emitter.on(event, callback);
         },
 
         /** @deprecated Use `on("acceptedElsewhere", callback)` instead. */

@@ -5,7 +5,8 @@ import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
-import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
+import type { Unsubscribe } from "@/modules/shared/EventEmitter";
+import { StickyDiagnosticsEmitter } from "@/modules/shared/StickyDiagnosticsEmitter";
 
 export type CallActiveEvents = {
     error: [err: string];
@@ -58,40 +59,17 @@ export function CallActiveProxy(
         onEnd: (call: Call) => void;
     },
 ): CallActive {
-    const emitter = new EventEmitter<CallActiveEvents>();
+    const emitter = new StickyDiagnosticsEmitter<CallActiveEvents>();
 
-    bus.on("failed", (err) => {
-        emitter.emit("error", err);
-    });
-    bus.on("peerMuted", (muted) => {
-        if (muted) emitter.emit("peerMute");
-        else emitter.emit("peerUnmute");
-    });
-    bus.on("ended", () => {
-        emitter.emit("ended");
-    });
-    bus.on("stats", (stats) => {
-        emitter.emit("stats", stats);
-    });
-    bus.on("serverStats", (stats) => {
-        emitter.emit("serverStats", stats);
-    });
-    bus.on("connectionStatus", (status) => {
-        emitter.emit("connectionStatus", status);
-    });
-    bus.on("status", (status) => {
-        emitter.emit("status", status);
-    });
-    let lastIceDiagnostics: IceDiagnostics | null = null;
-    const emittedIssues = new Set<ConnectivityIssue>();
-    bus.on("iceDiagnostics", (diag) => {
-        lastIceDiagnostics = diag;
-        emitter.emit("iceDiagnostics", diag);
-    });
-    bus.on("connectivityIssue", (issue) => {
-        emittedIssues.add(issue);
-        emitter.emit("connectivityIssue", issue);
-    });
+    bus.on("failed", (err) => emitter.emit("error", err));
+    bus.on("peerMuted", (muted) => emitter.emit(muted ? "peerMute" : "peerUnmute"));
+    bus.on("ended", () => emitter.emit("ended"));
+    bus.on("stats", (stats) => emitter.emit("stats", stats));
+    bus.on("serverStats", (stats) => emitter.emit("serverStats", stats));
+    bus.on("connectionStatus", (status) => emitter.emit("connectionStatus", status));
+    bus.on("status", (status) => emitter.emit("status", status));
+    bus.on("iceDiagnostics", (diag) => emitter.emit("iceDiagnostics", diag));
+    bus.on("connectivityIssue", (issue) => emitter.emit("connectivityIssue", issue));
 
     let onErrorUnsub: Unsubscribe | undefined;
     let onPeerMuteUnsub: Unsubscribe | undefined;
@@ -128,14 +106,7 @@ export function CallActiveProxy(
         },
 
         on<T extends keyof CallActiveEvents>(event: T, callback: (...args: CallActiveEvents[T]) => void): Unsubscribe {
-            const unsub = emitter.on(event, callback);
-            if (event === "iceDiagnostics" && lastIceDiagnostics) {
-                (callback as (d: IceDiagnostics) => void)(lastIceDiagnostics);
-            }
-            if (event === "connectivityIssue") {
-                for (const issue of emittedIssues) (callback as (i: ConnectivityIssue) => void)(issue);
-            }
-            return unsub;
+            return emitter.on(event, callback);
         },
 
         /** @deprecated Use `on("error", callback)` instead. */

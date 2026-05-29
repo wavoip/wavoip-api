@@ -3,7 +3,7 @@ import type { Call, CallStatus } from "@/modules/device/Call";
 import type { DeviceSocket, MediaPlan } from "@/modules/device/WebSocket";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
-import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
+import { StickyDiagnosticsEmitter } from "@/modules/shared/StickyDiagnosticsEmitter";
 
 type CallBusEvents = {
     status: [status: CallStatus];
@@ -28,10 +28,7 @@ type CallBusEvents = {
  * typed stream so facades (Offer, CallOutgoing, CallActive) only depend
  * on this one class instead of wiring socket/transport listeners themselves.
  */
-export class CallBus extends EventEmitter<CallBusEvents> {
-    private lastIceDiagnostics: IceDiagnostics | null = null;
-    private emittedIssues = new Set<ConnectivityIssue>();
-
+export class CallBus extends StickyDiagnosticsEmitter<CallBusEvents> {
     constructor(call: Call, socket: DeviceSocket, transport?: ITransport) {
         super();
 
@@ -76,32 +73,6 @@ export class CallBus extends EventEmitter<CallBusEvents> {
         });
 
         if (transport) this.wireTransport(transport);
-    }
-
-    /**
-     * Subscribe to bus events. For `iceDiagnostics` and `connectivityIssue`,
-     * the latest cached value(s) are immediately replayed so listeners that
-     * attach after the event already fired still receive it. This matters
-     * because facades (Offer/Active/Outgoing) are sometimes constructed
-     * after the transport has already gathered ICE.
-     */
-    on<T extends keyof CallBusEvents>(event: T, callback: (...args: CallBusEvents[T]) => void): Unsubscribe {
-        const unsub = super.on(event, callback);
-        if (event === "iceDiagnostics" && this.lastIceDiagnostics) {
-            (callback as (d: IceDiagnostics) => void)(this.lastIceDiagnostics);
-        }
-        if (event === "connectivityIssue") {
-            for (const issue of this.emittedIssues) {
-                (callback as (i: ConnectivityIssue) => void)(issue);
-            }
-        }
-        return unsub;
-    }
-
-    emit<T extends keyof CallBusEvents>(event: T, ...args: CallBusEvents[T]) {
-        if (event === "iceDiagnostics") this.lastIceDiagnostics = args[0] as IceDiagnostics;
-        if (event === "connectivityIssue") this.emittedIssues.add(args[0] as ConnectivityIssue);
-        super.emit(event, ...args);
     }
 
     /**
