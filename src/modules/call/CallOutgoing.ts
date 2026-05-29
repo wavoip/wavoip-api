@@ -3,6 +3,7 @@ import type { CallBus } from "@/modules/call/CallBus";
 import type { CallPeer } from "@/modules/call/Peer";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
 import type { DeviceSocket, MediaPlan } from "@/modules/device/WebSocket";
+import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { ITransport } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
@@ -15,6 +16,8 @@ export type CallOutgoingEvents = {
     unanswered: [];
     ended: [];
     status: [status: CallStatus];
+    iceDiagnostics: [diag: IceDiagnostics];
+    connectivityIssue: [issue: ConnectivityIssue];
 };
 
 export interface CallOutgoing {
@@ -86,6 +89,12 @@ export function CallOutgoingProxy(
     });
     bus.on("status", (status) => {
         emitter.emit("status", status);
+    });
+    bus.on("iceDiagnostics", (diag) => {
+        emitter.emit("iceDiagnostics", diag);
+    });
+    bus.on("connectivityIssue", (issue) => {
+        emitter.emit("connectivityIssue", issue);
     });
 
     let onPeerAcceptUnsub: Unsubscribe | undefined;

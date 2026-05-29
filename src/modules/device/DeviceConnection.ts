@@ -160,7 +160,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         let mediaPlan: MediaPlan;
         let preBuiltTransport: WebRTCTransport | undefined;
         if (this.device.callType === "OFFICIAL") {
-            preBuiltTransport = new WebRTCTransport(this.mediaManager);
+            preBuiltTransport = new WebRTCTransport(this.mediaManager, undefined, this.mediaManager.iceConfig);
             try {
                 const sdp = await preBuiltTransport.createOffer();
                 mediaPlan = { type: "webRTC", sdp };
@@ -320,7 +320,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     }
 
     private async acceptWebRTCOffer(call: Call, bus: CallBus, mediaPlan: MediaPlanWebRTC): Promise<CallActive> {
-        const webRTC = new WebRTCTransport(this.mediaManager, mediaPlan.sdp);
+        const webRTC = new WebRTCTransport(this.mediaManager, mediaPlan.sdp, this.mediaManager.iceConfig);
         await webRTC.start();
 
         const answer = await webRTC.answer;

@@ -51,15 +51,17 @@ await call.end()
 
 Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
-| Evento             | Payload           | Descrição                                                    |
-| ------------------ | ----------------- | ------------------------------------------------------------ |
-| `ended`            | —                 | Chamada encerrada (por qualquer uma das partes).             |
-| `peerMute`         | —                 | Parte remota silenciou o microfone.                          |
-| `peerUnmute`       | —                 | Parte remota ativou o microfone.                             |
-| `connectionStatus` | `TransportStatus` | Estado de conexão do transporte de mídia mudou.              |
-| `stats`            | `CallStats`       | Estatísticas periódicas de qualidade (RTT, perda de pacotes).|
-| `error`            | `string`          | Ocorreu um erro no nível de transporte.                      |
-| `status`           | `CallStatus`      | Status da chamada mudou.                                     |
+| Evento              | Payload              | Descrição                                                                                                |
+| ------------------- | -------------------- | -------------------------------------------------------------------------------------------------------- |
+| `ended`             | —                    | Chamada encerrada (por qualquer uma das partes).                                                         |
+| `peerMute`          | —                    | Parte remota silenciou o microfone.                                                                      |
+| `peerUnmute`        | —                    | Parte remota ativou o microfone.                                                                         |
+| `connectionStatus`  | `TransportStatus`    | Estado de conexão do transporte de mídia mudou.                                                          |
+| `stats`             | `CallStats`          | Estatísticas periódicas de qualidade (RTT, perda de pacotes).                                            |
+| `error`             | `string`             | Ocorreu um erro no nível de transporte.                                                                  |
+| `status`            | `CallStatus`         | Status da chamada mudou.                                                                                 |
+| `iceDiagnostics`    | `IceDiagnostics`     | Snapshot do gathering ICE (chamadas oficiais). Veja [Solução de Problemas](../troubleshooting.md).      |
+| `connectivityIssue` | `ConnectivityIssue`  | Problema de conectividade detectado durante a chamada. Veja [Solução de Problemas](../troubleshooting.md). |
 
 ```typescript
 call.on("ended", () => {

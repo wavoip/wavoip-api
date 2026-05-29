@@ -1,4 +1,5 @@
 import type { CallStats } from "@/modules/call/Stats";
+import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { EventEmitter } from "@/modules/shared/EventEmitter";
 
 export type TransportStatus = "disconnected" | "connected" | "connecting" | "reconnecting";
@@ -7,6 +8,8 @@ export type Events = {
     statusChanged: [status: TransportStatus];
     statsChanged: [stats: CallStats];
     peerMuted: [muted: boolean];
+    iceDiagnostics: [diag: IceDiagnostics];
+    connectivityIssue: [issue: ConnectivityIssue];
 };
 
 export interface ITransport extends EventEmitter<Events> {

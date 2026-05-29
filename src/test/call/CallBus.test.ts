@@ -289,5 +289,40 @@ describe("CallBus", () => {
 
             expect(cb).not.toHaveBeenCalled();
         });
+
+        it("transport iceDiagnostics → bus emits iceDiagnostics", () => {
+            const call = makeCall();
+            const socket = makeMockSocket();
+            const bus = new CallBus(call, socket as never);
+            const transport = makeMockTransport();
+            const cb = vi.fn();
+            bus.on("iceDiagnostics", cb);
+
+            bus.wireTransport(transport);
+            const diag = {
+                gatheringDurationMs: 200,
+                gatheringTimedOut: false,
+                candidatesByType: { host: 1, srflx: 1, prflx: 0, relay: 0 },
+                stunReached: true,
+                turnReached: false,
+            };
+            (transport as unknown as EventEmitter<TransportEvents>).emit("iceDiagnostics", diag);
+
+            expect(cb).toHaveBeenCalledWith(diag);
+        });
+
+        it("transport connectivityIssue → bus emits connectivityIssue", () => {
+            const call = makeCall();
+            const socket = makeMockSocket();
+            const bus = new CallBus(call, socket as never);
+            const transport = makeMockTransport();
+            const cb = vi.fn();
+            bus.on("connectivityIssue", cb);
+
+            bus.wireTransport(transport);
+            (transport as unknown as EventEmitter<TransportEvents>).emit("connectivityIssue", "STUN_UNREACHABLE");
+
+            expect(cb).toHaveBeenCalledWith("STUN_UNREACHABLE");
+        });
     });
 });

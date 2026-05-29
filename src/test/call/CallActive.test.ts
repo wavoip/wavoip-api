@@ -255,5 +255,40 @@ describe("CallActive", () => {
 
             expect(cb).toHaveBeenCalledWith("ENDED");
         });
+
+        it("on('iceDiagnostics') fires when bus emits iceDiagnostics", () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const cb = vi.fn();
+            active.on("iceDiagnostics", cb);
+
+            const diag = {
+                gatheringDurationMs: 100,
+                gatheringTimedOut: false,
+                candidatesByType: { host: 1, srflx: 1, prflx: 0, relay: 0 },
+                stunReached: true,
+                turnReached: false,
+            };
+            bus.emit("iceDiagnostics", diag);
+
+            expect(cb).toHaveBeenCalledWith(diag);
+        });
+
+        it("on('connectivityIssue') fires when bus emits connectivityIssue", () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const cb = vi.fn();
+            active.on("connectivityIssue", cb);
+
+            bus.emit("connectivityIssue", "STUN_UNREACHABLE");
+
+            expect(cb).toHaveBeenCalledWith("STUN_UNREACHABLE");
+        });
     });
 });

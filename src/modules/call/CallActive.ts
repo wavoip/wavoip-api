@@ -2,6 +2,7 @@ import type { CallBus } from "@/modules/call/CallBus";
 import type { CallPeer } from "@/modules/call/Peer";
 import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
+import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
@@ -15,6 +16,8 @@ export type CallActiveEvents = {
     serverStats: [stats: ServerCallStats];
     connectionStatus: [status: TransportStatus];
     status: [status: CallStatus];
+    iceDiagnostics: [diag: IceDiagnostics];
+    connectivityIssue: [issue: ConnectivityIssue];
 };
 
 export interface CallActive {
@@ -78,6 +81,12 @@ export function CallActiveProxy(
     });
     bus.on("status", (status) => {
         emitter.emit("status", status);
+    });
+    bus.on("iceDiagnostics", (diag) => {
+        emitter.emit("iceDiagnostics", diag);
+    });
+    bus.on("connectivityIssue", (issue) => {
+        emitter.emit("connectivityIssue", issue);
     });
 
     let onErrorUnsub: Unsubscribe | undefined;

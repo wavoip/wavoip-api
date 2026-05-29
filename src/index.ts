@@ -9,7 +9,15 @@ export type { DeviceStatus, Contact } from "@/modules/device/Device";
 export type { Device, DeviceEvents } from "@/modules/device/DeviceConnection";
 
 export type { TransportStatus } from "@/modules/media/ITransport";
+export type {
+    ConnectivityIssue,
+    IceCandidateKind,
+    IceConfig,
+    IceDiagnostics,
+} from "@/modules/media/ICEDiagnostics";
 export type { MediaManagerState } from "@/modules/media/MediaManager";
+export type { StunProbeResult } from "@/modules/media/StunProbe";
+export { runStunProbe } from "@/modules/media/StunProbe";
 export type { Unsubscribe } from "@/modules/shared/EventEmitter";
 export type { Language } from "@/modules/shared/i18n";
 

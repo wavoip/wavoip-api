@@ -13,13 +13,20 @@ import { Wavoip } from "@wavoip/wavoip-api"
 const wavoip = new Wavoip({
     tokens: ["token-1", "token-2"],
     platform?: string,        // opcional — identifica a plataforma do cliente
+    language?: "pt-BR" | "en" | "es",  // opcional — idioma de mensagens da lib
+    iceConfig?: {             // opcional — controla ICE/STUN em chamadas WebRTC
+        gatheringTimeoutMs?: number,
+        iceServers?: RTCIceServer[],
+    },
 })
 ```
 
-| Parâmetro  | Tipo       | Obrigatório | Descrição                                                       |
-| ---------- | ---------- | ----------- | --------------------------------------------------------------- |
-| `tokens`   | `string[]` | Sim         | Um ou mais tokens de dispositivo Wavoip. Duplicatas são ignoradas. |
-| `platform` | `string`   | Não         | Identificador de plataforma enviado ao servidor na conexão.     |
+| Parâmetro   | Tipo        | Obrigatório | Descrição                                                                                                                              |
+| ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `tokens`    | `string[]`  | Sim         | Um ou mais tokens de dispositivo Wavoip. Duplicatas são ignoradas.                                                                     |
+| `platform`  | `string`    | Não         | Identificador de plataforma enviado ao servidor na conexão.                                                                            |
+| `language`  | `Language`  | Não         | Idioma das mensagens emitidas pela biblioteca. Padrão: `pt-BR`.                                                                        |
+| `iceConfig` | `IceConfig` | Não         | Configuração ICE para chamadas WebRTC. Veja a seção abaixo. Útil em redes onde o STUN padrão é bloqueado ou para usar STUN/TURN próprio. |
 
 Cada token cria uma conexão WebSocket persistente com a infraestrutura Wavoip. A biblioteca começa a se conectar imediatamente na construção — nenhuma chamada explícita a `.connect()` é necessária.
 
@@ -180,3 +187,30 @@ const { microphone, speaker } = wavoip.multimedia
 // microphone: MediaDeviceInfo | undefined
 // speaker:    MediaDeviceInfo | undefined
 ```
+
+---
+
+## `iceConfig` — configuração ICE/STUN
+
+Controla como o transporte WebRTC reúne candidatos ICE em chamadas oficiais.
+
+```typescript
+const wavoip = new Wavoip({
+    tokens: ["..."],
+    iceConfig: {
+        gatheringTimeoutMs: 2500,        // padrão: 2500ms
+        iceServers: [                    // padrão: três STUNs públicos
+            { urls: ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
+        ],
+    },
+})
+```
+
+| Campo                | Tipo             | Padrão                                                                                       | Descrição                                                                                                                                  |
+| -------------------- | ---------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gatheringTimeoutMs` | `number`         | `2500`                                                                                       | Tempo máximo para reunir candidatos ICE antes de prosseguir com o SDP. Evita travas longas quando STUN está bloqueado/lento.              |
+| `iceServers`         | `RTCIceServer[]` | `[stun:stun.l.google.com:19302, stun:stun1.l.google.com:19302, stun:stun.cloudflare.com:3478]` | Lista de servidores ICE passada ao `RTCPeerConnection`. Use para apontar para um STUN/TURN próprio.                                       |
+
+{% hint style="info" %}
+Por padrão a biblioteca não usa TURN. Em redes com NAT simétrico em ambos os lados, a chamada pode falhar — veja `connectivityIssue: "SYMMETRIC_NAT_SUSPECTED"` em [Solução de Problemas](../troubleshooting.md).
+{% endhint %}

@@ -2,6 +2,7 @@ import type { CallOutgoing } from "@/modules/call/CallOutgoing";
 import type { Offer } from "@/modules/call/Offer";
 import { type Device, DeviceConnection } from "@/modules/device/DeviceConnection";
 import { DeviceProxy } from "@/modules/device/DeviceProxy";
+import type { IceConfig } from "@/modules/media/ICEDiagnostics";
 import { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import { type Language, setLanguage } from "@/modules/shared/i18n";
@@ -19,12 +20,13 @@ export class Wavoip extends EventEmitter<Events> {
         tokens: string[];
         platform?: string;
         language?: Language;
+        iceConfig?: IceConfig;
     }) {
         super();
 
         setLanguage(params.language ?? "pt-BR");
 
-        this.mediaManager = new MediaManager();
+        this.mediaManager = new MediaManager({ iceConfig: params.iceConfig });
 
         for (const token of [...new Set(params.tokens)]) {
             const device = new DeviceConnection(this.mediaManager, token, params.platform);

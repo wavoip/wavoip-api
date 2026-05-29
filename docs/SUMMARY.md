@@ -20,3 +20,4 @@
 ## Referência
 
 * [Tipos](types.md)
+* [Solução de Problemas](troubleshooting.md)

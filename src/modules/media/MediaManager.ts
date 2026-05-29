@@ -1,3 +1,4 @@
+import type { IceConfig } from "@/modules/media/ICEDiagnostics";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import micWorkletUrl from "../worklets/AudioWorkletMic.ts?worklet";
 import outWorkletUrl from "../worklets/AudioWorkletOut.ts?worklet";
@@ -24,14 +25,16 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
     public stream?: MediaStream;
     public muted = false;
     public readonly audioContext: AudioContext;
+    public readonly iceConfig?: IceConfig;
 
     private attachedElements: Set<HTMLAudioElement> = new Set();
     private activeSpeakerId?: string;
     private permissionGranted = false;
     private readonly _workletReady: Promise<void>;
 
-    constructor() {
+    constructor(options?: { iceConfig?: IceConfig }) {
         super();
+        this.iceConfig = options?.iceConfig;
         this.audioContext = new AudioContext({ latencyHint: 0 });
 
         this._workletReady = Promise.all([

@@ -73,13 +73,15 @@ const { err } = await offer.reject()
 
 Assine com `offer.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
-| Evento               | Payload      | Descrição                                                     |
-| -------------------- | ------------ | ------------------------------------------------------------- |
-| `acceptedElsewhere`  | —            | Outro cliente (aba/dispositivo) aceitou a chamada.            |
-| `rejectedElsewhere`  | —            | Outro cliente rejeitou a chamada.                             |
-| `unanswered`         | —            | Oferta expirou sem resposta.                                  |
-| `ended`              | —            | Chamada encerrada antes de ser atendida.                      |
-| `status`             | `CallStatus` | Status da chamada mudou.                                      |
+| Evento               | Payload              | Descrição                                                                                                |
+| -------------------- | -------------------- | -------------------------------------------------------------------------------------------------------- |
+| `acceptedElsewhere`  | —                    | Outro cliente (aba/dispositivo) aceitou a chamada.                                                       |
+| `rejectedElsewhere`  | —                    | Outro cliente rejeitou a chamada.                                                                        |
+| `unanswered`         | —                    | Oferta expirou sem resposta.                                                                             |
+| `ended`              | —                    | Chamada encerrada antes de ser atendida.                                                                 |
+| `status`             | `CallStatus`         | Status da chamada mudou.                                                                                 |
+| `iceDiagnostics`     | `IceDiagnostics`     | Snapshot do gathering ICE após `accept()`. Veja [Solução de Problemas](../troubleshooting.md).          |
+| `connectivityIssue`  | `ConnectivityIssue`  | Problema de conectividade detectado. Veja [Solução de Problemas](../troubleshooting.md).                |
 
 ```typescript
 offer.on("acceptedElsewhere", () => {

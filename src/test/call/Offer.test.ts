@@ -174,5 +174,36 @@ describe("Offer", () => {
 
             expect(cb).toHaveBeenCalledWith("ACTIVE");
         });
+
+        it("on('iceDiagnostics') fires when bus emits iceDiagnostics", () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const offer = OfferProxy(call, bus, { onAccept: vi.fn(), onReject: vi.fn() });
+            const cb = vi.fn();
+            offer.on("iceDiagnostics", cb);
+
+            const diag = {
+                gatheringDurationMs: 50,
+                gatheringTimedOut: false,
+                candidatesByType: { host: 1, srflx: 0, prflx: 0, relay: 0 },
+                stunReached: false,
+                turnReached: false,
+            };
+            bus.emit("iceDiagnostics", diag);
+
+            expect(cb).toHaveBeenCalledWith(diag);
+        });
+
+        it("on('connectivityIssue') fires when bus emits connectivityIssue", () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const offer = OfferProxy(call, bus, { onAccept: vi.fn(), onReject: vi.fn() });
+            const cb = vi.fn();
+            offer.on("connectivityIssue", cb);
+
+            bus.emit("connectivityIssue", "STUN_UNREACHABLE");
+
+            expect(cb).toHaveBeenCalledWith("STUN_UNREACHABLE");
+        });
     });
 });

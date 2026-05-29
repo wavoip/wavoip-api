@@ -1,6 +1,7 @@
 import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import type { Call, CallStatus } from "@/modules/device/Call";
 import type { DeviceSocket, MediaPlan } from "@/modules/device/WebSocket";
+import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
@@ -17,6 +18,8 @@ type CallBusEvents = {
     peerMuted: [muted: boolean];
     stats: [stats: CallStats];
     serverStats: [stats: ServerCallStats];
+    iceDiagnostics: [diag: IceDiagnostics];
+    connectivityIssue: [issue: ConnectivityIssue];
 };
 
 /**
@@ -83,5 +86,7 @@ export class CallBus extends EventEmitter<CallBusEvents> {
         });
         transport.on("peerMuted", (m) => this.emit("peerMuted", m));
         transport.on("statsChanged", (s) => this.emit("stats", s));
+        transport.on("iceDiagnostics", (d) => this.emit("iceDiagnostics", d));
+        transport.on("connectivityIssue", (i) => this.emit("connectivityIssue", i));
     }
 }
