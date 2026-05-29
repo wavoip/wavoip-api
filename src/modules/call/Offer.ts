@@ -68,8 +68,16 @@ export function OfferProxy(
         dispose();
     });
     bus.on("status", (status) => emitter.emit("status", status));
-    bus.on("iceDiagnostics", (diag) => emitter.emit("iceDiagnostics", diag));
-    bus.on("connectivityIssue", (issue) => emitter.emit("connectivityIssue", issue));
+    let lastIceDiagnostics: IceDiagnostics | null = null;
+    const emittedIssues = new Set<ConnectivityIssue>();
+    bus.on("iceDiagnostics", (diag) => {
+        lastIceDiagnostics = diag;
+        emitter.emit("iceDiagnostics", diag);
+    });
+    bus.on("connectivityIssue", (issue) => {
+        emittedIssues.add(issue);
+        emitter.emit("connectivityIssue", issue);
+    });
 
     let onAcceptedElsewhereUnsub: Unsubscribe | undefined;
     let onRejectedElsewhereUnsub: Unsubscribe | undefined;
@@ -102,7 +110,14 @@ export function OfferProxy(
         },
 
         on<T extends keyof OfferEvents>(event: T, callback: (...args: OfferEvents[T]) => void): Unsubscribe {
-            return emitter.on(event, callback);
+            const unsub = emitter.on(event, callback);
+            if (event === "iceDiagnostics" && lastIceDiagnostics) {
+                (callback as (d: IceDiagnostics) => void)(lastIceDiagnostics);
+            }
+            if (event === "connectivityIssue") {
+                for (const issue of emittedIssues) (callback as (i: ConnectivityIssue) => void)(issue);
+            }
+            return unsub;
         },
 
         /** @deprecated Use `on("acceptedElsewhere", callback)` instead. */

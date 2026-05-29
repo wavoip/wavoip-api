@@ -82,10 +82,14 @@ export function CallActiveProxy(
     bus.on("status", (status) => {
         emitter.emit("status", status);
     });
+    let lastIceDiagnostics: IceDiagnostics | null = null;
+    const emittedIssues = new Set<ConnectivityIssue>();
     bus.on("iceDiagnostics", (diag) => {
+        lastIceDiagnostics = diag;
         emitter.emit("iceDiagnostics", diag);
     });
     bus.on("connectivityIssue", (issue) => {
+        emittedIssues.add(issue);
         emitter.emit("connectivityIssue", issue);
     });
 
@@ -124,7 +128,14 @@ export function CallActiveProxy(
         },
 
         on<T extends keyof CallActiveEvents>(event: T, callback: (...args: CallActiveEvents[T]) => void): Unsubscribe {
-            return emitter.on(event, callback);
+            const unsub = emitter.on(event, callback);
+            if (event === "iceDiagnostics" && lastIceDiagnostics) {
+                (callback as (d: IceDiagnostics) => void)(lastIceDiagnostics);
+            }
+            if (event === "connectivityIssue") {
+                for (const issue of emittedIssues) (callback as (i: ConnectivityIssue) => void)(issue);
+            }
+            return unsub;
         },
 
         /** @deprecated Use `on("error", callback)` instead. */

@@ -36,6 +36,48 @@ function makeMockTransport(): ITransport & {
     return t;
 }
 
+describe("CallBus is sticky for iceDiagnostics + connectivityIssue", () => {
+    it("immediately delivers cached iceDiagnostics to a late subscriber", () => {
+        const bus = new CallBus(makeCall(), makeMockSocket());
+        const diag: IceDiagnostics = {
+            gatheringDurationMs: 50,
+            gatheringTimedOut: false,
+            candidatesByType: { host: 1, srflx: 1, prflx: 0, relay: 0 },
+            stunReached: true,
+            turnReached: false,
+        };
+        bus.emit("iceDiagnostics", diag);
+
+        const cb = vi.fn();
+        bus.on("iceDiagnostics", cb);
+
+        expect(cb).toHaveBeenCalledWith(diag);
+    });
+
+    it("immediately delivers every cached connectivityIssue to a late subscriber", () => {
+        const bus = new CallBus(makeCall(), makeMockSocket());
+        bus.emit("connectivityIssue", "STUN_UNREACHABLE");
+        bus.emit("connectivityIssue", "ICE_GATHERING_TIMEOUT");
+
+        const cb = vi.fn();
+        bus.on("connectivityIssue", cb);
+
+        expect(cb).toHaveBeenCalledWith("STUN_UNREACHABLE");
+        expect(cb).toHaveBeenCalledWith("ICE_GATHERING_TIMEOUT");
+        expect(cb).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not replay non-sticky events to late subscribers", () => {
+        const bus = new CallBus(makeCall(), makeMockSocket());
+        bus.emit("ringing");
+
+        const cb = vi.fn();
+        bus.on("ringing", cb);
+
+        expect(cb).not.toHaveBeenCalled();
+    });
+});
+
 describe("CallBus replays diagnostic state on wireTransport", () => {
     it("re-emits transport.lastDiagnostics when present", () => {
         const bus = new CallBus(makeCall(), makeMockSocket());
