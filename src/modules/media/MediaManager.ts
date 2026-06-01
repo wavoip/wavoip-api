@@ -4,7 +4,7 @@ import outWorkletUrl from "../worklets/AudioWorkletOut.ts?worklet";
 
 export type MediaManagerEvents = {
     devicesChanged: [devices: MediaDeviceInfo[]];
-    micChanged: [device: MediaDeviceInfo | null];
+    micChanged: [device: MediaDeviceInfo | null, track: MediaStreamTrack | null];
     speakerChanged: [device: MediaDeviceInfo | null];
     muteChanged: [muted: boolean];
 };
@@ -143,7 +143,7 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
 
         if (!this.stream) {
             this.activeMic = device;
-            this.emit("micChanged", device);
+            this.emit("micChanged", device, null);
             return true;
         }
 
@@ -169,7 +169,7 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
         this.stream.addTrack(newTrack);
 
         this.activeMic = device;
-        this.emit("micChanged", device);
+        this.emit("micChanged", device, newTrack);
         return true;
     }
 
@@ -299,7 +299,7 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
             const still = this.devices.find((d) => d.kind === "audioinput" && d.deviceId === prevMicId);
             if (!still) {
                 this.activeMic = undefined;
-                this.emit("micChanged", null);
+                this.emit("micChanged", null, null);
             }
         }
 

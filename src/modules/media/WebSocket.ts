@@ -1,7 +1,7 @@
 import type { CallStats } from "@/modules/call/Stats";
 import type { Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
-import { EventEmitter } from "@/modules/shared/EventEmitter";
+import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 
 // 1000 = Normal Closure (server intentionally ended the connection)
 // 1008 = Policy Violation (server rejected the connection, e.g. invalid token)
@@ -24,6 +24,7 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     private reconnectDeadline: ReturnType<typeof setTimeout> | null = null;
     private readonly audioIn: AudioInput;
     private readonly audioOut: AudioOutput;
+    private micChangedUnsub?: Unsubscribe;
 
     constructor(
         private readonly mediaManager: MediaManager,
@@ -51,12 +52,26 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
             }
         });
 
+        // MediaStreamAudioSourceNode snapshots the stream's first track at
+        // creation — a later removeTrack/addTrack on the same stream does NOT
+        // rewire the source. So on mic hot-swap we rebuild the source node
+        // from the new track.
+        this.micChangedUnsub = this.mediaManager.on("micChanged", (_device, track) => {
+            if (!track) return;
+            this.audioIn.swap(track).catch((err) => {
+                console.warn("[WebsocketTransport] audioIn.swap failed:", err);
+            });
+        });
+
         this.ws = this.connect();
     }
 
     async stop(): Promise<void> {
         this.stopped = true;
         this.clearReconnectDeadline();
+
+        this.micChangedUnsub?.();
+        this.micChangedUnsub = undefined;
 
         this.ws?.close();
         this.ws = undefined;
@@ -162,6 +177,22 @@ class AudioInput extends EventEmitter<AudioInputEvents> {
 
         // ResampleProcessor only processes — it does not connect to destination.
         // Output goes to the main thread via port.postMessage.
+    }
+
+    /**
+     * Hot-swap the input source while the resample worklet keeps running.
+     * Disconnect → rebuild MediaStreamAudioSourceNode from the new track →
+     * reconnect within the same microtask. Gap is under one audio quantum
+     * (≈ 2.7ms at 48kHz) — below voice perception threshold.
+     */
+    async swap(track: MediaStreamTrack): Promise<void> {
+        if (!this.resampleNode) return;
+        if (this.source) {
+            this.source.disconnect(this.resampleNode);
+        }
+        const newStream = new MediaStream([track]);
+        this.source = this.audioContext.createMediaStreamSource(newStream);
+        this.source.connect(this.resampleNode);
     }
 
     async stop(): Promise<void> {
