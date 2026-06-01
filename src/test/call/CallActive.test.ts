@@ -35,11 +35,25 @@ function makeMockTransport(overrides: Partial<ITransport> = {}): ITransport {
 }
 
 function makeMockMediaManager() {
+    const listeners = new Map<string, Array<(...args: unknown[]) => void>>();
+    const on = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+        const arr = listeners.get(event) ?? [];
+        arr.push(cb);
+        listeners.set(event, arr);
+        return () => listeners.set(event, (listeners.get(event) ?? []).filter((l) => l !== cb));
+    });
+    const emit = (event: string, ...args: unknown[]) => {
+        for (const cb of listeners.get(event) ?? []) cb(...args);
+    };
+
     return {
         setMuted: vi.fn(),
         startMedia: vi.fn(),
         stopMedia: vi.fn(),
+        setMicrophone: vi.fn().mockResolvedValue(true),
+        on,
         audioContext: {} as AudioContext,
+        _emit: emit,
     };
 }
 
@@ -254,6 +268,63 @@ describe("CallActive", () => {
             bus.emit("status", "ENDED");
 
             expect(cb).toHaveBeenCalledWith("ENDED");
+        });
+
+        it("on('micChanged') fires with device when mediaManager emits micChanged", () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const cb = vi.fn();
+            active.on("micChanged", cb);
+
+            const device = { deviceId: "mic-2", kind: "audioinput" } as MediaDeviceInfo;
+            const track = { kind: "audio" } as MediaStreamTrack;
+            mm._emit("micChanged", device, track);
+
+            expect(cb).toHaveBeenCalledWith(device);
+        });
+    });
+
+    describe("setMicrophone()", () => {
+        it("delegates to mediaManager.setMicrophone and returns { err: null } on success", async () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+
+            const result = await active.setMicrophone("mic-2");
+
+            expect(mm.setMicrophone).toHaveBeenCalledWith("mic-2");
+            expect(result).toEqual({ err: null });
+        });
+
+        it("returns { err } when mediaManager.setMicrophone returns false (unknown device)", async () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            mm.setMicrophone.mockResolvedValueOnce(false);
+            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+
+            const result = await active.setMicrophone("mic-unknown");
+
+            expect(result.err).toMatch(/not found/);
+        });
+
+        it("returns { err } when mediaManager.setMicrophone throws", async () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            mm.setMicrophone.mockRejectedValueOnce(new Error("permission denied"));
+            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+
+            const result = await active.setMicrophone("mic-2");
+
+            expect(result.err).toBe("permission denied");
         });
     });
 });

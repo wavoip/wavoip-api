@@ -29,7 +29,7 @@ class MockRTCPeerConnection {
 
     private eventListeners = new Map<string, Set<(...args: unknown[]) => void>>();
 
-    addTrack = vi.fn();
+    addTrack = vi.fn(() => ({ replaceTrack: vi.fn().mockResolvedValue(undefined) }));
     close = vi.fn();
     setRemoteDescription = vi.fn().mockResolvedValue(undefined);
     createAnswer = vi.fn().mockResolvedValue({ type: "answer", sdp: "mock-answer-sdp" });
@@ -91,20 +91,33 @@ function makeMockMediaManager() {
         createAnalyser: vi.fn().mockReturnValue(analyser),
         destination: {},
     };
-    const mockTrack = { enabled: false };
+    const mockTrack = { enabled: false, kind: "audio" };
     const mockStream = {
         getTracks: vi.fn().mockReturnValue([mockTrack]),
         id: "mic-stream",
     } as unknown as MediaStream;
 
+    const listeners = new Map<string, Array<(...args: unknown[]) => void>>();
+    const on = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+        const arr = listeners.get(event) ?? [];
+        arr.push(cb);
+        listeners.set(event, arr);
+        return () => listeners.set(event, (listeners.get(event) ?? []).filter((l) => l !== cb));
+    });
+    const emit = (event: string, ...args: unknown[]) => {
+        for (const cb of listeners.get(event) ?? []) cb(...args);
+    };
+
     return {
         setMuted: vi.fn(),
         startMedia: vi.fn().mockResolvedValue(mockStream),
         stopMedia: vi.fn().mockResolvedValue(undefined),
+        on,
         audioContext,
         _analyser: analyser,
         _stream: mockStream,
         _track: mockTrack,
+        _emit: emit,
     };
 }
 
@@ -324,6 +337,51 @@ describe("WebRTCTransport", () => {
             mockPcInstance._remoteTrack?.dispatchEvent("mute");
 
             expect(cb).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("microphone hot-swap", () => {
+        it("stores RTCRtpSender from addTrack and calls sender.replaceTrack on mediaManager.micChanged", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
+            await startTransport(transport);
+
+            const senderReturnValue = mockPcInstance.addTrack.mock.results[0]?.value as { replaceTrack: ReturnType<typeof vi.fn> };
+            expect(senderReturnValue?.replaceTrack).toBeDefined();
+
+            const newTrack = { kind: "audio" } as MediaStreamTrack;
+            mm._emit("micChanged", { deviceId: "mic-2" } as MediaDeviceInfo, newTrack);
+
+            expect(senderReturnValue.replaceTrack).toHaveBeenCalledWith(newTrack);
+        });
+
+        it("does not call replaceTrack when emitted track is null (preference-only swap)", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
+            await startTransport(transport);
+
+            const senderReturnValue = mockPcInstance.addTrack.mock.results[0]?.value as { replaceTrack: ReturnType<typeof vi.fn> };
+            mm._emit("micChanged", { deviceId: "mic-2" } as MediaDeviceInfo, null);
+
+            expect(senderReturnValue.replaceTrack).not.toHaveBeenCalled();
+        });
+
+        it("unsubscribes from micChanged on stop()", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
+            await startTransport(transport);
+
+            const senderReturnValue = mockPcInstance.addTrack.mock.results[0]?.value as { replaceTrack: ReturnType<typeof vi.fn> };
+
+            await transport.stop();
+
+            const newTrack = { kind: "audio" } as MediaStreamTrack;
+            mm._emit("micChanged", { deviceId: "mic-2" } as MediaDeviceInfo, newTrack);
+
+            expect(senderReturnValue.replaceTrack).not.toHaveBeenCalled();
         });
     });
 
