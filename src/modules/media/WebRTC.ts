@@ -1,7 +1,7 @@
 import type { CallStats } from "@/modules/call/Stats";
 import type { Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
-import { EventEmitter } from "@/modules/shared/EventEmitter";
+import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 
 export class WebRTCTransport extends EventEmitter<Events> implements ITransport {
     status: TransportStatus = "disconnected";
@@ -32,12 +32,20 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     private answerResolver: PromiseWithResolvers<RTCSessionDescriptionInit>;
     private statsJob = 0;
     private started = false;
+    private senders: RTCRtpSender[] = [];
+    private unsubMicTrackReplaced?: Unsubscribe;
 
     constructor(
         private readonly mediaManager: MediaManager,
         offer?: string,
     ) {
         super();
+
+        this.unsubMicTrackReplaced = this.mediaManager.on("micTrackReplaced", (track) => {
+            for (const sender of this.senders) {
+                sender.replaceTrack(track).catch((err) => console.warn("[WebRTCTransport] replaceTrack failed:", err));
+            }
+        });
 
         this.pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
         if (offer) this.remoteOffer = { type: "offer", sdp: offer };
@@ -107,7 +115,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
 
             for (const track of micStream.getTracks()) {
                 track.enabled = true;
-                this.pc.addTrack(track, micStream);
+                this.senders.push(this.pc.addTrack(track, micStream));
             }
 
             await this.pc.setRemoteDescription(this.remoteOffer);
@@ -128,7 +136,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
 
         for (const track of micStream.getTracks()) {
             track.enabled = true;
-            this.pc.addTrack(track, micStream);
+            this.senders.push(this.pc.addTrack(track, micStream));
         }
 
         const offer = await this.pc.createOffer();
@@ -154,6 +162,9 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
 
     async stop(): Promise<void> {
         clearInterval(this.statsJob);
+        this.unsubMicTrackReplaced?.();
+        this.unsubMicTrackReplaced = undefined;
+        this.senders = [];
 
         this.pc.close();
         await this.mediaManager.stopMedia();

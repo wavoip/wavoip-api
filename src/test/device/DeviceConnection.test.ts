@@ -78,7 +78,7 @@ import type { CallType } from "@/modules/device/Call";
 const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
 
 function makeMockMediaManager(): MediaManager {
-    return {} as MediaManager;
+    return { on: vi.fn(() => () => {}) } as unknown as MediaManager;
 }
 
 function makeDeviceConnection() {

@@ -8,6 +8,8 @@ import { type Language, setLanguage } from "@/modules/shared/i18n";
 
 type Events = {
     offer: [offer: Offer];
+    micChanged: [device: MediaDeviceInfo | null];
+    devicesChanged: [devices: MediaDeviceInfo[]];
 };
 
 export class Wavoip extends EventEmitter<Events> {
@@ -25,6 +27,8 @@ export class Wavoip extends EventEmitter<Events> {
         setLanguage(params.language ?? "pt-BR");
 
         this.mediaManager = new MediaManager();
+        this.mediaManager.on("micChanged", (device) => this.emit("micChanged", device));
+        this.mediaManager.on("devicesChanged", (devices) => this.emit("devicesChanged", devices));
 
         for (const token of [...new Set(params.tokens)]) {
             const device = new DeviceConnection(this.mediaManager, token, params.platform);
@@ -60,6 +64,17 @@ export class Wavoip extends EventEmitter<Events> {
 
     getMultimediaDevices(): MediaDeviceInfo[] {
         return this.mediaManager.devices;
+    }
+
+    /**
+     * Switch the active microphone. If a call is in progress, the new device
+     * is hot-swapped into the live stream without interrupting audio.
+     * Returns `{ err: null }` on success or `{ err: string }` if the device id
+     * is not in the current device list.
+     */
+    async setMicrophone(deviceId: string): Promise<{ err: string | null }> {
+        const ok = await this.mediaManager.setMicrophone(deviceId);
+        return ok ? { err: null } : { err: `Microphone not found: ${deviceId}` };
     }
 
     /**

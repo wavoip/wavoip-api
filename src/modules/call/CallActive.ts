@@ -15,6 +15,7 @@ export type CallActiveEvents = {
     serverStats: [stats: ServerCallStats];
     connectionStatus: [status: TransportStatus];
     status: [status: CallStatus];
+    micChanged: [device: MediaDeviceInfo | null];
 };
 
 export interface CallActive {
@@ -29,6 +30,7 @@ export interface CallActive {
     mute(): Promise<{ err: string | null }>;
     unmute(): Promise<{ err: string | null }>;
     end(): Promise<{ err: string | null }>;
+    setMicrophone(deviceId: string): Promise<{ err: string | null }>;
     on<T extends keyof CallActiveEvents>(event: T, callback: (...args: CallActiveEvents[T]) => void): Unsubscribe;
     /** @deprecated Use `on("error", callback)` instead. */
     onError(callback: (err: string) => void): void;
@@ -79,6 +81,9 @@ export function CallActiveProxy(
     bus.on("status", (status) => {
         emitter.emit("status", status);
     });
+    mediaManager.on("micChanged", (device) => {
+        emitter.emit("micChanged", device);
+    });
 
     let onErrorUnsub: Unsubscribe | undefined;
     let onPeerMuteUnsub: Unsubscribe | undefined;
@@ -112,6 +117,11 @@ export function CallActiveProxy(
             callbacks.onEnd(call);
             await transport.stop();
             return { err: null };
+        },
+
+        async setMicrophone(deviceId: string): Promise<{ err: string | null }> {
+            const ok = await mediaManager.setMicrophone(deviceId);
+            return ok ? { err: null } : { err: `Microphone not found: ${deviceId}` };
         },
 
         on<T extends keyof CallActiveEvents>(event: T, callback: (...args: CallActiveEvents[T]) => void): Unsubscribe {

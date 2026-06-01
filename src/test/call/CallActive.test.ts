@@ -35,11 +35,21 @@ function makeMockTransport(overrides: Partial<ITransport> = {}): ITransport {
 }
 
 function makeMockMediaManager() {
+    const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
     return {
         setMuted: vi.fn(),
+        setMicrophone: vi.fn().mockResolvedValue(true),
         startMedia: vi.fn(),
         stopMedia: vi.fn(),
         audioContext: {} as AudioContext,
+        on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+            if (!listeners.has(event)) listeners.set(event, new Set());
+            listeners.get(event)?.add(cb);
+            return () => listeners.get(event)?.delete(cb);
+        }),
+        emit: (event: string, ...args: unknown[]) => {
+            for (const fn of listeners.get(event) ?? []) fn(...args);
+        },
     };
 }
 
@@ -240,6 +250,47 @@ describe("CallActive", () => {
             bus.emit("connectionStatus", "connected");
 
             expect(cb).toHaveBeenCalledWith("connected");
+        });
+
+        it("setMicrophone delegates to mediaManager.setMicrophone", async () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+
+            const result = await active.setMicrophone("mic-2");
+
+            expect(mm.setMicrophone).toHaveBeenCalledWith("mic-2");
+            expect(result).toEqual({ err: null });
+        });
+
+        it("setMicrophone returns err string when delegate returns false", async () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            mm.setMicrophone.mockResolvedValueOnce(false);
+            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+
+            const result = await active.setMicrophone("missing");
+
+            expect(result.err).toBeTruthy();
+        });
+
+        it("on('micChanged') fires when mediaManager emits micChanged", () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const cb = vi.fn();
+            active.on("micChanged", cb);
+
+            const device = { kind: "audioinput", deviceId: "mic-2" } as MediaDeviceInfo;
+            mm.emit("micChanged", device);
+
+            expect(cb).toHaveBeenCalledWith(device);
         });
 
         it("onStatus fires when bus emits 'status'", () => {

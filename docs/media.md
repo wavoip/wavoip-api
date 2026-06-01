@@ -42,10 +42,46 @@ Retorna os dispositivos de entrada e saída atualmente selecionados.
 
 ## Trocando o microfone
 
-Chame `setMicrophone` em um dispositivo obtido via `getDevices()`, ou acesse o `MediaManager` subjacente pelo socket interno do dispositivo. Na prática, o `MediaManager` é acessado indiretamente: a biblioteca realiza uma troca a quente sem interrupção enquanto uma chamada está ativa.
+Use `wavoip.setMicrophone(deviceId)` para escolher o microfone antes ou durante uma chamada. Se houver uma chamada ativa, a troca acontece a quente — o áudio continua sem corte.
+
+```typescript
+const { err } = await wavoip.setMicrophone(mic.deviceId)
+if (err) console.error(err)
+```
+
+As facades de chamada (`CallActive` e `CallOutgoing`) também expõem `setMicrophone(deviceId)` com a mesma semântica — útil quando você só tem o objeto da chamada em mãos.
+
+```typescript
+await callActive.setMicrophone(mic.deviceId)
+await callOutgoing.setMicrophone(mic.deviceId)
+```
+
+### Evento `micChanged`
+
+Disparado sempre que o microfone ativo muda — seja por chamada explícita a `setMicrophone`, seja porque o dispositivo atual foi desconectado fisicamente.
+
+```typescript
+wavoip.on("micChanged", (device) => {
+    if (!device) console.warn("Microfone removido")
+    else console.log("Novo microfone:", device.label)
+})
+
+callActive.on("micChanged", (device) => { /* mesma assinatura */ })
+callOutgoing.on("micChanged", (device) => { /* mesma assinatura */ })
+```
+
+### Evento `devicesChanged`
+
+Disparado quando a lista de dispositivos do sistema muda (conectar/desconectar fones, por exemplo). Use para atualizar seletores em tela.
+
+```typescript
+wavoip.on("devicesChanged", (devices) => {
+    // re-render dropdowns
+})
+```
 
 {% hint style="info" %}
-A troca de microfone e alto-falante é tratada internamente pelo `MediaManager` compartilhado. As preferências de dispositivo são aplicadas a todas as chamadas ativas e futuras automaticamente.
+A troca a quente substitui a track de áudio dentro do `MediaStream` compartilhado. No transporte WebRTC chamamos `RTCRtpSender.replaceTrack`; no transporte WebSocket recriamos o `MediaStreamAudioSourceNode` mantendo o worklet de resample.
 {% endhint %}
 
 ---

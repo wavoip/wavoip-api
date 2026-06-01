@@ -5,6 +5,13 @@ import outWorkletUrl from "../worklets/AudioWorkletOut.ts?worklet";
 export type MediaManagerEvents = {
     devicesChanged: [devices: MediaDeviceInfo[]];
     micChanged: [device: MediaDeviceInfo | null];
+    /**
+     * Fired after the mic track inside the live stream is hot-swapped
+     * (setMicrophone called while a stream is active). Transports subscribe to
+     * react: WebRTCTransport calls `sender.replaceTrack`, WebsocketTransport
+     * rebuilds its MediaStreamAudioSourceNode against the updated stream.
+     */
+    micTrackReplaced: [track: MediaStreamTrack];
     speakerChanged: [device: MediaDeviceInfo | null];
     muteChanged: [muted: boolean];
 };
@@ -170,6 +177,7 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
 
         this.activeMic = device;
         this.emit("micChanged", device);
+        this.emit("micTrackReplaced", newTrack);
         return true;
     }
 

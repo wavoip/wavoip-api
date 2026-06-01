@@ -1,7 +1,7 @@
 import type { CallStats } from "@/modules/call/Stats";
 import type { Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
-import { EventEmitter } from "@/modules/shared/EventEmitter";
+import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 
 // 1000 = Normal Closure (server intentionally ended the connection)
 // 1008 = Policy Violation (server rejected the connection, e.g. invalid token)
@@ -24,6 +24,7 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     private reconnectDeadline: ReturnType<typeof setTimeout> | null = null;
     private readonly audioIn: AudioInput;
     private readonly audioOut: AudioOutput;
+    private unsubMicTrackReplaced?: Unsubscribe;
 
     constructor(
         private readonly mediaManager: MediaManager,
@@ -51,12 +52,19 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
             }
         });
 
+        this.unsubMicTrackReplaced = this.mediaManager.on("micTrackReplaced", () => {
+            const updated = this.mediaManager.stream;
+            if (updated) this.audioIn.swapStream(updated);
+        });
+
         this.ws = this.connect();
     }
 
     async stop(): Promise<void> {
         this.stopped = true;
         this.clearReconnectDeadline();
+        this.unsubMicTrackReplaced?.();
+        this.unsubMicTrackReplaced = undefined;
 
         this.ws?.close();
         this.ws = undefined;
@@ -162,6 +170,19 @@ class AudioInput extends EventEmitter<AudioInputEvents> {
 
         // ResampleProcessor only processes — it does not connect to destination.
         // Output goes to the main thread via port.postMessage.
+    }
+
+    /**
+     * Replace the live mic stream without tearing down the resample worklet.
+     * MediaStreamAudioSourceNode binds to one track at construction, so a mid-call
+     * device swap requires recreating the source node and reconnecting to the
+     * existing resample node.
+     */
+    swapStream(stream: MediaStream): void {
+        if (!this.resampleNode) return;
+        if (this.source) this.source.disconnect(this.resampleNode);
+        this.source = this.audioContext.createMediaStreamSource(stream);
+        this.source.connect(this.resampleNode);
     }
 
     async stop(): Promise<void> {

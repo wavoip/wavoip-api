@@ -15,6 +15,7 @@ export type CallOutgoingEvents = {
     unanswered: [];
     ended: [];
     status: [status: CallStatus];
+    micChanged: [device: MediaDeviceInfo | null];
 };
 
 export interface CallOutgoing {
@@ -24,6 +25,7 @@ export interface CallOutgoing {
     peer: CallPeer;
     device_token: string;
     status: CallStatus;
+    setMicrophone(deviceId: string): Promise<{ err: string | null }>;
     on<T extends keyof CallOutgoingEvents>(event: T, callback: (...args: CallOutgoingEvents[T]) => void): Unsubscribe;
     /** @deprecated Use `on("peerAccept", callback)` instead. */
     onPeerAccept(callback: (call: CallActive) => void): void;
@@ -87,6 +89,9 @@ export function CallOutgoingProxy(
     bus.on("status", (status) => {
         emitter.emit("status", status);
     });
+    mediaManager.on("micChanged", (device) => {
+        emitter.emit("micChanged", device);
+    });
 
     let onPeerAcceptUnsub: Unsubscribe | undefined;
     let onPeerRejectUnsub: Unsubscribe | undefined;
@@ -127,6 +132,11 @@ export function CallOutgoingProxy(
                     resolve(res.type === "error" ? { err: res.result } : { err: null });
                 });
             });
+        },
+
+        async setMicrophone(deviceId: string): Promise<{ err: string | null }> {
+            const ok = await mediaManager.setMicrophone(deviceId);
+            return ok ? { err: null } : { err: `Microphone not found: ${deviceId}` };
         },
 
         on<T extends keyof CallOutgoingEvents>(
