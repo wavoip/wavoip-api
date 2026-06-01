@@ -63,6 +63,22 @@ export class Wavoip extends EventEmitter<Events> {
     }
 
     /**
+     * Pick the microphone that any current or future call should use.
+     * If a call is active, performs a seamless hot-swap via the underlying
+     * transport's replaceTrack (WebRTC) or AudioInput rebuild (WebSocket).
+     * Otherwise stores the preference for the next call.
+     */
+    async setMicrophone(deviceId: string): Promise<{ err: string | null }> {
+        try {
+            const ok = await this.mediaManager.setMicrophone(deviceId);
+            if (!ok) return { err: `Microphone device not found: ${deviceId}` };
+            return { err: null };
+        } catch (e) {
+            return { err: e instanceof Error ? e.message : "setMicrophone failed" };
+        }
+    }
+
+    /**
      * Attempts to start an outgoing call using one or more available devices.
      *
      * Tries each device in sequence until one successfully initiates a call.

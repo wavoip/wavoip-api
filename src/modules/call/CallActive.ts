@@ -15,6 +15,7 @@ export type CallActiveEvents = {
     serverStats: [stats: ServerCallStats];
     connectionStatus: [status: TransportStatus];
     status: [status: CallStatus];
+    micChanged: [device: MediaDeviceInfo | null];
 };
 
 export interface CallActive {
@@ -29,6 +30,11 @@ export interface CallActive {
     mute(): Promise<{ err: string | null }>;
     unmute(): Promise<{ err: string | null }>;
     end(): Promise<{ err: string | null }>;
+    /**
+     * Hot-swap the microphone for this live call without renegotiation.
+     * Returns `{ err: "..." }` when the deviceId is unknown or getUserMedia fails.
+     */
+    setMicrophone(deviceId: string): Promise<{ err: string | null }>;
     on<T extends keyof CallActiveEvents>(event: T, callback: (...args: CallActiveEvents[T]) => void): Unsubscribe;
     /** @deprecated Use `on("error", callback)` instead. */
     onError(callback: (err: string) => void): void;
@@ -80,6 +86,13 @@ export function CallActiveProxy(
         emitter.emit("status", status);
     });
 
+    const micChangedUnsub = mediaManager.on("micChanged", (device) => {
+        emitter.emit("micChanged", device);
+    });
+    bus.on("ended", () => {
+        micChangedUnsub();
+    });
+
     let onErrorUnsub: Unsubscribe | undefined;
     let onPeerMuteUnsub: Unsubscribe | undefined;
     let onPeerUnmuteUnsub: Unsubscribe | undefined;
@@ -111,7 +124,18 @@ export function CallActiveProxy(
         async end(): Promise<{ err: string | null }> {
             callbacks.onEnd(call);
             await transport.stop();
+            micChangedUnsub();
             return { err: null };
+        },
+
+        async setMicrophone(deviceId: string): Promise<{ err: string | null }> {
+            try {
+                const ok = await mediaManager.setMicrophone(deviceId);
+                if (!ok) return { err: `Microphone device not found: ${deviceId}` };
+                return { err: null };
+            } catch (e) {
+                return { err: e instanceof Error ? e.message : "setMicrophone failed" };
+            }
         },
 
         on<T extends keyof CallActiveEvents>(event: T, callback: (...args: CallActiveEvents[T]) => void): Unsubscribe {
