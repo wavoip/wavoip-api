@@ -49,15 +49,25 @@ export function CallOutgoingProxy(
 ): CallOutgoing {
     const emitter = new EventEmitter<CallOutgoingEvents>();
 
+    let disposed = false;
+    const dispose = (): Promise<void> => {
+        if (disposed) return Promise.resolve();
+        disposed = true;
+        if (!preBuiltTransport) return Promise.resolve();
+        return Promise.resolve(preBuiltTransport.stop()).catch(() => {});
+    };
+
     bus.on("answered", async (mediaPlan) => {
         call.accept();
 
         let transport: ITransport;
         if (preBuiltTransport && mediaPlan.type === "webRTC") {
+            disposed = true;
             await preBuiltTransport.setAnswer(mediaPlan.sdp);
             await preBuiltTransport.start();
             transport = preBuiltTransport;
         } else {
+            await dispose();
             transport = createTransport(mediaPlan, mediaManager, call.deviceToken);
             await transport.start();
 
@@ -77,12 +87,15 @@ export function CallOutgoingProxy(
     });
     bus.on("rejected", () => {
         emitter.emit("peerReject");
+        void dispose();
     });
     bus.on("unanswered", () => {
         emitter.emit("unanswered");
+        void dispose();
     });
     bus.on("ended", () => {
         emitter.emit("ended");
+        void dispose();
     });
     bus.on("status", (status) => {
         emitter.emit("status", status);
@@ -122,8 +135,9 @@ export function CallOutgoingProxy(
 
         end(): Promise<{ err: string | null }> {
             return new Promise((resolve) => {
-                wss.emit("call.cancel", call.id, (res) => {
+                wss.emit("call.cancel", call.id, async (res) => {
                     call.cancel();
+                    await dispose();
                     resolve(res.type === "error" ? { err: res.result } : { err: null });
                 });
             });
