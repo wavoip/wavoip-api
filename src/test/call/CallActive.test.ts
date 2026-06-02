@@ -138,6 +138,73 @@ describe("CallActive", () => {
             expect(transport.stop).toHaveBeenCalledOnce();
             expect(result).toEqual({ err: null });
         });
+
+        it("is idempotent — calling end() twice still stops transport once", async () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+
+            await active.end();
+            await active.end();
+
+            expect(transport.stop).toHaveBeenCalledOnce();
+        });
+    });
+
+    describe("terminal cleanup (mic release)", () => {
+        it("bus 'ended' calls transport.stop()", () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+
+            bus.emit("ended");
+
+            expect(transport.stop).toHaveBeenCalledOnce();
+        });
+
+        it("bus 'failed' calls transport.stop()", () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+
+            bus.emit("failed", "boom");
+
+            expect(transport.stop).toHaveBeenCalledOnce();
+        });
+
+        it("local end() then bus 'ended' still stops transport once", async () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+
+            await active.end();
+            bus.emit("ended");
+
+            expect(transport.stop).toHaveBeenCalledOnce();
+        });
+
+        it("ended consumer event still fires after dispose", () => {
+            const call = makeCall();
+            const bus = makeMockBus(call);
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const cb = vi.fn();
+            active.on("ended", cb);
+
+            bus.emit("ended");
+
+            expect(cb).toHaveBeenCalledOnce();
+            expect(transport.stop).toHaveBeenCalledOnce();
+        });
     });
 
     describe("event subscriptions", () => {

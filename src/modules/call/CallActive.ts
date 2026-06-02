@@ -57,8 +57,16 @@ export function CallActiveProxy(
 ): CallActive {
     const emitter = new EventEmitter<CallActiveEvents>();
 
+    let disposed = false;
+    const dispose = (): Promise<void> => {
+        if (disposed) return Promise.resolve();
+        disposed = true;
+        return Promise.resolve(transport.stop()).catch(() => {});
+    };
+
     bus.on("failed", (err) => {
         emitter.emit("error", err);
+        void dispose();
     });
     bus.on("peerMuted", (muted) => {
         if (muted) emitter.emit("peerMute");
@@ -66,6 +74,7 @@ export function CallActiveProxy(
     });
     bus.on("ended", () => {
         emitter.emit("ended");
+        void dispose();
     });
     bus.on("stats", (stats) => {
         emitter.emit("stats", stats);
@@ -109,8 +118,9 @@ export function CallActiveProxy(
         },
 
         async end(): Promise<{ err: string | null }> {
+            if (disposed) return { err: null };
             callbacks.onEnd(call);
-            await transport.stop();
+            await dispose();
             return { err: null };
         },
 
