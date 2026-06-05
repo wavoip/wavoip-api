@@ -197,6 +197,19 @@ describe("WebRTCTransport", () => {
             expect(mockPcInstance.close).toHaveBeenCalledOnce();
             expect(mm.stopMedia).toHaveBeenCalledOnce();
         });
+
+        it("is idempotent — second stop() does not re-close pc or re-stop media", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
+            await startTransport(transport);
+
+            await transport.stop();
+            await transport.stop();
+
+            expect(mockPcInstance.close).toHaveBeenCalledOnce();
+            expect(mm.stopMedia).toHaveBeenCalledOnce();
+        });
     });
 
     describe("ontrack event", () => {

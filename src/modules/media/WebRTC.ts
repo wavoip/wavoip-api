@@ -32,6 +32,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     private answerResolver: PromiseWithResolvers<RTCSessionDescriptionInit>;
     private statsJob = 0;
     private started = false;
+    private stopped = false;
 
     constructor(
         private readonly mediaManager: MediaManager,
@@ -153,6 +154,9 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     }
 
     async stop(): Promise<void> {
+        if (this.stopped) return;
+        this.stopped = true;
+
         clearInterval(this.statsJob);
 
         this.pc.close();
