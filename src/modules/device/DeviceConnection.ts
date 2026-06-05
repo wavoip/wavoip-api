@@ -99,6 +99,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             this.device.status = "connecting";
             this.device.contact = undefined;
             this.device.qrCode = qrcode ?? undefined;
+            this.device.restricted = false;
             this.emit("statusChanged", this.device.status);
             this.emit("contactChanged", this.device.contact);
             this.emit("qrCodeChanged", this.device.qrCode);
@@ -107,6 +108,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             this.device.status = "close";
             this.device.contact = undefined;
             this.device.qrCode = undefined;
+            this.device.restricted = false;
             this.emit("statusChanged", this.device.status);
             this.emit("contactChanged", this.device.contact);
             this.emit("qrCodeChanged", this.device.qrCode);
