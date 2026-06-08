@@ -2,8 +2,16 @@ import { EventEmitter } from "@/modules/shared/EventEmitter";
 import micWorkletUrl from "../worklets/AudioWorkletMic.ts?worklet";
 import outWorkletUrl from "../worklets/AudioWorkletOut.ts?worklet";
 
+/**
+ * Microphone permission state as reported by the browser. "unknown" is used
+ * before the first probe completes (or on browsers that don't ship
+ * `navigator.permissions.query({ name: 'microphone' })`).
+ */
+export type MicrophonePermissionState = PermissionState | "unknown";
+
 export type MediaManagerEvents = {
     devicesChanged: [devices: MediaDeviceInfo[]];
+    permissionChanged: [state: MicrophonePermissionState];
     micChanged: [device: MediaDeviceInfo | null, track: MediaStreamTrack | null];
     speakerChanged: [device: MediaDeviceInfo | null];
     muteChanged: [muted: boolean];
@@ -28,6 +36,9 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
     private attachedElements: Set<HTMLAudioElement> = new Set();
     private activeSpeakerId?: string;
     private permissionGranted = false;
+    private permissionState: MicrophonePermissionState = "unknown";
+    private permissionStatus?: PermissionStatus;
+    private unblockAttempted = false;
     private readonly _workletReady: Promise<void>;
 
     constructor() {
@@ -40,8 +51,50 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
             this.audioContext.audioWorklet.addModule(outWorkletUrl),
         ]).then(() => this.audioContext.suspend());
 
+        this.probePermission();
         this.enumerateDevices();
         navigator.mediaDevices.addEventListener("devicechange", this.handleDeviceChange);
+    }
+
+    /**
+     * Last-known microphone permission state. Reflects the browser report (or
+     * "unknown" before the initial probe resolves). Consumers should subscribe
+     * to `permissionChanged` instead of polling.
+     */
+    getPermissionState(): MicrophonePermissionState {
+        return this.permissionState;
+    }
+
+    /**
+     * Re-run `enumerateDevices()` and resolve with the latest snapshot. When
+     * permission is "granted" but the browser is still hiding device IDs
+     * (Chromium hides them until the tab has acquired a stream at least once),
+     * acquires a throwaway stream to unblock the IDs and re-enumerates. One-shot
+     * guard prevents a loop on truly blank contexts (e.g. http:// pages).
+     */
+    async refreshDevices(): Promise<MediaDeviceInfo[]> {
+        await this.enumerateDevices();
+        if (this.shouldUnblock()) await this.unblockDeviceIds();
+        return this.devices;
+    }
+
+    /**
+     * Force a `getUserMedia({ audio: true })` flow to surface the browser's
+     * permission prompt and resolve the resulting permission state. Stops the
+     * acquired tracks immediately — this call is purely to obtain (or confirm)
+     * permission, not to start streaming.
+     */
+    async requestMicrophonePermission(): Promise<MicrophonePermissionState> {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            for (const track of stream.getTracks()) track.stop();
+            this.unblockAttempted = true;
+            this.setPermissionState("granted");
+            await this.enumerateDevices();
+        } catch {
+            this.setPermissionState("denied");
+        }
+        return this.permissionState;
     }
 
     waitReady(): Promise<void> {
@@ -271,6 +324,65 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
         };
     }
 
+    /**
+     * Query `navigator.permissions.query({ name: 'microphone' })` once and
+     * subscribe to `change` so the cached state stays current. Browsers without
+     * the 'microphone' permission name (Firefox, Safari) keep state as
+     * "unknown" until the next `requestMicrophonePermission` call resolves.
+     */
+    private async probePermission(): Promise<void> {
+        if (!navigator.permissions?.query) return;
+        try {
+            const status = await navigator.permissions.query({ name: "microphone" as PermissionName });
+            this.permissionStatus = status;
+            this.setPermissionState(status.state);
+            if (status.state === "granted") await this.refreshDevices();
+            status.addEventListener("change", async () => {
+                this.setPermissionState(status.state);
+                if (status.state === "granted") await this.refreshDevices();
+            });
+        } catch {
+            // 'microphone' permission name not supported — leave state as "unknown".
+        }
+    }
+
+    /**
+     * Returns true when the cached device list is unusable — every entry has a
+     * blank `deviceId` — yet permission is reported as "granted". Chromium
+     * exhibits this on a fresh tab that inherited persisted permission but has
+     * not acquired a stream yet: enumerate returns placeholder rows. Guarded by
+     * `unblockAttempted` so we don't loop on a permanently-blank context
+     * (http://, restricted iframe).
+     */
+    private shouldUnblock(): boolean {
+        if (this.unblockAttempted) return false;
+        if (this.permissionState !== "granted") return false;
+        if (!this.devices.length) return true;
+        return this.devices.every((d) => !d.deviceId);
+    }
+
+    /**
+     * Acquire a throwaway audio stream then stop it. Forces Chromium to expose
+     * real `deviceId`/`label` on the next `enumerateDevices()` call.
+     */
+    private async unblockDeviceIds(): Promise<void> {
+        this.unblockAttempted = true;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            for (const track of stream.getTracks()) track.stop();
+            await this.enumerateDevices();
+        } catch (err) {
+            console.warn("[MediaManager] unblockDeviceIds failed:", err);
+        }
+    }
+
+    private setPermissionState(state: MicrophonePermissionState): void {
+        if (this.permissionState === state) return;
+        this.permissionState = state;
+        if (state === "granted") this.permissionGranted = true;
+        this.emit("permissionChanged", state);
+    }
+
     private async enumerateDevices(): Promise<void> {
         const all = await navigator.mediaDevices.enumerateDevices();
         this.devices = all.filter((d) => d.kind === "audioinput" || d.kind === "audiooutput");
@@ -286,6 +398,8 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
                 }
             }
         }
+
+        this.emit("devicesChanged", this.devices);
     }
 
     private handleDeviceChange = async (): Promise<void> => {
@@ -293,7 +407,6 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
         const prevSpeakerId = this.activeSpeaker?.deviceId;
 
         await this.enumerateDevices();
-        this.emit("devicesChanged", this.devices);
 
         if (prevMicId) {
             const still = this.devices.find((d) => d.kind === "audioinput" && d.deviceId === prevMicId);

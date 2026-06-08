@@ -9,7 +9,7 @@ export type { DeviceStatus, Contact } from "@/modules/device/Device";
 export type { Device, DeviceEvents } from "@/modules/device/DeviceConnection";
 
 export type { TransportStatus } from "@/modules/media/ITransport";
-export type { MediaManagerEvents, MediaManagerState } from "@/modules/media/MediaManager";
+export type { MediaManagerEvents, MediaManagerState, MicrophonePermissionState } from "@/modules/media/MediaManager";
 export type { Unsubscribe } from "@/modules/shared/EventEmitter";
 export type { Language } from "@/modules/shared/i18n";
 
