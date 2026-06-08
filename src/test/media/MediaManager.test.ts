@@ -217,6 +217,10 @@ describe("MediaManager.permission", () => {
 
         const devicesCb = vi.fn<(...args: MediaManagerEvents["devicesChanged"]) => void>();
         mm.on("devicesChanged", devicesCb);
+        // Permission grant uncovers a real device label — list now differs, so emit fires.
+        (navigator.mediaDevices.enumerateDevices as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+            inputDevice("mic-1", "Built-in Mic"),
+        ]);
 
         const result = await mm.requestMicrophonePermission();
 

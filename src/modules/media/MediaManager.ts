@@ -385,7 +385,9 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
 
     private async enumerateDevices(): Promise<void> {
         const all = await navigator.mediaDevices.enumerateDevices();
-        this.devices = all.filter((d) => d.kind === "audioinput" || d.kind === "audiooutput");
+        const next = all.filter((d) => d.kind === "audioinput" || d.kind === "audiooutput");
+        const changed = devicesChanged(this.devices, next);
+        this.devices = next;
 
         if (this.permissionGranted) {
             if (!this.activeMic) {
@@ -399,7 +401,7 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
             }
         }
 
-        this.emit("devicesChanged", this.devices);
+        if (changed) this.emit("devicesChanged", this.devices);
     }
 
     private handleDeviceChange = async (): Promise<void> => {
@@ -439,3 +441,15 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
 
 export const LIB_SAMPLE_RATE_URL =
     "https://cdn.jsdelivr.net/npm/@alexanderolsen/libsamplerate-js@2.1.2/dist/libsamplerate.worklet.js";
+
+function devicesChanged(prev: MediaDeviceInfo[], next: MediaDeviceInfo[]): boolean {
+    if (prev.length !== next.length) return true;
+    for (let i = 0; i < prev.length; i++) {
+        const a = prev[i];
+        const b = next[i];
+        if (a.deviceId !== b.deviceId || a.kind !== b.kind || a.label !== b.label || a.groupId !== b.groupId) {
+            return true;
+        }
+    }
+    return false;
+}
