@@ -2,8 +2,8 @@ import type { CallOutgoing } from "@/modules/call/CallOutgoing";
 import type { Offer } from "@/modules/call/Offer";
 import { type Device, DeviceConnection } from "@/modules/device/DeviceConnection";
 import { DeviceProxy } from "@/modules/device/DeviceProxy";
-import { MediaManager } from "@/modules/media/MediaManager";
-import { EventEmitter } from "@/modules/shared/EventEmitter";
+import { MediaManager, type MicrophonePermissionState } from "@/modules/media/MediaManager";
+import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { type Language, setLanguage } from "@/modules/shared/i18n";
 
 type Events = {
@@ -60,6 +60,50 @@ export class Wavoip extends EventEmitter<Events> {
 
     getMultimediaDevices(): MediaDeviceInfo[] {
         return this.mediaManager.devices;
+    }
+
+    /**
+     * Force a fresh `enumerateDevices()` pass. When permission is granted but
+     * the browser is hiding device IDs (Chromium does this on a fresh tab with
+     * persisted permission), automatically acquires a throwaway stream to
+     * unblock the IDs. Resolves with the latest snapshot.
+     */
+    refreshMultimediaDevices(): Promise<MediaDeviceInfo[]> {
+        return this.mediaManager.refreshDevices();
+    }
+
+    /**
+     * Subscribe to the live multimedia device list. Fires whenever the OS
+     * reports a `devicechange` or the microphone permission flips to granted.
+     */
+    onDevicesChanged(cb: (devices: MediaDeviceInfo[]) => void): Unsubscribe {
+        return this.mediaManager.on("devicesChanged", cb);
+    }
+
+    /**
+     * Last-known microphone permission state. Use `onMicrophonePermissionChanged`
+     * to react to transitions instead of polling.
+     */
+    getMicrophonePermission(): MicrophonePermissionState {
+        return this.mediaManager.getPermissionState();
+    }
+
+    /**
+     * Subscribe to microphone permission state transitions reported by the
+     * browser (granted, denied, prompt, or "unknown" while the initial probe
+     * is in flight).
+     */
+    onMicrophonePermissionChanged(cb: (state: MicrophonePermissionState) => void): Unsubscribe {
+        return this.mediaManager.on("permissionChanged", cb);
+    }
+
+    /**
+     * Trigger the browser's microphone permission prompt and resolve with the
+     * resulting state. Acquires a stream just long enough to surface the
+     * prompt, then stops the tracks immediately.
+     */
+    requestMicrophonePermission(): Promise<MicrophonePermissionState> {
+        return this.mediaManager.requestMicrophonePermission();
     }
 
     /**
