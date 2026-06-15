@@ -66,8 +66,6 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
 
         await this.mediaManager.stopMedia();
 
-        this.audioAnalyser = (this.audioOut as unknown as { audioAnalyser: Promise<AnalyserNode> }).audioAnalyser;
-
         this.setStatus("disconnected");
     }
 

@@ -217,20 +217,6 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
     }
 
     /**
-     * Returns the AudioContext destination node for the WebSocket transport
-     * to connect its output worklet into.
-     *
-     * WebSocket path:
-     *   WebSocket message → AudioDataWorkletStream → getOutputDestination()
-     *
-     * The AudioContext's native sample rate is available via audioContext.sampleRate,
-     * and should be passed to ResampleProcessor as the inputSampleRate.
-     */
-    getOutputDestination(): AudioDestinationNode {
-        return this.audioContext.destination;
-    }
-
-    /**
      * Toggle microphone mute state.
      * Operates on track.enabled — no stream teardown, no re-negotiation.
      */
