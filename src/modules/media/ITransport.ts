@@ -18,6 +18,11 @@ export interface ITransport extends EventEmitter<Events> {
     audioAnalyser: Promise<AnalyserNode>;
     stats: CallStats;
 
+    /** Last `iceDiagnostics` payload emitted, if any. Used by Call.wireTransport to replay. */
+    lastDiagnostics?: IceDiagnostics | null;
+    /** Set of `connectivityIssue`s already fired. Used by Call.wireTransport to replay. */
+    emittedConnectivityIssues?: ReadonlySet<ConnectivityIssue>;
+
     start(): Promise<void>;
     stop(): Promise<void>;
 }

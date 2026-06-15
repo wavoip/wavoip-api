@@ -1,6 +1,7 @@
 import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import { Call } from "@/modules/device/Call";
 import type { ServerEvents } from "@/modules/device/WebSocket";
+import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { ITransport, Events as TransportEvents } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import { describe, expect, it, vi } from "vitest";
@@ -297,5 +298,75 @@ describe("Call.wireTransport", () => {
         (transport as unknown as EventEmitter<TransportEvents>).emit("statsChanged", stats);
 
         expect(cb).toHaveBeenCalledWith(stats);
+    });
+
+    it("transport iceDiagnostics → emits iceDiagnostics", () => {
+        const call = makeCall();
+        const transport = makeMockTransport();
+        const cb = vi.fn();
+        call.on("iceDiagnostics", cb);
+
+        const diag: IceDiagnostics = {
+            gatheringDurationMs: 100,
+            gatheringTimedOut: false,
+            candidatesByType: { host: 1, srflx: 1, prflx: 0, relay: 0 },
+            stunReached: true,
+            turnReached: false,
+        };
+
+        call.wireTransport(transport);
+        (transport as unknown as EventEmitter<TransportEvents>).emit("iceDiagnostics", diag);
+
+        expect(cb).toHaveBeenCalledWith(diag);
+    });
+
+    it("transport connectivityIssue → emits connectivityIssue", () => {
+        const call = makeCall();
+        const transport = makeMockTransport();
+        const cb = vi.fn();
+        call.on("connectivityIssue", cb);
+
+        call.wireTransport(transport);
+        (transport as unknown as EventEmitter<TransportEvents>).emit("connectivityIssue", "STUN_UNREACHABLE");
+
+        expect(cb).toHaveBeenCalledWith("STUN_UNREACHABLE");
+    });
+
+    it("replays transport.lastDiagnostics when wired late", () => {
+        const call = makeCall();
+        const transport = makeMockTransport();
+        const diag: IceDiagnostics = {
+            gatheringDurationMs: 200,
+            gatheringTimedOut: false,
+            candidatesByType: { host: 2, srflx: 1, prflx: 0, relay: 0 },
+            stunReached: true,
+            turnReached: false,
+        };
+        transport.lastDiagnostics = diag;
+
+        const cb = vi.fn();
+        call.on("iceDiagnostics", cb);
+
+        call.wireTransport(transport);
+
+        expect(cb).toHaveBeenCalledWith(diag);
+    });
+
+    it("replays transport.emittedConnectivityIssues when wired late", () => {
+        const call = makeCall();
+        const transport = makeMockTransport();
+        const issues = new Set<ConnectivityIssue>(["STUN_UNREACHABLE", "NO_HOST_CANDIDATES"]);
+        Object.defineProperty(transport, "emittedConnectivityIssues", {
+            get: () => issues,
+        });
+
+        const cb = vi.fn();
+        call.on("connectivityIssue", cb);
+
+        call.wireTransport(transport);
+
+        expect(cb).toHaveBeenCalledWith("STUN_UNREACHABLE");
+        expect(cb).toHaveBeenCalledWith("NO_HOST_CANDIDATES");
+        expect(cb).toHaveBeenCalledTimes(2);
     });
 });

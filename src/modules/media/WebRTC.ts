@@ -42,7 +42,12 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         relay: 0,
     };
     private symmetricNatTimer = 0;
-    private emittedIssues = new Set<ConnectivityIssue>();
+    private _emittedConnectivityIssues = new Set<ConnectivityIssue>();
+    lastDiagnostics: IceDiagnostics | null = null;
+
+    get emittedConnectivityIssues(): ReadonlySet<ConnectivityIssue> {
+        return this._emittedConnectivityIssues;
+    }
 
     constructor(
         private readonly mediaManager: MediaManager,
@@ -184,6 +189,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
             stunReached,
             turnReached,
         };
+        this.lastDiagnostics = diag;
         this.emit("iceDiagnostics", diag);
 
         if (timedOut) this.emitIssue("ICE_GATHERING_TIMEOUT");
@@ -224,8 +230,8 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     }
 
     private emitIssue(issue: ConnectivityIssue) {
-        if (this.emittedIssues.has(issue)) return;
-        this.emittedIssues.add(issue);
+        if (this._emittedConnectivityIssues.has(issue)) return;
+        this._emittedConnectivityIssues.add(issue);
         this.emit("connectivityIssue", issue);
     }
 
