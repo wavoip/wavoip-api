@@ -68,18 +68,9 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
         await this._workletReady;
 
         const mic = this.activeMic ?? this.devices.find((d) => d.kind === "audioinput");
+        const pinned = this.permissionGranted ? mic?.deviceId : undefined;
 
-        const constraints: MediaStreamConstraints = {
-            audio: {
-                ...(this.permissionGranted && mic && { deviceId: { exact: mic.deviceId } }),
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-            },
-            video: false,
-        };
-
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        const stream = await navigator.mediaDevices.getUserMedia(buildAudioConstraints(pinned));
         this.stream = stream;
         this.permissionGranted = true;
 
@@ -147,15 +138,7 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
             return true;
         }
 
-        const newStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                deviceId: { exact: deviceId },
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true,
-            },
-            video: false,
-        });
+        const newStream = await navigator.mediaDevices.getUserMedia(buildAudioConstraints(deviceId));
 
         const newTrack = newStream.getAudioTracks()[0];
 
@@ -312,3 +295,15 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
 
 export const LIB_SAMPLE_RATE_URL =
     "https://cdn.jsdelivr.net/npm/@alexanderolsen/libsamplerate-js@2.1.2/dist/libsamplerate.worklet.js";
+
+function buildAudioConstraints(deviceId?: string): MediaStreamConstraints {
+    return {
+        audio: {
+            ...(deviceId && { deviceId: { exact: deviceId } }),
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+        },
+        video: false,
+    };
+}
