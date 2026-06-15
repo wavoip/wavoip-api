@@ -180,16 +180,12 @@ class AudioOutput {
     private playbackNode: AudioWorkletNode | null = null;
     private analyserNode: AnalyserNode | null = null;
 
-    private audioAnalyserDefer: {
-        resolve?: (node: AnalyserNode | PromiseLike<AnalyserNode>) => void;
-    } = {};
-
     public readonly audioAnalyser: Promise<AnalyserNode>;
+    private readonly analyserResolver: PromiseWithResolvers<AnalyserNode>;
 
     constructor(private readonly audioContext: AudioContext) {
-        this.audioAnalyser = new Promise<AnalyserNode>((resolve) => {
-            this.audioAnalyserDefer = { resolve };
-        });
+        this.analyserResolver = Promise.withResolvers<AnalyserNode>();
+        this.audioAnalyser = this.analyserResolver.promise;
     }
 
     start(): void {
@@ -205,7 +201,7 @@ class AudioOutput {
         this.playbackNode.connect(this.analyserNode);
         this.analyserNode.connect(this.audioContext.destination);
 
-        this.audioAnalyserDefer.resolve?.(this.analyserNode);
+        this.analyserResolver.resolve(this.analyserNode);
     }
 
     /**
