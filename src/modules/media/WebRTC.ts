@@ -32,6 +32,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     private answerResolver: PromiseWithResolvers<RTCSessionDescriptionInit>;
     private statsJob = 0;
     private started = false;
+    private offerCreated = false;
     private stopped = false;
 
     constructor(
@@ -125,6 +126,9 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     }
 
     async createOffer(): Promise<string> {
+        if (this.offerCreated) return this.pc.localDescription?.sdp as string;
+        this.offerCreated = true;
+
         const micStream = await this.mediaManager.startMedia();
 
         for (const track of micStream.getTracks()) {

@@ -221,6 +221,18 @@ describe("WebRTCTransport", () => {
 
             expect(mm._track.enabled).toBe(false);
         });
+
+        it("is idempotent — second createOffer does not re-add tracks", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+            const transport = new WebRTCTransport(mm as never);
+
+            await transport.createOffer();
+            await transport.createOffer();
+
+            expect(mockPcInstance.addTrack).toHaveBeenCalledTimes(1);
+            expect(mockPcInstance.createOffer).toHaveBeenCalledTimes(1);
+        });
     });
 
     describe("stop()", () => {
