@@ -1,5 +1,4 @@
 import { type CallActive, CallActiveProxy } from "@/modules/call/CallActive";
-import { CallBus } from "@/modules/call/CallBus";
 import { type CallOutgoing, CallOutgoingProxy } from "@/modules/call/CallOutgoing";
 import { type Offer, OfferProxy } from "@/modules/call/Offer";
 import { Call } from "@/modules/device/Call";
@@ -186,11 +185,11 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
             const { id, type, peer } = response.result;
             const call = new Call(id, type, "OUTGOING", peer, this.device.token, "RINGING");
-            const bus = new CallBus(call, this.wss);
-            bus.on("ended", () => this.calls.delete(id));
-            bus.on("unanswered", () => this.calls.delete(id));
-            bus.on("rejected", () => this.calls.delete(id));
-            const outgoing = CallOutgoingProxy(call, bus, this.wss, this.mediaManager, preBuiltTransport);
+            call.wireSocket(this.wss);
+            call.on("ended", () => this.calls.delete(id));
+            call.on("unanswered", () => this.calls.delete(id));
+            call.on("rejected", () => this.calls.delete(id));
+            const outgoing = CallOutgoingProxy(call, this.wss, this.mediaManager, preBuiltTransport);
             this.calls.set(id, call);
             resolve({ call: outgoing });
         });
@@ -293,20 +292,20 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         ackOffer();
 
         const call = this.device.receiveOffer(offerProps.id, this.device.callType, offerProps.peer);
-        const bus = new CallBus(call, this.wss);
-        bus.on("ended", () => this.calls.delete(call.id));
-        bus.on("unanswered", () => this.calls.delete(call.id));
+        call.wireSocket(this.wss);
+        call.on("ended", () => this.calls.delete(call.id));
+        call.on("unanswered", () => this.calls.delete(call.id));
 
-        const offer = OfferProxy(call, bus, {
+        const offer = OfferProxy(call, {
             onAccept: (call) => {
                 const mediaPlan = offerProps.offer;
 
                 if (mediaPlan.type === "webRTC") {
-                    return this.acceptWebRTCOffer(call, bus, mediaPlan);
+                    return this.acceptWebRTCOffer(call, mediaPlan);
                 }
 
                 if (mediaPlan.type === "relay") {
-                    return this.acceptRelayOffer(call, bus, mediaPlan);
+                    return this.acceptRelayOffer(call, mediaPlan);
                 }
 
                 return Promise.reject("Unsupported media plan type");
@@ -321,15 +320,15 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         this.emit("offerReceived", offer);
     }
 
-    private async acceptWebRTCOffer(call: Call, bus: CallBus, mediaPlan: MediaPlanWebRTC): Promise<CallActive> {
+    private async acceptWebRTCOffer(call: Call, mediaPlan: MediaPlanWebRTC): Promise<CallActive> {
         const webRTC = new WebRTCTransport(this.mediaManager, mediaPlan.sdp);
         await webRTC.start();
 
         const answer = await webRTC.answer;
         this.wss.emit("call.accept", call.id, { type: "webRTC", sdp: answer.sdp as string }, () => {});
-        bus.wireTransport(webRTC);
+        call.wireTransport(webRTC);
 
-        return CallActiveProxy(call, bus, webRTC, this.mediaManager, {
+        return CallActiveProxy(call, webRTC, this.mediaManager, {
             onEnd: (call) => {
                 this.wss.emit("call.end", call.id, () => {
                     this.calls.delete(call.id);
@@ -338,11 +337,11 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         });
     }
 
-    private acceptRelayOffer(call: Call, bus: CallBus, mediaPlan: MediaPlanRelay): Promise<CallActive> {
+    private acceptRelayOffer(call: Call, mediaPlan: MediaPlanRelay): Promise<CallActive> {
         const wsTransport = new WebsocketTransport(this.mediaManager, mediaPlan, call.deviceToken);
         call.accept();
-        bus.wireTransport(wsTransport);
-        const active = CallActiveProxy(call, bus, wsTransport, this.mediaManager, {
+        call.wireTransport(wsTransport);
+        const active = CallActiveProxy(call, wsTransport, this.mediaManager, {
             onEnd: (call) => {
                 this.wss.emit("call.end", call.id, () => {
                     this.calls.delete(call.id);

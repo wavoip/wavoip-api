@@ -1,5 +1,4 @@
 import { CallOutgoingProxy } from "@/modules/call/CallOutgoing";
-import { CallBus } from "@/modules/call/CallBus";
 import { Call } from "@/modules/device/Call";
 import type { DeviceSocket } from "@/modules/device/WebSocket";
 import type { WebRTCTransport } from "@/modules/media/WebRTC";
@@ -22,11 +21,6 @@ function makeMockSocket() {
         return socket;
     }) as never;
     return socket;
-}
-
-function makeMockBus(call: Call) {
-    const socket = new EventEmitter<Record<string, unknown[]>>() as never;
-    return new CallBus(call, socket);
 }
 
 function makeMockMediaManager() {
@@ -62,54 +56,54 @@ describe("CallOutgoing", () => {
     describe("terminal cleanup (mic release pre-answer)", () => {
         it("stops preBuiltTransport on bus 'rejected'", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const socket = makeMockSocket();
             const mm = makeMockMediaManager();
             const preBuilt = makeMockPreBuiltTransport();
 
-            CallOutgoingProxy(call, bus, socket, mm as never, preBuilt);
+            CallOutgoingProxy(call, socket, mm as never, preBuilt);
 
-            bus.emit("rejected");
+            call.emit("rejected");
 
             expect(preBuilt.stop).toHaveBeenCalledOnce();
         });
 
         it("stops preBuiltTransport on bus 'unanswered'", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const socket = makeMockSocket();
             const mm = makeMockMediaManager();
             const preBuilt = makeMockPreBuiltTransport();
 
-            CallOutgoingProxy(call, bus, socket, mm as never, preBuilt);
+            CallOutgoingProxy(call, socket, mm as never, preBuilt);
 
-            bus.emit("unanswered");
+            call.emit("unanswered");
 
             expect(preBuilt.stop).toHaveBeenCalledOnce();
         });
 
         it("stops preBuiltTransport on bus 'ended' before answer", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const socket = makeMockSocket();
             const mm = makeMockMediaManager();
             const preBuilt = makeMockPreBuiltTransport();
 
-            CallOutgoingProxy(call, bus, socket, mm as never, preBuilt);
+            CallOutgoingProxy(call, socket, mm as never, preBuilt);
 
-            bus.emit("ended");
+            call.emit("ended");
 
             expect(preBuilt.stop).toHaveBeenCalledOnce();
         });
 
         it("stops preBuiltTransport when consumer calls end()", async () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const socket = makeMockSocket();
             const mm = makeMockMediaManager();
             const preBuilt = makeMockPreBuiltTransport();
 
-            const outgoing = CallOutgoingProxy(call, bus, socket, mm as never, preBuilt);
+            const outgoing = CallOutgoingProxy(call, socket, mm as never, preBuilt);
 
             await outgoing.end();
 
@@ -118,14 +112,14 @@ describe("CallOutgoing", () => {
 
         it("does not stop preBuiltTransport on 'answered' (handoff to CallActive)", async () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const socket = makeMockSocket();
             const mm = makeMockMediaManager();
             const preBuilt = makeMockPreBuiltTransport();
 
-            CallOutgoingProxy(call, bus, socket, mm as never, preBuilt);
+            CallOutgoingProxy(call, socket, mm as never, preBuilt);
 
-            bus.emit("answered", { type: "webRTC", sdp: "answer-sdp" });
+            call.emit("answered", { type: "webRTC", sdp: "answer-sdp" });
             await new Promise((r) => setTimeout(r, 0));
 
             expect(preBuilt.stop).not.toHaveBeenCalled();
@@ -133,78 +127,78 @@ describe("CallOutgoing", () => {
 
         it("after answered handoff, bus 'ended' stops transport at most once (CallActive owns it)", async () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const socket = makeMockSocket();
             const mm = makeMockMediaManager();
             const preBuilt = makeMockPreBuiltTransport();
 
-            CallOutgoingProxy(call, bus, socket, mm as never, preBuilt);
+            CallOutgoingProxy(call, socket, mm as never, preBuilt);
 
-            bus.emit("answered", { type: "webRTC", sdp: "answer-sdp" });
+            call.emit("answered", { type: "webRTC", sdp: "answer-sdp" });
             await new Promise((r) => setTimeout(r, 0));
 
-            bus.emit("ended");
+            call.emit("ended");
 
             expect(preBuilt.stop).toHaveBeenCalledTimes(1);
         });
 
         it("is idempotent — multiple terminal events stop preBuiltTransport once", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const socket = makeMockSocket();
             const mm = makeMockMediaManager();
             const preBuilt = makeMockPreBuiltTransport();
 
-            CallOutgoingProxy(call, bus, socket, mm as never, preBuilt);
+            CallOutgoingProxy(call, socket, mm as never, preBuilt);
 
-            bus.emit("rejected");
-            bus.emit("ended");
-            bus.emit("unanswered");
+            call.emit("rejected");
+            call.emit("ended");
+            call.emit("unanswered");
 
             expect(preBuilt.stop).toHaveBeenCalledOnce();
         });
 
         it("no preBuiltTransport — terminal events do not throw", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const socket = makeMockSocket();
             const mm = makeMockMediaManager();
 
-            CallOutgoingProxy(call, bus, socket, mm as never);
+            CallOutgoingProxy(call, socket, mm as never);
 
-            expect(() => bus.emit("ended")).not.toThrow();
-            expect(() => bus.emit("rejected")).not.toThrow();
-            expect(() => bus.emit("unanswered")).not.toThrow();
+            expect(() => call.emit("ended")).not.toThrow();
+            expect(() => call.emit("rejected")).not.toThrow();
+            expect(() => call.emit("unanswered")).not.toThrow();
         });
     });
 
     describe("event forwarding", () => {
         it("forwards 'ended' to consumer", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const socket = makeMockSocket();
             const mm = makeMockMediaManager();
 
-            const outgoing = CallOutgoingProxy(call, bus, socket, mm as never);
+            const outgoing = CallOutgoingProxy(call, socket, mm as never);
             const cb = vi.fn();
             outgoing.on("ended", cb);
 
-            bus.emit("ended");
+            call.emit("ended");
 
             expect(cb).toHaveBeenCalledOnce();
         });
 
         it("forwards 'rejected' to peerReject consumer event", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const socket = makeMockSocket();
             const mm = makeMockMediaManager();
 
-            const outgoing = CallOutgoingProxy(call, bus, socket, mm as never);
+            const outgoing = CallOutgoingProxy(call, socket, mm as never);
             const cb = vi.fn();
             outgoing.on("peerReject", cb);
 
-            bus.emit("rejected");
+            call.emit("rejected");
 
             expect(cb).toHaveBeenCalledOnce();
         });
