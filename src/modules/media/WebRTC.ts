@@ -1,28 +1,26 @@
 import type { CallStats } from "@/modules/call/Stats";
+import {
+    type ConnectivityIssue,
+    DEFAULT_ICE_GATHERING_TIMEOUT_MS,
+    DEFAULT_ICE_SERVERS,
+    type IceCandidateKind,
+    type IceConfig,
+    type IceDiagnostics,
+} from "@/modules/media/ICEDiagnostics";
 import type { Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
+
+const SYMMETRIC_NAT_DETECTION_WINDOW_MS = 10_000;
 
 export class WebRTCTransport extends EventEmitter<Events> implements ITransport {
     status: TransportStatus = "disconnected";
     peerMuted = false;
     audioAnalyser: Promise<AnalyserNode>;
     stats: CallStats = {
-        rtt: {
-            min: 0,
-            max: 0,
-            avg: 0,
-        },
-        tx: {
-            total: 0,
-            total_bytes: 0,
-            loss: 0,
-        },
-        rx: {
-            total: 0,
-            total_bytes: 0,
-            loss: 0,
-        },
+        rtt: { min: 0, max: 0, avg: 0 },
+        tx: { total: 0, total_bytes: 0, loss: 0 },
+        rx: { total: 0, total_bytes: 0, loss: 0 },
     };
 
     readonly answer: Promise<RTCSessionDescriptionInit>;
@@ -35,13 +33,33 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     private offerCreated = false;
     private stopped = false;
 
+    private readonly gatheringTimeoutMs: number;
+    private gatheringStartedAt = 0;
+    private candidatesByType: Record<IceCandidateKind, number> = {
+        host: 0,
+        srflx: 0,
+        prflx: 0,
+        relay: 0,
+    };
+    private symmetricNatTimer = 0;
+    private _emittedConnectivityIssues = new Set<ConnectivityIssue>();
+    lastDiagnostics: IceDiagnostics | null = null;
+
+    get emittedConnectivityIssues(): ReadonlySet<ConnectivityIssue> {
+        return this._emittedConnectivityIssues;
+    }
+
     constructor(
         private readonly mediaManager: MediaManager,
         offer?: string,
+        iceConfig?: IceConfig,
     ) {
         super();
 
-        this.pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+        this.gatheringTimeoutMs = iceConfig?.gatheringTimeoutMs ?? DEFAULT_ICE_GATHERING_TIMEOUT_MS;
+        const iceServers = iceConfig?.iceServers ?? DEFAULT_ICE_SERVERS;
+
+        this.pc = new RTCPeerConnection({ iceServers });
         if (offer) this.remoteOffer = { type: "offer", sdp: offer };
 
         const { promise: audioAnalyserPromise, resolve: resolveAudioAnalyser } = Promise.withResolvers<AnalyserNode>();
@@ -49,6 +67,22 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
 
         this.answerResolver = Promise.withResolvers<RTCSessionDescriptionInit>();
         this.answer = this.answerResolver.promise;
+
+        this.pc.onicecandidate = (event) => {
+            const candidate = event.candidate;
+            if (!candidate) return;
+            const kind = candidate.type as IceCandidateKind | undefined;
+            if (kind && kind in this.candidatesByType) this.candidatesByType[kind] += 1;
+        };
+
+        this.pc.oniceconnectionstatechange = () => {
+            if (this.pc.iceConnectionState === "failed") {
+                this.emitIssue("ICE_CONNECTION_FAILED");
+            }
+            if (this.pc.iceConnectionState === "connected" || this.pc.iceConnectionState === "completed") {
+                clearTimeout(this.symmetricNatTimer);
+            }
+        };
 
         this.pc.ontrack = (event) => {
             const remoteStream = event.streams[0];
@@ -82,21 +116,12 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         };
 
         this.pc.onconnectionstatechange = () => {
-            if (this.pc.connectionState === "connecting") {
-                this.setStatus("connecting");
-            }
-
-            if (this.pc.connectionState === "disconnected" || this.pc?.connectionState === "closed") {
+            if (this.pc.connectionState === "connecting") this.setStatus("connecting");
+            if (this.pc.connectionState === "disconnected" || this.pc.connectionState === "closed") {
                 this.setStatus("disconnected");
             }
-
-            if (this.pc.connectionState === "closed") {
-                this.mediaManager.stopMedia();
-            }
-
-            if (this.pc.connectionState === "connected") {
-                this.setStatus("connected");
-            }
+            if (this.pc.connectionState === "closed") this.mediaManager.stopMedia();
+            if (this.pc.connectionState === "connected") this.setStatus("connected");
         };
     }
 
@@ -149,12 +174,65 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     }
 
     private async waitForIceGathering(): Promise<void> {
-        if (this.pc.iceGatheringState === "complete") return;
-        await new Promise<void>((resolve) => {
-            this.pc.addEventListener("icegatheringstatechange", () => {
-                if (this.pc.iceGatheringState === "complete") resolve();
-            });
+        this.gatheringStartedAt = Date.now();
+
+        const timedOut = await this.raceGatheringWithTimeout();
+
+        const duration = Date.now() - this.gatheringStartedAt;
+        const stunReached = this.candidatesByType.srflx > 0;
+        const turnReached = this.candidatesByType.relay > 0;
+
+        const diag: IceDiagnostics = {
+            gatheringDurationMs: duration,
+            gatheringTimedOut: timedOut,
+            candidatesByType: { ...this.candidatesByType },
+            stunReached,
+            turnReached,
+        };
+        this.lastDiagnostics = diag;
+        this.emit("iceDiagnostics", diag);
+
+        if (timedOut) this.emitIssue("ICE_GATHERING_TIMEOUT");
+        if (timedOut && !stunReached) this.emitIssue("STUN_UNREACHABLE");
+        if (this.candidatesByType.host === 0) this.emitIssue("NO_HOST_CANDIDATES");
+
+        this.scheduleSymmetricNatCheck(stunReached);
+    }
+
+    private raceGatheringWithTimeout(): Promise<boolean> {
+        if (this.pc.iceGatheringState === "complete") return Promise.resolve(false);
+
+        return new Promise<boolean>((resolve) => {
+            const handler = () => {
+                if (this.pc.iceGatheringState !== "complete") return;
+                this.pc.removeEventListener("icegatheringstatechange", handler);
+                clearTimeout(timer);
+                resolve(false);
+            };
+
+            const timer = setTimeout(() => {
+                this.pc.removeEventListener("icegatheringstatechange", handler);
+                resolve(true);
+            }, this.gatheringTimeoutMs);
+
+            this.pc.addEventListener("icegatheringstatechange", handler);
         });
+    }
+
+    private scheduleSymmetricNatCheck(stunReached: boolean) {
+        if (!stunReached) return;
+        if (this.symmetricNatTimer) return;
+        this.symmetricNatTimer = setTimeout(() => {
+            const noConnection =
+                this.pc.iceConnectionState !== "connected" && this.pc.iceConnectionState !== "completed";
+            if (noConnection) this.emitIssue("SYMMETRIC_NAT_SUSPECTED");
+        }, SYMMETRIC_NAT_DETECTION_WINDOW_MS) as unknown as number;
+    }
+
+    private emitIssue(issue: ConnectivityIssue) {
+        if (this._emittedConnectivityIssues.has(issue)) return;
+        this._emittedConnectivityIssues.add(issue);
+        this.emit("connectivityIssue", issue);
     }
 
     async stop(): Promise<void> {
@@ -162,6 +240,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         this.stopped = true;
 
         clearInterval(this.statsJob);
+        clearTimeout(this.symmetricNatTimer);
 
         this.pc.close();
         await this.mediaManager.stopMedia();
