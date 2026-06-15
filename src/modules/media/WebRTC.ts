@@ -107,7 +107,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
             const micStream = await this.mediaManager.startMedia();
 
             for (const track of micStream.getTracks()) {
-                track.enabled = true;
+                track.enabled = !this.mediaManager.muted;
                 this.pc.addTrack(track, micStream);
             }
 
@@ -128,7 +128,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         const micStream = await this.mediaManager.startMedia();
 
         for (const track of micStream.getTracks()) {
-            track.enabled = true;
+            track.enabled = !this.mediaManager.muted;
             this.pc.addTrack(track, micStream);
         }
 
