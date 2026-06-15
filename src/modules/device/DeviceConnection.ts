@@ -6,6 +6,7 @@ import { DeviceModel } from "@/modules/device/Device";
 import type { Contact, DeviceStatus } from "@/modules/device/Device";
 import { type DeviceSocket, DeviceWebSocketFactory } from "@/modules/device/WebSocket";
 import type { MediaPlan, MediaPlanRelay, MediaPlanWebRTC } from "@/modules/device/WebSocket";
+import type { IceConfig } from "@/modules/media/ICEDiagnostics";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
 import { WebsocketTransport } from "@/modules/media/WebSocket";
@@ -59,6 +60,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         private readonly mediaManager: MediaManager,
         token: string,
         platform?: string,
+        private readonly iceConfig?: IceConfig,
     ) {
         super();
 
@@ -161,7 +163,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         let mediaPlan: MediaPlan;
         let preBuiltTransport: WebRTCTransport | undefined;
         if (this.device.callType === "OFFICIAL") {
-            preBuiltTransport = new WebRTCTransport(this.mediaManager);
+            preBuiltTransport = new WebRTCTransport(this.mediaManager, undefined, this.iceConfig);
             try {
                 const sdp = await preBuiltTransport.createOffer();
                 mediaPlan = { type: "webRTC", sdp };
@@ -321,7 +323,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     }
 
     private async acceptWebRTCOffer(call: Call, mediaPlan: MediaPlanWebRTC): Promise<CallActive> {
-        const webRTC = new WebRTCTransport(this.mediaManager, mediaPlan.sdp);
+        const webRTC = new WebRTCTransport(this.mediaManager, mediaPlan.sdp, this.iceConfig);
         await webRTC.start();
 
         const answer = await webRTC.answer;
