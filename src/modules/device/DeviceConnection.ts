@@ -244,8 +244,8 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     }
 
     disconnect() {
-        if (this.wss.disconnected) return;
         this.stopped = true;
+        if (this.wss.disconnected) return;
         this.wss.disconnect();
     }
 
@@ -265,10 +265,12 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     }
 
     private reconnect(attempt = 1) {
-        if (attempt === 3 || this.wss.connected) return;
+        if (attempt === 3 || this.wss.connected || this.stopped) return;
 
         setTimeout(async () => {
+            if (this.stopped) return;
             const infos = await this.getInfos();
+            if (this.stopped) return;
             if (!infos) return this.reconnect(attempt + 1);
             this.device.status = infos.status;
             this.wss.connect();
