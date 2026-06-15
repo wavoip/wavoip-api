@@ -1,7 +1,7 @@
 import type { CallActive } from "@/modules/call/CallActive";
-import type { CallBus } from "@/modules/call/CallBus";
 import type { CallPeer } from "@/modules/call/Peer";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
+import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 
 export type OfferEvents = {
@@ -10,6 +10,8 @@ export type OfferEvents = {
     unanswered: [];
     ended: [];
     status: [status: CallStatus];
+    iceDiagnostics: [diag: IceDiagnostics];
+    connectivityIssue: [issue: ConnectivityIssue];
 };
 
 export interface Offer {
@@ -36,35 +38,47 @@ export interface Offer {
 
 export function OfferProxy(
     call: Call,
-    bus: CallBus,
     callbacks: {
         onAccept: (call: Call) => Promise<CallActive>;
         onReject: (call: Call) => void;
     },
 ): Offer {
     const emitter = new EventEmitter<OfferEvents>();
+
+    const callUnsubs: Unsubscribe[] = [];
     const dispose = () => {
-        bus.removeAllListeners();
+        for (const u of callUnsubs) u();
+        callUnsubs.length = 0;
         emitter.removeAllListeners();
     };
 
-    bus.on("accepted", () => {
-        emitter.emit("acceptedElsewhere");
-        dispose();
-    });
-    bus.on("ended", () => {
-        emitter.emit("ended");
-        dispose();
-    });
-    bus.on("rejected", () => {
-        emitter.emit("rejectedElsewhere");
-        dispose();
-    });
-    bus.on("unanswered", () => {
-        emitter.emit("unanswered");
-        dispose();
-    });
-    bus.on("status", (status) => emitter.emit("status", status));
+    callUnsubs.push(
+        call.on("accepted", () => {
+            emitter.emit("acceptedElsewhere");
+            dispose();
+        }),
+    );
+    callUnsubs.push(
+        call.on("ended", () => {
+            emitter.emit("ended");
+            dispose();
+        }),
+    );
+    callUnsubs.push(
+        call.on("rejected", () => {
+            emitter.emit("rejectedElsewhere");
+            dispose();
+        }),
+    );
+    callUnsubs.push(
+        call.on("unanswered", () => {
+            emitter.emit("unanswered");
+            dispose();
+        }),
+    );
+    callUnsubs.push(call.on("status", (status) => emitter.emit("status", status)));
+    callUnsubs.push(call.on("iceDiagnostics", (diag) => emitter.emit("iceDiagnostics", diag)));
+    callUnsubs.push(call.on("connectivityIssue", (issue) => emitter.emit("connectivityIssue", issue)));
 
     let onAcceptedElsewhereUnsub: Unsubscribe | undefined;
     let onRejectedElsewhereUnsub: Unsubscribe | undefined;

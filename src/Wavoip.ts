@@ -2,6 +2,7 @@ import type { CallOutgoing } from "@/modules/call/CallOutgoing";
 import type { Offer } from "@/modules/call/Offer";
 import { type Device, DeviceConnection } from "@/modules/device/DeviceConnection";
 import { DeviceProxy } from "@/modules/device/DeviceProxy";
+import type { IceConfig } from "@/modules/media/ICEDiagnostics";
 import { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import { type Language, setLanguage } from "@/modules/shared/i18n";
@@ -12,6 +13,8 @@ type Events = {
 
 export class Wavoip extends EventEmitter<Events> {
     private readonly mediaManager: MediaManager;
+    private readonly iceConfig?: IceConfig;
+    private readonly platform?: string;
     private _devices: DeviceConnection[] = [];
     private _onOfferUnsub?: () => void;
 
@@ -19,15 +22,18 @@ export class Wavoip extends EventEmitter<Events> {
         tokens: string[];
         platform?: string;
         language?: Language;
+        iceConfig?: IceConfig;
     }) {
         super();
 
         setLanguage(params.language ?? "pt-BR");
 
         this.mediaManager = new MediaManager();
+        this.iceConfig = params.iceConfig;
+        this.platform = params.platform;
 
         for (const token of [...new Set(params.tokens)]) {
-            const device = new DeviceConnection(this.mediaManager, token, params.platform);
+            const device = new DeviceConnection(this.mediaManager, token, this.platform, this.iceConfig);
             this.bindDeviceEvents(device);
             this._devices.push(device);
         }
@@ -149,7 +155,7 @@ export class Wavoip extends EventEmitter<Events> {
         const added: DeviceConnection[] = [];
         for (const token of tokens) {
             if (this._devices.some((d) => d.token === token)) continue;
-            const device = new DeviceConnection(this.mediaManager, token);
+            const device = new DeviceConnection(this.mediaManager, token, this.platform, this.iceConfig);
             this._devices.push(device);
             added.push(device);
             this.bindDeviceEvents(device);

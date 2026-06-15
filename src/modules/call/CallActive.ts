@@ -1,7 +1,7 @@
-import type { CallBus } from "@/modules/call/CallBus";
 import type { CallPeer } from "@/modules/call/Peer";
 import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
+import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
@@ -15,6 +15,8 @@ export type CallActiveEvents = {
     serverStats: [stats: ServerCallStats];
     connectionStatus: [status: TransportStatus];
     status: [status: CallStatus];
+    iceDiagnostics: [diag: IceDiagnostics];
+    connectivityIssue: [issue: ConnectivityIssue];
 };
 
 export interface CallActive {
@@ -48,7 +50,6 @@ export interface CallActive {
 
 export function CallActiveProxy(
     call: Call,
-    bus: CallBus,
     transport: ITransport,
     mediaManager: MediaManager,
     callbacks: {
@@ -64,29 +65,35 @@ export function CallActiveProxy(
         return Promise.resolve(transport.stop()).catch(() => {});
     };
 
-    bus.on("failed", (err) => {
+    call.on("failed", (err) => {
         emitter.emit("error", err);
         void dispose();
     });
-    bus.on("peerMuted", (muted) => {
+    call.on("peerMuted", (muted) => {
         if (muted) emitter.emit("peerMute");
         else emitter.emit("peerUnmute");
     });
-    bus.on("ended", () => {
+    call.on("ended", () => {
         emitter.emit("ended");
         void dispose();
     });
-    bus.on("stats", (stats) => {
+    call.on("stats", (stats) => {
         emitter.emit("stats", stats);
     });
-    bus.on("serverStats", (stats) => {
+    call.on("serverStats", (stats) => {
         emitter.emit("serverStats", stats);
     });
-    bus.on("connectionStatus", (status) => {
+    call.on("connectionStatus", (status) => {
         emitter.emit("connectionStatus", status);
     });
-    bus.on("status", (status) => {
+    call.on("status", (status) => {
         emitter.emit("status", status);
+    });
+    call.on("iceDiagnostics", (diag) => {
+        emitter.emit("iceDiagnostics", diag);
+    });
+    call.on("connectivityIssue", (issue) => {
+        emitter.emit("connectivityIssue", issue);
     });
 
     let onErrorUnsub: Unsubscribe | undefined;

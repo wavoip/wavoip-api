@@ -26,6 +26,14 @@ export class EventEmitter<TEvents extends EventsDefaultMap> {
         return () => this.off(event, callback);
     }
 
+    once<T extends keyof TEvents>(event: T, callback: Listener<TEvents, T>): Unsubscribe {
+        const wrapped = ((...args: TEvents[T]) => {
+            this.off(event, wrapped);
+            callback(...args);
+        }) as Listener<TEvents, T>;
+        return this.on(event, wrapped);
+    }
+
     off<T extends keyof TEvents>(event: T, callback: Listener<TEvents, T>) {
         const listeners = this.listeners.get(event);
         if (!listeners) return;

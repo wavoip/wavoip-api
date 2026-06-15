@@ -1,5 +1,4 @@
 import { CallActiveProxy } from "@/modules/call/CallActive";
-import { CallBus } from "@/modules/call/CallBus";
 import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import { Call } from "@/modules/device/Call";
 import type { ITransport, Events as TransportEvents } from "@/modules/media/ITransport";
@@ -12,11 +11,6 @@ function makeCall() {
     const call = Call.CreateOffer("call-1", "OFFICIAL", peer, "device-token");
     call.accept(); // move to ACTIVE
     return call;
-}
-
-function makeMockBus(call: Call) {
-    const socket = new EventEmitter<Record<string, unknown[]>>() as never;
-    return new CallBus(call, socket);
 }
 
 function makeMockTransport(overrides: Partial<ITransport> = {}): ITransport {
@@ -47,10 +41,10 @@ describe("CallActive", () => {
     describe("getters", () => {
         it("id, type, direction, device_token, status proxy to call", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
 
             expect(active.id).toBe("call-1");
             expect(active.type).toBe("OFFICIAL");
@@ -61,33 +55,33 @@ describe("CallActive", () => {
 
         it("peer.muted reflects transport.peerMuted", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport({ peerMuted: true } as Partial<ITransport>);
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
 
             expect(active.peer.muted).toBe(true);
         });
 
         it("connection_status reads transport.status", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport({ status: "connected" } as Partial<ITransport>);
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
 
             expect(active.connection_status).toBe("connected");
         });
 
         it("audio_analyser reads transport.audioAnalyser", async () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const mockAnalyser = {} as AnalyserNode;
             const transport = makeMockTransport({
                 audioAnalyser: Promise.resolve(mockAnalyser),
             } as Partial<ITransport>);
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
 
             await expect(active.audio_analyser).resolves.toBe(mockAnalyser);
         });
@@ -96,10 +90,10 @@ describe("CallActive", () => {
     describe("mute()", () => {
         it("calls mediaManager.setMuted(true) and returns { err: null }", async () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
 
             const result = await active.mute();
 
@@ -111,10 +105,10 @@ describe("CallActive", () => {
     describe("unmute()", () => {
         it("calls mediaManager.setMuted(false) and returns { err: null }", async () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
 
             const result = await active.unmute();
 
@@ -126,11 +120,11 @@ describe("CallActive", () => {
     describe("end()", () => {
         it("calls callbacks.onEnd(call), transport.stop(), and returns { err: null }", async () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
             const onEnd = vi.fn();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd });
 
             const result = await active.end();
 
@@ -141,10 +135,10 @@ describe("CallActive", () => {
 
         it("is idempotent — calling end() twice still stops transport once", async () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
 
             await active.end();
             await active.end();
@@ -156,51 +150,51 @@ describe("CallActive", () => {
     describe("terminal cleanup (mic release)", () => {
         it("bus 'ended' calls transport.stop()", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
 
-            bus.emit("ended");
+            call.emit("ended");
 
             expect(transport.stop).toHaveBeenCalledOnce();
         });
 
         it("bus 'failed' calls transport.stop()", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
 
-            bus.emit("failed", "boom");
+            call.emit("failed", "boom");
 
             expect(transport.stop).toHaveBeenCalledOnce();
         });
 
         it("local end() then bus 'ended' still stops transport once", async () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
 
             await active.end();
-            bus.emit("ended");
+            call.emit("ended");
 
             expect(transport.stop).toHaveBeenCalledOnce();
         });
 
         it("ended consumer event still fires after dispose", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
             const cb = vi.fn();
             active.on("ended", cb);
 
-            bus.emit("ended");
+            call.emit("ended");
 
             expect(cb).toHaveBeenCalledOnce();
             expect(transport.stop).toHaveBeenCalledOnce();
@@ -210,56 +204,56 @@ describe("CallActive", () => {
     describe("event subscriptions", () => {
         it("onPeerMute fires only when bus emits peerMuted(true)", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
             const cb = vi.fn();
             active.onPeerMute(cb);
 
-            bus.emit("peerMuted", false);
+            call.emit("peerMuted", false);
             expect(cb).not.toHaveBeenCalled();
 
-            bus.emit("peerMuted", true);
+            call.emit("peerMuted", true);
             expect(cb).toHaveBeenCalledOnce();
         });
 
         it("onPeerUnmute fires only when bus emits peerMuted(false)", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
             const cb = vi.fn();
             active.onPeerUnmute(cb);
 
-            bus.emit("peerMuted", true);
+            call.emit("peerMuted", true);
             expect(cb).not.toHaveBeenCalled();
 
-            bus.emit("peerMuted", false);
+            call.emit("peerMuted", false);
             expect(cb).toHaveBeenCalledOnce();
         });
 
         it("onEnd fires when bus emits 'ended'", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
             const cb = vi.fn();
             active.onEnd(cb);
 
-            bus.emit("ended");
+            call.emit("ended");
 
             expect(cb).toHaveBeenCalledOnce();
         });
 
         it("onStats fires with stats when bus emits 'stats'", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
             const cb = vi.fn();
             active.onStats(cb);
 
@@ -268,17 +262,17 @@ describe("CallActive", () => {
                 tx: { total: 100, total_bytes: 5000, loss: 2 },
                 rx: { total: 98, total_bytes: 4900, loss: 1 },
             };
-            bus.emit("stats", stats);
+            call.emit("stats", stats);
 
             expect(cb).toHaveBeenCalledWith(stats);
         });
 
         it("on('serverStats') fires when bus emits 'serverStats'", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
             const cb = vi.fn();
             active.on("serverStats", cb);
 
@@ -290,35 +284,35 @@ describe("CallActive", () => {
                 tx: { total: 100, total_bytes: 5000, loss: 2 },
                 rx: { total: 98, total_bytes: 4900, loss: 1 },
             };
-            bus.emit("serverStats", stats);
+            call.emit("serverStats", stats);
 
             expect(cb).toHaveBeenCalledWith(stats);
         });
 
         it("onConnectionStatus fires when bus emits 'connectionStatus'", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
             const cb = vi.fn();
             active.onConnectionStatus(cb);
 
-            bus.emit("connectionStatus", "connected");
+            call.emit("connectionStatus", "connected");
 
             expect(cb).toHaveBeenCalledWith("connected");
         });
 
         it("onStatus fires when bus emits 'status'", () => {
             const call = makeCall();
-            const bus = makeMockBus(call);
+            
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, bus, transport, mm as never, { onEnd: vi.fn() });
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
             const cb = vi.fn();
             active.onStatus(cb);
 
-            bus.emit("status", "ENDED");
+            call.emit("status", "ENDED");
 
             expect(cb).toHaveBeenCalledWith("ENDED");
         });

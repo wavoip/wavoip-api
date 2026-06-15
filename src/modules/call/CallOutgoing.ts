@@ -1,8 +1,8 @@
 import { type CallActive, CallActiveProxy } from "@/modules/call/CallActive";
-import type { CallBus } from "@/modules/call/CallBus";
 import type { CallPeer } from "@/modules/call/Peer";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
 import type { DeviceSocket, MediaPlan } from "@/modules/device/WebSocket";
+import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { ITransport } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
@@ -15,6 +15,8 @@ export type CallOutgoingEvents = {
     unanswered: [];
     ended: [];
     status: [status: CallStatus];
+    iceDiagnostics: [diag: IceDiagnostics];
+    connectivityIssue: [issue: ConnectivityIssue];
 };
 
 export interface CallOutgoing {
@@ -42,7 +44,6 @@ export interface CallOutgoing {
 
 export function CallOutgoingProxy(
     call: Call,
-    bus: CallBus,
     wss: DeviceSocket,
     mediaManager: MediaManager,
     preBuiltTransport?: WebRTCTransport,
@@ -57,7 +58,7 @@ export function CallOutgoingProxy(
         return Promise.resolve(preBuiltTransport.stop()).catch(() => {});
     };
 
-    bus.on("answered", async (mediaPlan) => {
+    call.on("answered", async (mediaPlan) => {
         call.accept();
 
         let transport: ITransport;
@@ -77,28 +78,34 @@ export function CallOutgoingProxy(
             }
         }
 
-        bus.wireTransport(transport);
-        const active = CallActiveProxy(call, bus, transport, mediaManager, {
+        call.wireTransport(transport);
+        const active = CallActiveProxy(call, transport, mediaManager, {
             onEnd: () => {
                 wss.emit("call.end", call.id, () => {});
             },
         });
         emitter.emit("peerAccept", active);
     });
-    bus.on("rejected", () => {
+    call.on("rejected", () => {
         emitter.emit("peerReject");
         void dispose();
     });
-    bus.on("unanswered", () => {
+    call.on("unanswered", () => {
         emitter.emit("unanswered");
         void dispose();
     });
-    bus.on("ended", () => {
+    call.on("ended", () => {
         emitter.emit("ended");
         void dispose();
     });
-    bus.on("status", (status) => {
+    call.on("status", (status) => {
         emitter.emit("status", status);
+    });
+    call.on("iceDiagnostics", (diag) => {
+        emitter.emit("iceDiagnostics", diag);
+    });
+    call.on("connectivityIssue", (issue) => {
+        emitter.emit("connectivityIssue", issue);
     });
 
     let onPeerAcceptUnsub: Unsubscribe | undefined;

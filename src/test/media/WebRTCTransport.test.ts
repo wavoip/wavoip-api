@@ -33,6 +33,7 @@ class MockRTCPeerConnection {
     close = vi.fn();
     setRemoteDescription = vi.fn().mockResolvedValue(undefined);
     createAnswer = vi.fn().mockResolvedValue({ type: "answer", sdp: "mock-answer-sdp" });
+    createOffer = vi.fn().mockResolvedValue({ type: "offer", sdp: "mock-offer-sdp" });
     setLocalDescription = vi.fn().mockImplementation(async () => {
         // Yield a microtask so answerPromise.resolve() fires before we trigger ontrack
         await Promise.resolve();
@@ -98,6 +99,7 @@ function makeMockMediaManager() {
     } as unknown as MediaStream;
 
     return {
+        muted: false,
         setMuted: vi.fn(),
         startMedia: vi.fn().mockResolvedValue(mockStream),
         stopMedia: vi.fn().mockResolvedValue(undefined),
@@ -174,14 +176,62 @@ describe("WebRTCTransport", () => {
             expect(answer).toEqual({ type: "answer", sdp: "mock-answer-sdp" });
         });
 
-        it("enables each mic track before adding to pc", async () => {
+        it("enables mic track when mediaManager is not muted", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
+            mm.muted = false;
             const transport = new WebRTCTransport(mm as never, "offer-sdp");
 
             await startTransport(transport);
 
             expect(mm._track.enabled).toBe(true);
+        });
+
+        it("keeps mic track disabled when mediaManager is muted", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+            mm.muted = true;
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
+
+            await startTransport(transport);
+
+            expect(mm._track.enabled).toBe(false);
+        });
+    });
+
+    describe("createOffer()", () => {
+        it("enables mic track when mediaManager is not muted", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+            mm.muted = false;
+            const transport = new WebRTCTransport(mm as never);
+
+            await transport.createOffer();
+
+            expect(mm._track.enabled).toBe(true);
+        });
+
+        it("keeps mic track disabled when mediaManager is muted", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+            mm.muted = true;
+            const transport = new WebRTCTransport(mm as never);
+
+            await transport.createOffer();
+
+            expect(mm._track.enabled).toBe(false);
+        });
+
+        it("is idempotent — second createOffer does not re-add tracks", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+            const transport = new WebRTCTransport(mm as never);
+
+            await transport.createOffer();
+            await transport.createOffer();
+
+            expect(mockPcInstance.addTrack).toHaveBeenCalledTimes(1);
+            expect(mockPcInstance.createOffer).toHaveBeenCalledTimes(1);
         });
     });
 

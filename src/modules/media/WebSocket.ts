@@ -3,6 +3,8 @@ import type { Events, ITransport, TransportStatus } from "@/modules/media/ITrans
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
+type AudioDataCallback = (data: ArrayBuffer) => void;
+
 // 1000 = Normal Closure (server intentionally ended the connection)
 // 1008 = Policy Violation (server rejected the connection, e.g. invalid token)
 const NO_RECONNECT_CODES = [1000, 1008];
@@ -34,7 +36,11 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
 
         const ctx = mediaManager.audioContext;
 
-        this.audioIn = new AudioInput(ctx);
+        this.audioIn = new AudioInput(ctx, (data) => {
+            if (this.ws?.readyState === WebSocket.OPEN) {
+                this.ws.send(data);
+            }
+        });
         this.audioOut = new AudioOutput(ctx);
         this.audioAnalyser = this.audioOut.audioAnalyser;
     }
@@ -43,13 +49,8 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         await this.mediaManager.waitReady();
         const stream = await this.mediaManager.startMedia();
 
-        await this.audioIn.start(stream);
+        this.audioIn.start(stream);
         this.audioOut.start();
-        this.audioIn.on("audio-data", (data) => {
-            if (this.ws?.readyState === WebSocket.OPEN) {
-                this.ws.send(data);
-            }
-        });
 
         this.ws = this.connect();
     }
@@ -61,12 +62,10 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         this.ws?.close();
         this.ws = undefined;
 
-        await this.audioIn.stop();
+        this.audioIn.stop();
         this.audioOut.stop();
 
         await this.mediaManager.stopMedia();
-
-        this.audioAnalyser = (this.audioOut as unknown as { audioAnalyser: Promise<AnalyserNode> }).audioAnalyser;
 
         this.setStatus("disconnected");
     }
@@ -136,17 +135,16 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     }
 }
 
-type AudioInputEvents = { "audio-data": [data: ArrayBuffer] };
-
-class AudioInput extends EventEmitter<AudioInputEvents> {
+class AudioInput {
     private source: MediaStreamAudioSourceNode | null = null;
     private resampleNode: AudioWorkletNode | null = null;
 
-    constructor(private readonly audioContext: AudioContext) {
-        super();
-    }
+    constructor(
+        private readonly audioContext: AudioContext,
+        private readonly onAudioData: AudioDataCallback,
+    ) {}
 
-    async start(stream: MediaStream): Promise<void> {
+    start(stream: MediaStream): void {
         this.resampleNode = new AudioWorkletNode(this.audioContext, "resample-processor", {
             numberOfInputs: 1,
             numberOfOutputs: 1,
@@ -154,7 +152,7 @@ class AudioInput extends EventEmitter<AudioInputEvents> {
         });
 
         this.resampleNode.port.onmessage = (event) => {
-            this.emit("audio-data", event.data as ArrayBuffer);
+            this.onAudioData(event.data as ArrayBuffer);
         };
 
         this.source = this.audioContext.createMediaStreamSource(stream);
@@ -164,7 +162,7 @@ class AudioInput extends EventEmitter<AudioInputEvents> {
         // Output goes to the main thread via port.postMessage.
     }
 
-    async stop(): Promise<void> {
+    stop(): void {
         if (this.source && this.resampleNode) {
             this.source.disconnect(this.resampleNode);
         }
@@ -174,7 +172,6 @@ class AudioInput extends EventEmitter<AudioInputEvents> {
             this.resampleNode = null;
         }
         this.source = null;
-        this.removeAllListeners();
     }
 }
 
@@ -182,16 +179,12 @@ class AudioOutput {
     private playbackNode: AudioWorkletNode | null = null;
     private analyserNode: AnalyserNode | null = null;
 
-    private audioAnalyserDefer: {
-        resolve?: (node: AnalyserNode | PromiseLike<AnalyserNode>) => void;
-    } = {};
-
     public readonly audioAnalyser: Promise<AnalyserNode>;
+    private readonly analyserResolver: PromiseWithResolvers<AnalyserNode>;
 
     constructor(private readonly audioContext: AudioContext) {
-        this.audioAnalyser = new Promise<AnalyserNode>((resolve) => {
-            this.audioAnalyserDefer = { resolve };
-        });
+        this.analyserResolver = Promise.withResolvers<AnalyserNode>();
+        this.audioAnalyser = this.analyserResolver.promise;
     }
 
     start(): void {
@@ -207,7 +200,7 @@ class AudioOutput {
         this.playbackNode.connect(this.analyserNode);
         this.analyserNode.connect(this.audioContext.destination);
 
-        this.audioAnalyserDefer.resolve?.(this.analyserNode);
+        this.analyserResolver.resolve(this.analyserNode);
     }
 
     /**

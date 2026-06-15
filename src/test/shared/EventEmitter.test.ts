@@ -98,4 +98,25 @@ describe("EventEmitter", () => {
         expect(cb).toHaveBeenCalledOnce();
         expect(cb).toHaveBeenCalledWith();
     });
+
+    describe("once", () => {
+        it("fires callback only on first emit", () => {
+            const emitter = new EventEmitter<TestEvents>();
+            const cb = vi.fn();
+            emitter.once("data", cb);
+            emitter.emit("data", 1);
+            emitter.emit("data", 2);
+            expect(cb).toHaveBeenCalledOnce();
+            expect(cb).toHaveBeenCalledWith(1);
+        });
+
+        it("returns unsubscribe that cancels before first emit", () => {
+            const emitter = new EventEmitter<TestEvents>();
+            const cb = vi.fn();
+            const unsub = emitter.once("data", cb);
+            unsub();
+            emitter.emit("data", 1);
+            expect(cb).not.toHaveBeenCalled();
+        });
+    });
 });
