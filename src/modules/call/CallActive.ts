@@ -58,6 +58,9 @@ export function CallActiveProxy(
 ): CallActive {
     const emitter = new EventEmitter<CallActiveEvents>();
 
+    let lastIceDiagnostics: IceDiagnostics | undefined;
+    const bufferedConnectivityIssues: ConnectivityIssue[] = [];
+
     let disposed = false;
     const dispose = (): Promise<void> => {
         if (disposed) return Promise.resolve();
@@ -90,9 +93,11 @@ export function CallActiveProxy(
         emitter.emit("status", status);
     });
     call.on("iceDiagnostics", (diag) => {
+        lastIceDiagnostics = diag;
         emitter.emit("iceDiagnostics", diag);
     });
     call.on("connectivityIssue", (issue) => {
+        bufferedConnectivityIssues.push(issue);
         emitter.emit("connectivityIssue", issue);
     });
 
@@ -132,7 +137,16 @@ export function CallActiveProxy(
         },
 
         on<T extends keyof CallActiveEvents>(event: T, callback: (...args: CallActiveEvents[T]) => void): Unsubscribe {
-            return emitter.on(event, callback);
+            const unsub = emitter.on(event, callback);
+            if (event === "iceDiagnostics" && lastIceDiagnostics) {
+                (callback as (diag: IceDiagnostics) => void)(lastIceDiagnostics);
+            }
+            if (event === "connectivityIssue" && bufferedConnectivityIssues.length) {
+                for (const issue of bufferedConnectivityIssues) {
+                    (callback as (issue: ConnectivityIssue) => void)(issue);
+                }
+            }
+            return unsub;
         },
 
         /** @deprecated Use `on("error", callback)` instead. */

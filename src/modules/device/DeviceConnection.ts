@@ -328,21 +328,21 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
         const answer = await webRTC.answer;
         this.wss.emit("call.accept", call.id, { type: "webRTC", sdp: answer.sdp as string }, () => {});
-        call.wireTransport(webRTC);
 
-        return CallActiveProxy(call, webRTC, this.mediaManager, {
+        const active = CallActiveProxy(call, webRTC, this.mediaManager, {
             onEnd: (call) => {
                 this.wss.emit("call.end", call.id, () => {
                     this.calls.delete(call.id);
                 });
             },
         });
+        call.wireTransport(webRTC);
+        return active;
     }
 
     private acceptRelayOffer(call: Call, mediaPlan: MediaPlanRelay): Promise<CallActive> {
         const wsTransport = new WebsocketTransport(this.mediaManager, mediaPlan, call.deviceToken);
         call.accept();
-        call.wireTransport(wsTransport);
         const active = CallActiveProxy(call, wsTransport, this.mediaManager, {
             onEnd: (call) => {
                 this.wss.emit("call.end", call.id, () => {
@@ -350,6 +350,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
                 });
             },
         });
+        call.wireTransport(wsTransport);
         this.wss.emit("call.accept", call.id, { type: "none" }, () => {});
         wsTransport.start();
         return Promise.resolve(active);
