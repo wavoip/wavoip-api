@@ -13,8 +13,10 @@ import type {
     CallOutgoing, CallOutgoingEvents,
     Offer, OfferEvents,
     Device, DeviceEvents,
-    CallPeer, CallStats, CallStatus, CallType, CallDirection,
+    CallPeer, CallStats, ServerCallStats, CallStatus, CallType, CallDirection,
     DeviceStatus, Contact,
+    IceDiagnostics, IceCandidateKind, ConnectivityIssue,
+    StunProbeResult,
     TransportStatus,
     Unsubscribe,
 } from "@wavoip/wavoip-api"
@@ -74,6 +76,8 @@ type CallPeer = {
 
 ## Estatísticas de chamada
 
+`CallStats` é medido pelo navegador (lado do cliente). `ServerCallStats` é o agregado periódico enviado pelos servidores Wavoip, com RTT separado entre o cliente e o WhatsApp.
+
 ```typescript
 type CallStats = {
     rtt: {
@@ -92,7 +96,64 @@ type CallStats = {
         loss:        number  // Perda de pacotes (0–1)
     }
 }
+
+type ServerCallStats = {
+    rtt: {
+        client:   { min: number; max: number; avg: number }  // ms — servidor ↔ cliente
+        whatsapp: { min: number; max: number; avg: number }  // ms — servidor ↔ WhatsApp
+    }
+    tx: { total: number; total_bytes: number; loss: number }
+    rx: { total: number; total_bytes: number; loss: number }
+}
 ```
+
+---
+
+## Diagnóstico ICE
+
+Emitido como parte do ciclo de vida da chamada para ajudar a investigar problemas de conexão de mídia.
+
+```typescript
+type IceCandidateKind = "host" | "srflx" | "prflx" | "relay"
+
+type IceDiagnostics = {
+    gatheringDurationMs: number                          // Tempo total de coleta de candidatos ICE
+    gatheringTimedOut:   boolean                         // true se a coleta excedeu o timeout
+    candidatesByType:    Record<IceCandidateKind, number>// Contagem por tipo de candidato
+    stunReached:         boolean                         // STUN respondeu durante a coleta
+    turnReached:         boolean                         // TURN respondeu durante a coleta
+    selectedCandidatePair?: {
+        local:  IceCandidateKind
+        remote: IceCandidateKind
+        rtt?:   number                                   // RTT do par selecionado (ms)
+    }
+}
+
+type ConnectivityIssue =
+    | "STUN_UNREACHABLE"
+    | "ICE_GATHERING_TIMEOUT"
+    | "ICE_CONNECTION_FAILED"
+    | "NO_HOST_CANDIDATES"
+    | "SYMMETRIC_NAT_SUSPECTED"
+```
+
+{% hint style="info" %}
+`iceDiagnostics` e `connectivityIssue` são emitidos por `Offer`, `CallOutgoing` e `CallActive`. Em `CallActive`, o último `iceDiagnostics` e todos os `connectivityIssue` recebidos até o momento são re-emitidos para listeners tardios, garantindo que consumidores que assinam após o início da chamada não percam o estado inicial.
+{% endhint %}
+
+---
+
+## STUN
+
+```typescript
+type StunProbeResult = {
+    server:    string
+    reachable: boolean
+    latencyMs?: number
+}
+```
+
+Use `runStunProbe(servers, timeoutMs?)` para testar a alcançabilidade de servidores STUN em paralelo.
 
 ---
 
@@ -145,6 +206,8 @@ type OfferEvents = {
     unanswered:        []
     ended:             []
     status:            [status: CallStatus]
+    iceDiagnostics:    [diag: IceDiagnostics]
+    connectivityIssue: [issue: ConnectivityIssue]
 }
 ```
 
@@ -152,11 +215,13 @@ type OfferEvents = {
 
 ```typescript
 type CallOutgoingEvents = {
-    peerAccept: [call: CallActive]
-    peerReject: []
-    unanswered: []
-    ended:      []
-    status:     [status: CallStatus]
+    peerAccept:        [call: CallActive]
+    peerReject:        []
+    unanswered:        []
+    ended:             []
+    status:            [status: CallStatus]
+    iceDiagnostics:    [diag: IceDiagnostics]
+    connectivityIssue: [issue: ConnectivityIssue]
 }
 ```
 
@@ -164,13 +229,16 @@ type CallOutgoingEvents = {
 
 ```typescript
 type CallActiveEvents = {
-    error:            [err: string]
-    peerMute:         []
-    peerUnmute:       []
-    ended:            []
-    stats:            [stats: CallStats]
-    connectionStatus: [status: TransportStatus]
-    status:           [status: CallStatus]
+    error:             [err: string]
+    peerMute:          []
+    peerUnmute:        []
+    ended:             []
+    stats:             [stats: CallStats]
+    serverStats:       [stats: ServerCallStats]
+    connectionStatus:  [status: TransportStatus]
+    status:            [status: CallStatus]
+    iceDiagnostics:    [diag: IceDiagnostics]
+    connectivityIssue: [issue: ConnectivityIssue]
 }
 ```
 
@@ -178,9 +246,10 @@ type CallActiveEvents = {
 
 ```typescript
 type DeviceEvents = {
-    statusChanged:  [status: DeviceStatus]
-    qrCodeChanged:  [qrCode?: string]
-    contactChanged: [contact?: Contact]
+    statusChanged:     [status: DeviceStatus]
+    qrCodeChanged:     [qrCode?: string]
+    contactChanged:    [contact?: Contact]
+    restrictedChanged: [restricted: boolean]
 }
 ```
 

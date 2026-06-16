@@ -73,13 +73,15 @@ const { err } = await offer.reject()
 
 Assine com `offer.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
-| Evento               | Payload      | Descrição                                                     |
-| -------------------- | ------------ | ------------------------------------------------------------- |
-| `acceptedElsewhere`  | —            | Outro cliente (aba/dispositivo) aceitou a chamada.            |
-| `rejectedElsewhere`  | —            | Outro cliente rejeitou a chamada.                             |
-| `unanswered`         | —            | Oferta expirou sem resposta.                                  |
-| `ended`              | —            | Chamada encerrada antes de ser atendida.                      |
-| `status`             | `CallStatus` | Status da chamada mudou.                                      |
+| Evento               | Payload             | Descrição                                                                                                       |
+| -------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `acceptedElsewhere`  | —                   | Outro cliente (aba/dispositivo) aceitou a chamada.                                                              |
+| `rejectedElsewhere`  | —                   | Outro cliente rejeitou a chamada.                                                                               |
+| `unanswered`         | —                   | Oferta expirou sem resposta.                                                                                    |
+| `ended`              | —                   | Chamada encerrada antes de ser atendida.                                                                        |
+| `status`             | `CallStatus`        | Status da chamada mudou.                                                                                        |
+| `iceDiagnostics`     | `IceDiagnostics`    | Diagnóstico da coleta ICE relativa à oferta (quando houver gathering antes do `accept`).                        |
+| `connectivityIssue`  | `ConnectivityIssue` | Problema de conectividade detectado durante a oferta. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
 
 ```typescript
 offer.on("acceptedElsewhere", () => {

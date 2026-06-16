@@ -70,13 +70,15 @@ call.on("unanswered", () => console.log("Sem resposta"))
 
 Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
-| Evento       | Payload        | Descrição                                               |
-| ------------ | -------------- | ------------------------------------------------------- |
-| `peerAccept` | `CallActive`   | Destinatário atendeu — um `CallActive` é fornecido.     |
-| `peerReject` | —              | Destinatário recusou a chamada.                         |
-| `unanswered` | —              | Chamada expirou sem resposta.                           |
-| `ended`      | —              | Chamada encerrada (ex: destinatário desligou antes de atender). |
-| `status`     | `CallStatus`   | Status da chamada mudou.                                |
+| Evento              | Payload             | Descrição                                                                                                       |
+| ------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `peerAccept`        | `CallActive`        | Destinatário atendeu — um `CallActive` é fornecido.                                                             |
+| `peerReject`        | —                   | Destinatário recusou a chamada.                                                                                 |
+| `unanswered`        | —                   | Chamada expirou sem resposta.                                                                                   |
+| `ended`             | —                   | Chamada encerrada (ex: destinatário desligou antes de atender).                                                 |
+| `status`            | `CallStatus`        | Status da chamada mudou.                                                                                        |
+| `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE realizada antes do par atender.                                                       |
+| `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado durante a chamada. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
 
 ```typescript
 call.on("peerAccept", (active) => {
