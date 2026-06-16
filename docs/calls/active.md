@@ -51,15 +51,18 @@ await call.end()
 
 Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
-| Evento             | Payload           | Descrição                                                    |
-| ------------------ | ----------------- | ------------------------------------------------------------ |
-| `ended`            | —                 | Chamada encerrada (por qualquer uma das partes).             |
-| `peerMute`         | —                 | Parte remota silenciou o microfone.                          |
-| `peerUnmute`       | —                 | Parte remota ativou o microfone.                             |
-| `connectionStatus` | `TransportStatus` | Estado de conexão do transporte de mídia mudou.              |
-| `stats`            | `CallStats`       | Estatísticas periódicas de qualidade (RTT, perda de pacotes).|
-| `error`            | `string`          | Ocorreu um erro no nível de transporte.                      |
-| `status`           | `CallStatus`      | Status da chamada mudou.                                     |
+| Evento              | Payload             | Descrição                                                                                                              |
+| ------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `ended`             | —                   | Chamada encerrada (por qualquer uma das partes).                                                                       |
+| `peerMute`          | —                   | Parte remota silenciou o microfone.                                                                                    |
+| `peerUnmute`        | —                   | Parte remota ativou o microfone.                                                                                       |
+| `connectionStatus`  | `TransportStatus`   | Estado de conexão do transporte de mídia mudou.                                                                        |
+| `stats`             | `CallStats`         | Estatísticas periódicas de qualidade medidas no cliente (RTT, perda de pacotes).                                       |
+| `serverStats`       | `ServerCallStats`   | Estatísticas agregadas pelos servidores Wavoip (RTT separado: servidor↔cliente e servidor↔WhatsApp).                   |
+| `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE (duração, candidatos por tipo, STUN/TURN alcançados, par selecionado). Replay em listeners tardios. |
+| `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado (`STUN_UNREACHABLE`, `ICE_GATHERING_TIMEOUT`, `ICE_CONNECTION_FAILED`, `NO_HOST_CANDIDATES`, `SYMMETRIC_NAT_SUSPECTED`). Todos os problemas observados são re-emitidos para listeners tardios. |
+| `error`             | `string`            | Ocorreu um erro no nível de transporte.                                                                                |
+| `status`            | `CallStatus`        | Status da chamada mudou.                                                                                               |
 
 ```typescript
 call.on("ended", () => {
@@ -105,7 +108,7 @@ analyser.getByteFrequencyData(dataArray)
 
 ## Estatísticas de chamada
 
-O evento `stats` é emitido periodicamente com um objeto `CallStats`:
+O evento `stats` é emitido periodicamente com um objeto `CallStats` (medido no cliente). `serverStats` traz o agregado dos servidores Wavoip com RTT separado por trecho:
 
 ```typescript
 type CallStats = {
@@ -113,7 +116,44 @@ type CallStats = {
     tx: { total: number; total_bytes: number; loss: number }
     rx: { total: number; total_bytes: number; loss: number }
 }
+
+type ServerCallStats = {
+    rtt: {
+        client:   { min: number; max: number; avg: number }  // servidor ↔ cliente
+        whatsapp: { min: number; max: number; avg: number }  // servidor ↔ WhatsApp
+    }
+    tx: { total: number; total_bytes: number; loss: number }
+    rx: { total: number; total_bytes: number; loss: number }
+}
 ```
+
+```typescript
+call.on("serverStats", ({ rtt }) => {
+    console.log(`servidor↔cliente: ${rtt.client.avg}ms | servidor↔WhatsApp: ${rtt.whatsapp.avg}ms`)
+})
+```
+
+---
+
+## Diagnóstico ICE e problemas de conectividade
+
+Use `iceDiagnostics` para inspecionar a coleta de candidatos ICE (host/srflx/prflx/relay), confirmar se STUN/TURN foram alcançados e identificar o par selecionado. Use `connectivityIssue` para reagir a falhas conhecidas como `STUN_UNREACHABLE` ou `ICE_CONNECTION_FAILED`.
+
+```typescript
+call.on("iceDiagnostics", (diag) => {
+    console.log("ICE:", diag.candidatesByType, "STUN:", diag.stunReached, "TURN:", diag.turnReached)
+})
+
+call.on("connectivityIssue", (issue) => {
+    showConnectivityBanner(issue)
+})
+```
+
+{% hint style="info" %}
+Se você assinar `iceDiagnostics` ou `connectivityIssue` depois que a chamada já iniciou (por exemplo, ao abrir um painel de diagnóstico após o atendimento), o `CallActive` re-emite o último `iceDiagnostics` conhecido e todos os `connectivityIssue` já observados. Isso garante que o consumidor reconstrua o estado completo sem precisar coordenar a assinatura com o ciclo de aceitação.
+{% endhint %}
+
+Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice) para os payloads completos.
 
 ---
 

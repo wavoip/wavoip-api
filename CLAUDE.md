@@ -309,7 +309,13 @@ docs/
 All documentation in `docs/` must be written in **Portuguese (pt-BR)**. This includes descriptions, table headers, prose, hints, step titles, and code comments. Code identifiers, type names, and GitBook block syntax remain in English.
 
 ## When to update docs
-Update `docs/` whenever public-facing types, methods, events, or call flows change.
+Any change that affects how a consumer of `@wavoip/wavoip-api` uses the library MUST update `docs/` in the same change. This includes:
+- New, renamed, or removed public types / classes / methods
+- New, renamed, removed, or re-payloaded events on `Wavoip`, `Device`, `Offer`, `CallOutgoing`, `CallActive`
+- Changes to call flow ordering, semantics, or replay/buffering behavior visible to consumers
+- Changes to `Wavoip` constructor options or `setLanguage` / locale handling
+- Breaking changes in WebSocket event names that consumers can observe
+
 Keep `SUMMARY.md` in sync with the actual file structure — GitBook uses it as the authoritative sidebar.
 
 # CI/CD
