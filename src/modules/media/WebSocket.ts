@@ -10,6 +10,9 @@ type AudioDataCallback = (data: ArrayBuffer) => void;
 const NO_RECONNECT_CODES = [1000, 1008];
 const RECONNECT_DELAY_MS = 1_000;
 const RECONNECT_TIMEOUT_MS = 30_000;
+const STATS_TICK_MS = 1_000;
+// PCMU at 8kHz, 20ms frames = 160 bytes / 20ms.
+const RX_EXPECTED_INTERVAL_MS = 20;
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
     public readonly kind = "ws" as const;
@@ -18,8 +21,9 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     public audioAnalyser: Promise<AnalyserNode>;
     public stats: CallStats = {
         rtt: { avg: 0, max: 0, min: 0 },
-        rx: { loss: 0, total: 0, total_bytes: 0 },
-        tx: { loss: 0, total: 0, total_bytes: 0 },
+        rx: { loss: 0, total: 0, total_bytes: 0, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
+        tx: { loss: 0, total: 0, total_bytes: 0, bitrate_kbps: 0, audio_level: 0 },
+        audio_context: { output_latency_ms: 0 },
     };
 
     private ws?: WebSocket;
@@ -27,6 +31,12 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     private reconnectDeadline: ReturnType<typeof setTimeout> | null = null;
     private readonly audioIn: AudioInput;
     private readonly audioOut: AudioOutput;
+
+    private statsTimer: ReturnType<typeof setInterval> | null = null;
+    private prevRxBytes = 0;
+    private prevTxBytes = 0;
+    private prevSampleTs = 0;
+    private lastRxArrivalTs = 0;
 
     constructor(
         private readonly mediaManager: MediaManager,
@@ -40,6 +50,8 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         this.audioIn = new AudioInput(ctx, (data) => {
             if (this.ws?.readyState === WebSocket.OPEN) {
                 this.ws.send(data);
+                this.stats.tx.total_bytes += data.byteLength;
+                this.stats.tx.total += 1;
             }
         });
         this.audioOut = new AudioOutput(ctx);
@@ -54,11 +66,13 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         this.audioOut.start();
 
         this.ws = this.connect();
+        this.startStatsLoop();
     }
 
     async stop(): Promise<void> {
         this.stopped = true;
         this.clearReconnectDeadline();
+        this.stopStatsLoop();
 
         this.ws?.close();
         this.ws = undefined;
@@ -98,6 +112,7 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
                 this.ws?.send("pong");
                 return;
             }
+            this.trackRxArrival((event.data as ArrayBuffer).byteLength);
             this.audioOut.sendAudioData(event.data as ArrayBuffer);
         });
 
@@ -134,11 +149,61 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         this.status = status;
         this.emit("statusChanged", status);
     }
+
+    private trackRxArrival(byteLength: number): void {
+        this.stats.rx.total_bytes += byteLength;
+        this.stats.rx.total += 1;
+
+        const now = performance.now();
+        if (this.lastRxArrivalTs > 0) {
+            const arrivalDelta = now - this.lastRxArrivalTs;
+            const d = Math.abs(arrivalDelta - RX_EXPECTED_INTERVAL_MS);
+            // RFC 3550 jitter estimate: J += (|D| - J) / 16
+            this.stats.rx.jitter_ms += (d - this.stats.rx.jitter_ms) / 16;
+        }
+        this.lastRxArrivalTs = now;
+    }
+
+    private startStatsLoop(): void {
+        this.statsTimer = setInterval(() => this.sampleStats(), STATS_TICK_MS);
+    }
+
+    private stopStatsLoop(): void {
+        if (this.statsTimer) {
+            clearInterval(this.statsTimer);
+            this.statsTimer = null;
+        }
+    }
+
+    private sampleStats(): void {
+        const now = performance.now();
+        const txBytes = this.stats.tx.total_bytes;
+        const rxBytes = this.stats.rx.total_bytes;
+
+        if (this.prevSampleTs > 0) {
+            const dtSec = (now - this.prevSampleTs) / 1000;
+            if (dtSec > 0) {
+                this.stats.tx.bitrate_kbps = ((txBytes - this.prevTxBytes) * 8) / dtSec / 1000;
+                this.stats.rx.bitrate_kbps = ((rxBytes - this.prevRxBytes) * 8) / dtSec / 1000;
+            }
+        }
+        this.prevTxBytes = txBytes;
+        this.prevRxBytes = rxBytes;
+        this.prevSampleTs = now;
+
+        this.stats.tx.audio_level = this.audioIn.readLevel();
+        this.stats.rx.audio_level = this.audioOut.readLevel();
+        this.stats.audio_context.output_latency_ms = this.mediaManager.audioContext.outputLatency * 1000;
+
+        this.emit("statsChanged", this.stats);
+    }
 }
 
 class AudioInput {
     private source: MediaStreamAudioSourceNode | null = null;
     private resampleNode: AudioWorkletNode | null = null;
+    private analyser: AnalyserNode | null = null;
+    private levelBuffer: Float32Array | null = null;
 
     constructor(
         private readonly audioContext: AudioContext,
@@ -159,26 +224,49 @@ class AudioInput {
         this.source = this.audioContext.createMediaStreamSource(stream);
         this.source.connect(this.resampleNode);
 
+        this.analyser = this.audioContext.createAnalyser();
+        this.analyser.fftSize = 256;
+        this.levelBuffer = new Float32Array(this.analyser.fftSize);
+        this.source.connect(this.analyser);
+
         // ResampleProcessor only processes — it does not connect to destination.
         // Output goes to the main thread via port.postMessage.
+    }
+
+    readLevel(): number {
+        if (!this.analyser || !this.levelBuffer) return 0;
+        this.analyser.getFloatTimeDomainData(this.levelBuffer);
+        return computeRms(this.levelBuffer);
     }
 
     stop(): void {
         if (this.source && this.resampleNode) {
             this.source.disconnect(this.resampleNode);
         }
+        if (this.source && this.analyser) {
+            this.source.disconnect(this.analyser);
+        }
         if (this.resampleNode) {
             this.resampleNode.port.onmessage = null;
             this.resampleNode.disconnect();
             this.resampleNode = null;
         }
+        this.analyser = null;
+        this.levelBuffer = null;
         this.source = null;
     }
+}
+
+function computeRms(buf: Float32Array): number {
+    let sum = 0;
+    for (let i = 0; i < buf.length; i += 1) sum += buf[i] * buf[i];
+    return Math.sqrt(sum / buf.length);
 }
 
 class AudioOutput {
     private playbackNode: AudioWorkletNode | null = null;
     private analyserNode: AnalyserNode | null = null;
+    private levelBuffer: Float32Array | null = null;
 
     public readonly audioAnalyser: Promise<AnalyserNode>;
     private readonly analyserResolver: PromiseWithResolvers<AnalyserNode>;
@@ -186,6 +274,12 @@ class AudioOutput {
     constructor(private readonly audioContext: AudioContext) {
         this.analyserResolver = Promise.withResolvers<AnalyserNode>();
         this.audioAnalyser = this.analyserResolver.promise;
+    }
+
+    readLevel(): number {
+        if (!this.analyserNode || !this.levelBuffer) return 0;
+        this.analyserNode.getFloatTimeDomainData(this.levelBuffer);
+        return computeRms(this.levelBuffer);
     }
 
     start(): void {
@@ -197,6 +291,7 @@ class AudioOutput {
 
         this.analyserNode = this.audioContext.createAnalyser();
         this.analyserNode.fftSize = 256;
+        this.levelBuffer = new Float32Array(this.analyserNode.fftSize);
 
         this.playbackNode.connect(this.analyserNode);
         this.analyserNode.connect(this.audioContext.destination);
@@ -221,5 +316,6 @@ class AudioOutput {
         this.playbackNode = null;
         this.analyserNode?.disconnect();
         this.analyserNode = null;
+        this.levelBuffer = null;
     }
 }

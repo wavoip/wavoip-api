@@ -123,8 +123,9 @@ describe("CallRouter", () => {
 
             expect(cb).toHaveBeenCalledWith({
                 rtt: { min: 10, max: 30, avg: 20 },
-                tx: { total: 100, total_bytes: 5000, loss: 2 },
-                rx: { total: 98, total_bytes: 4900, loss: 1 },
+                tx: { total: 100, total_bytes: 5000, loss: 2, bitrate_kbps: 0, audio_level: 0 },
+                rx: { total: 98, total_bytes: 4900, loss: 1, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
+                audio_context: { output_latency_ms: 0 },
             });
         });
 

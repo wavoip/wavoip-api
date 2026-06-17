@@ -91,6 +91,7 @@ function makeMockMediaManager() {
         createMediaStreamSource: vi.fn().mockReturnValue(source),
         createAnalyser: vi.fn().mockReturnValue(analyser),
         destination: {},
+        outputLatency: 0,
     };
     const mockTrack = { enabled: false };
     const mockStream = {
@@ -146,8 +147,16 @@ describe("WebRTCTransport", () => {
         expect(transport.status).toBe("disconnected");
         expect(transport.peerMuted).toBe(false);
         expect(transport.stats.rtt).toEqual({ min: 0, max: 0, avg: 0 });
-        expect(transport.stats.tx).toEqual({ total: 0, total_bytes: 0, loss: 0 });
-        expect(transport.stats.rx).toEqual({ total: 0, total_bytes: 0, loss: 0 });
+        expect(transport.stats.tx).toEqual({ total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0 });
+        expect(transport.stats.rx).toEqual({
+            total: 0,
+            total_bytes: 0,
+            loss: 0,
+            bitrate_kbps: 0,
+            audio_level: 0,
+            jitter_ms: 0,
+        });
+        expect(transport.stats.audio_context).toEqual({ output_latency_ms: 0 });
     });
 
     describe("start()", () => {
@@ -462,6 +471,44 @@ describe("WebRTCTransport", () => {
             expect(cb).toHaveBeenCalled();
             const emittedStats = cb.mock.calls[0][0];
             expect(emittedStats.rtt.avg).toBeGreaterThan(0);
+        });
+
+        it("captures rx jitter and audio levels from getStats", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+
+            const statsMap = new Map<string, unknown>([
+                [
+                    "inbound",
+                    {
+                        type: "inbound-rtp",
+                        kind: "audio",
+                        bytesReceived: 2000,
+                        packetsReceived: 100,
+                        packetsLost: 0,
+                        audioLevel: 0.42,
+                        jitter: 0.015,
+                    },
+                ],
+                ["source", { type: "media-source", kind: "audio", audioLevel: 0.7 }],
+            ]);
+
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
+            mockPcInstance.getStats = vi.fn().mockResolvedValue(statsMap);
+
+            await startTransport(transport);
+
+            const cb = vi.fn();
+            transport.on("statsChanged", cb);
+
+            vi.advanceTimersByTime(5_000);
+            await Promise.resolve();
+
+            expect(cb).toHaveBeenCalled();
+            const emitted = cb.mock.calls[0][0];
+            expect(emitted.rx.jitter_ms).toBeCloseTo(15, 5);
+            expect(emitted.rx.audio_level).toBe(0.42);
+            expect(emitted.tx.audio_level).toBe(0.7);
         });
     });
 });

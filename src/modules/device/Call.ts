@@ -118,8 +118,9 @@ export type CallType = "OFFICIAL" | "UNOFFICIAL";
 export function toCallStats(s: ServerCallStats): CallStats {
     return {
         rtt: { ...s.rtt.client },
-        tx: { ...s.tx },
-        rx: { ...s.rx },
+        tx: { ...s.tx, bitrate_kbps: 0, audio_level: 0 },
+        rx: { ...s.rx, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
+        audio_context: { output_latency_ms: 0 },
     };
 }
 

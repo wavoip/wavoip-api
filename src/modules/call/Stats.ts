@@ -8,11 +8,19 @@ export type CallStats = {
         total: number;
         total_bytes: number;
         loss: number;
+        bitrate_kbps: number;
+        audio_level: number;
     };
     rx: {
         total: number;
         total_bytes: number;
         loss: number;
+        bitrate_kbps: number;
+        audio_level: number;
+        jitter_ms: number;
+    };
+    audio_context: {
+        output_latency_ms: number;
     };
 };
 

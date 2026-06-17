@@ -19,8 +19,9 @@ function makeMockTransport(kind: "webrtc" | "ws" = "webrtc"): IRTCTransport {
     t.audioAnalyser = Promise.resolve({} as AnalyserNode);
     t.stats = {
         rtt: { min: 0, max: 0, avg: 0 },
-        tx: { total: 0, total_bytes: 0, loss: 0 },
-        rx: { total: 0, total_bytes: 0, loss: 0 },
+        tx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0 },
+        rx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
+        audio_context: { output_latency_ms: 0 },
     };
     t.lastDiagnostics = null;
     Object.defineProperty(t, "emittedConnectivityIssues", { value: new Set(), writable: true, configurable: true });
@@ -92,8 +93,9 @@ describe("Call.wireTransport", () => {
 
         const stats: CallStats = {
             rtt: { min: 1, max: 5, avg: 3 },
-            tx: { total: 100, total_bytes: 5000, loss: 2 },
-            rx: { total: 98, total_bytes: 4900, loss: 1 },
+            tx: { total: 100, total_bytes: 5000, loss: 2, bitrate_kbps: 0, audio_level: 0 },
+            rx: { total: 98, total_bytes: 4900, loss: 1, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
+            audio_context: { output_latency_ms: 0 },
         };
 
         call.wireTransport(transport);
@@ -110,8 +112,9 @@ describe("Call.wireTransport", () => {
 
         const stats: CallStats = {
             rtt: { min: 1, max: 5, avg: 3 },
-            tx: { total: 100, total_bytes: 5000, loss: 2 },
-            rx: { total: 98, total_bytes: 4900, loss: 1 },
+            tx: { total: 100, total_bytes: 5000, loss: 2, bitrate_kbps: 0, audio_level: 0 },
+            rx: { total: 98, total_bytes: 4900, loss: 1, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
+            audio_context: { output_latency_ms: 0 },
         };
 
         call.wireTransport(transport);

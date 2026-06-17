@@ -20,9 +20,14 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     audioAnalyser: Promise<AnalyserNode>;
     stats: CallStats = {
         rtt: { min: 0, max: 0, avg: 0 },
-        tx: { total: 0, total_bytes: 0, loss: 0 },
-        rx: { total: 0, total_bytes: 0, loss: 0 },
+        tx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0 },
+        rx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
+        audio_context: { output_latency_ms: 0 },
     };
+
+    private prevBytesReceived = 0;
+    private prevBytesSent = 0;
+    private prevSampleTs = 0;
 
     readonly answer: Promise<RTCSessionDescriptionInit>;
 
@@ -255,17 +260,33 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     private async getStats(pc: RTCPeerConnection) {
         const stats = await pc.getStats();
 
+        let curBytesReceived = 0;
+        let curBytesSent = 0;
+
         for (const stat of stats.values()) {
             if (stat.type === "inbound-rtp" && stat.kind === "audio") {
-                const inbound = stat as RTCInboundRtpStreamStats;
-                if (inbound.bytesReceived) this.stats.rx.total_bytes += inbound.bytesReceived;
+                const inbound = stat as RTCInboundRtpStreamStats & { audioLevel?: number; jitter?: number };
+                if (inbound.bytesReceived) {
+                    this.stats.rx.total_bytes += inbound.bytesReceived;
+                    curBytesReceived = inbound.bytesReceived;
+                }
                 if (inbound.packetsLost) this.stats.rx.loss = inbound.packetsLost;
                 if (inbound.packetsReceived) this.stats.rx.total = inbound.packetsReceived;
+                if (typeof inbound.audioLevel === "number") this.stats.rx.audio_level = inbound.audioLevel;
+                if (typeof inbound.jitter === "number") this.stats.rx.jitter_ms = inbound.jitter * 1000;
             }
 
             if (stat.type === "outbound-rtp" && stat.kind === "audio") {
                 const outbound = stat as RTCOutboundRtpStreamStats;
-                if (outbound.bytesSent) this.stats.tx.total_bytes += outbound.bytesSent;
+                if (outbound.bytesSent) {
+                    this.stats.tx.total_bytes += outbound.bytesSent;
+                    curBytesSent = outbound.bytesSent;
+                }
+            }
+
+            if (stat.type === "media-source" && (stat as { kind?: string }).kind === "audio") {
+                const src = stat as { audioLevel?: number };
+                if (typeof src.audioLevel === "number") this.stats.tx.audio_level = src.audioLevel;
             }
 
             if (stat.type === "remote-inbound-rtp" && stat.kind === "audio") {
@@ -282,6 +303,20 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
                 }
             }
         }
+
+        const now = performance.now();
+        if (this.prevSampleTs > 0) {
+            const dtSec = (now - this.prevSampleTs) / 1000;
+            if (dtSec > 0) {
+                this.stats.rx.bitrate_kbps = ((curBytesReceived - this.prevBytesReceived) * 8) / dtSec / 1000;
+                this.stats.tx.bitrate_kbps = ((curBytesSent - this.prevBytesSent) * 8) / dtSec / 1000;
+            }
+        }
+        this.prevBytesReceived = curBytesReceived;
+        this.prevBytesSent = curBytesSent;
+        this.prevSampleTs = now;
+
+        this.stats.audio_context.output_latency_ms = this.mediaManager.audioContext.outputLatency * 1000;
 
         this.emit("statsChanged", this.stats);
     }
