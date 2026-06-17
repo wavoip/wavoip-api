@@ -10,7 +10,7 @@ type AudioDataCallback = (data: ArrayBuffer) => void;
 const NO_RECONNECT_CODES = [1000, 1008];
 const RECONNECT_DELAY_MS = 1_000;
 const RECONNECT_TIMEOUT_MS = 30_000;
-const STATS_TICK_MS = 1_000;
+const STATS_TICK_MS = 200;
 // PCMU at 8kHz, 20ms frames = 160 bytes / 20ms.
 const RX_EXPECTED_INTERVAL_MS = 20;
 
@@ -202,8 +202,7 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
 class AudioInput {
     private source: MediaStreamAudioSourceNode | null = null;
     private resampleNode: AudioWorkletNode | null = null;
-    private analyser: AnalyserNode | null = null;
-    private levelBuffer: Float32Array | null = null;
+    private lastLevel = 0;
 
     constructor(
         private readonly audioContext: AudioContext,
@@ -218,55 +217,52 @@ class AudioInput {
         });
 
         this.resampleNode.port.onmessage = (event) => {
-            this.onAudioData(event.data as ArrayBuffer);
+            const data = event.data as ArrayBuffer;
+            this.lastLevel = rmsInt16(data);
+            this.onAudioData(data);
         };
 
         this.source = this.audioContext.createMediaStreamSource(stream);
         this.source.connect(this.resampleNode);
 
-        this.analyser = this.audioContext.createAnalyser();
-        this.analyser.fftSize = 256;
-        this.levelBuffer = new Float32Array(this.analyser.fftSize);
-        this.source.connect(this.analyser);
-
         // ResampleProcessor only processes — it does not connect to destination.
-        // Output goes to the main thread via port.postMessage.
+        // Output goes to the main thread via port.postMessage. RMS is computed in main
+        // thread from the same buffer (AnalyserNode reads empty when no destination path).
     }
 
     readLevel(): number {
-        if (!this.analyser || !this.levelBuffer) return 0;
-        this.analyser.getFloatTimeDomainData(this.levelBuffer);
-        return computeRms(this.levelBuffer);
+        return this.lastLevel;
     }
 
     stop(): void {
         if (this.source && this.resampleNode) {
             this.source.disconnect(this.resampleNode);
         }
-        if (this.source && this.analyser) {
-            this.source.disconnect(this.analyser);
-        }
         if (this.resampleNode) {
             this.resampleNode.port.onmessage = null;
             this.resampleNode.disconnect();
             this.resampleNode = null;
         }
-        this.analyser = null;
-        this.levelBuffer = null;
         this.source = null;
+        this.lastLevel = 0;
     }
 }
 
-function computeRms(buf: Float32Array): number {
+function rmsInt16(buf: ArrayBuffer): number {
+    const samples = new Int16Array(buf);
+    if (samples.length === 0) return 0;
     let sum = 0;
-    for (let i = 0; i < buf.length; i += 1) sum += buf[i] * buf[i];
-    return Math.sqrt(sum / buf.length);
+    for (let i = 0; i < samples.length; i += 1) {
+        const s = samples[i] / 32768;
+        sum += s * s;
+    }
+    return Math.sqrt(sum / samples.length);
 }
 
 class AudioOutput {
     private playbackNode: AudioWorkletNode | null = null;
     private analyserNode: AnalyserNode | null = null;
-    private levelBuffer: Float32Array | null = null;
+    private lastLevel = 0;
 
     public readonly audioAnalyser: Promise<AnalyserNode>;
     private readonly analyserResolver: PromiseWithResolvers<AnalyserNode>;
@@ -277,9 +273,7 @@ class AudioOutput {
     }
 
     readLevel(): number {
-        if (!this.analyserNode || !this.levelBuffer) return 0;
-        this.analyserNode.getFloatTimeDomainData(this.levelBuffer);
-        return computeRms(this.levelBuffer);
+        return this.lastLevel;
     }
 
     start(): void {
@@ -291,7 +285,6 @@ class AudioOutput {
 
         this.analyserNode = this.audioContext.createAnalyser();
         this.analyserNode.fftSize = 256;
-        this.levelBuffer = new Float32Array(this.analyserNode.fftSize);
 
         this.playbackNode.connect(this.analyserNode);
         this.analyserNode.connect(this.audioContext.destination);
@@ -305,6 +298,7 @@ class AudioOutput {
      */
     sendAudioData(data: ArrayBuffer): void {
         if (!this.playbackNode) return;
+        this.lastLevel = rmsInt16(data);
         // Clone before transfer — WebSocket event.data may be reused.
         const copy = data.slice(0);
         this.playbackNode.port.postMessage(copy, [copy]);
@@ -316,6 +310,6 @@ class AudioOutput {
         this.playbackNode = null;
         this.analyserNode?.disconnect();
         this.analyserNode = null;
-        this.levelBuffer = null;
+        this.lastLevel = 0;
     }
 }

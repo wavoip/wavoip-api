@@ -302,7 +302,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     ) {
         ackOffer();
 
-        const call = this.device.receiveOffer(offerProps.id, this.device.callType, offerProps.peer);
+        const call = this.device.receiveOffer(offerProps.id, offerProps.peer);
         const unregister = this.router.register(call);
 
         const offer = OfferProxy(call, {

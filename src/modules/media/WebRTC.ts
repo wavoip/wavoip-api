@@ -153,7 +153,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         }
 
         this.getStats(this.pc);
-        this.statsJob = setInterval(() => this.getStats(this.pc), 5_000) as unknown as number;
+        this.statsJob = setInterval(() => this.getStats(this.pc), 200) as unknown as number;
     }
 
     async createOffer(): Promise<string> {
