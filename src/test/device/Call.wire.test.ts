@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 
 const peer = { phone: "5511999999999", displayName: null, profilePicture: null };
 
-function makeCall(id = "call-1") {
-    return Call.CreateOffer(id, "OFFICIAL", peer, "device-token");
+function makeCall(id = "call-1", type: "OFFICIAL" | "UNOFFICIAL" = "OFFICIAL") {
+    return Call.CreateOffer(id, type, peer, "device-token");
 }
 
 function makeMockTransport(kind: "webrtc" | "ws" = "webrtc"): IRTCTransport {
@@ -84,8 +84,26 @@ describe("Call.wireTransport", () => {
         expect(cb).toHaveBeenCalledWith(true);
     });
 
-    it("transport statsChanged is ignored — server call:stats is source of truth", () => {
-        const call = makeCall();
+    it("OFFICIAL transport statsChanged → emits stats", () => {
+        const call = makeCall("call-1", "OFFICIAL");
+        const transport = makeMockTransport();
+        const cb = vi.fn();
+        call.on("stats", cb);
+
+        const stats: CallStats = {
+            rtt: { min: 1, max: 5, avg: 3 },
+            tx: { total: 100, total_bytes: 5000, loss: 2 },
+            rx: { total: 98, total_bytes: 4900, loss: 1 },
+        };
+
+        call.wireTransport(transport);
+        (transport as unknown as EventEmitter<TransportEvents>).emit("statsChanged", stats);
+
+        expect(cb).toHaveBeenCalledWith(stats);
+    });
+
+    it("UNOFFICIAL transport statsChanged is ignored (server call:stats is source of truth)", () => {
+        const call = makeCall("call-1", "UNOFFICIAL");
         const transport = makeMockTransport();
         const cb = vi.fn();
         call.on("stats", cb);

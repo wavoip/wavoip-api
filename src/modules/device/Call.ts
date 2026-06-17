@@ -63,8 +63,13 @@ export class Call extends EventEmitter<CallEvents> {
         // is now driven exclusively by the signaling `call:*` terminal events (B3).
         transport.on("statusChanged", (s) => this.emit("connectionStatus", s));
         transport.on("peerMuted", (m) => this.emit("peerMuted", m));
-        // Local transport stats are intentionally ignored — server-pushed `call:stats`
-        // is the single source of truth for both OFFICIAL and UNOFFICIAL calls.
+
+        // OFFICIAL calls use WebRTC peer-measured stats as source of truth.
+        // UNOFFICIAL (relay) calls have no usable transport stats and rely on
+        // server-pushed `call:stats` (routed via CallRouter).
+        if (this.type === "OFFICIAL") {
+            transport.on("statsChanged", (s) => this.emit("stats", s));
+        }
 
         // ICE events come only from WebRTC transports. Narrow via the kind
         // discriminator so the WS path doesn't see a no-op replay block, and so

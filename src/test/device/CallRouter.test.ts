@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 
 const peer = { phone: "5511999999999", displayName: null, profilePicture: null };
 
-function makeCall(id = "call-1") {
-    return Call.CreateOffer(id, "OFFICIAL", peer, "device-token");
+function makeCall(id = "call-1", type: "OFFICIAL" | "UNOFFICIAL" = "OFFICIAL") {
+    return Call.CreateOffer(id, type, peer, "device-token");
 }
 
 function makeMockSocket() {
@@ -105,11 +105,11 @@ describe("CallRouter", () => {
             expect(cb).toHaveBeenCalledWith(stats);
         });
 
-        it("call:stats also emits 'stats' projected from client-leg RTT and tx/rx", () => {
+        it("UNOFFICIAL call:stats also emits 'stats' projected from client-leg RTT and tx/rx", () => {
             const socket = makeMockSocket();
             const router = new CallRouter(socket as unknown as DeviceSocket);
             router.start();
-            const call = makeCall();
+            const call = makeCall("call-1", "UNOFFICIAL");
             router.register(call);
             const cb = vi.fn();
             call.on("stats", cb);
@@ -126,6 +126,25 @@ describe("CallRouter", () => {
                 tx: { total: 100, total_bytes: 5000, loss: 2 },
                 rx: { total: 98, total_bytes: 4900, loss: 1 },
             });
+        });
+
+        it("OFFICIAL call:stats does NOT emit 'stats' (WebRTC transport is source of truth)", () => {
+            const socket = makeMockSocket();
+            const router = new CallRouter(socket as unknown as DeviceSocket);
+            router.start();
+            const call = makeCall("call-1", "OFFICIAL");
+            router.register(call);
+            const cb = vi.fn();
+            call.on("stats", cb);
+
+            const stats: ServerCallStats = {
+                rtt: { client: { min: 10, max: 30, avg: 20 }, whatsapp: { min: 5, max: 15, avg: 9 } },
+                tx: { total: 100, total_bytes: 5000, loss: 2 },
+                rx: { total: 98, total_bytes: 4900, loss: 1 },
+            };
+            emitSocket(socket, "call:stats", call.id, stats);
+
+            expect(cb).not.toHaveBeenCalled();
         });
 
         it("call:peer:muted emits peerMuted with the server-reported value", () => {

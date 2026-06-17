@@ -93,7 +93,10 @@ export class CallRouter {
             const call = this.calls.get(id);
             if (!call) return;
             call.emit("serverStats", stats);
-            call.emit("stats", toCallStats(stats));
+            // UNOFFICIAL (relay) calls have no local transport stats — server view
+            // is the only stats source. OFFICIAL calls expose WebRTC peer-measured
+            // stats via `Call.wireTransport`, so don't double-emit here.
+            if (call.type === "UNOFFICIAL") call.emit("stats", toCallStats(stats));
         });
         bind("call:peer:muted", (id, muted) => {
             this.calls.get(id)?.emit("peerMuted", muted);
