@@ -189,8 +189,12 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
                 return resolve({ err: response.result });
             }
 
-            const { id, type, peer } = response.result;
-            const call = new Call(id, type, "OUTGOING", peer, this.device.token, "RINGING");
+            const { id, peer } = response.result;
+            // Trust device.callType (set by `device:init`) rather than the
+            // `call.start` response's `type` field — outgoing flows previously got
+            // OFFICIAL back for unofficial devices, which prevented the
+            // `call:stats` → `stats` projection from firing.
+            const call = new Call(id, this.device.callType, "OUTGOING", peer, this.device.token, "RINGING");
             this.router.register(call);
             const outgoing = CallOutgoingProxy(call, this.wss, this.mediaManager, preBuiltTransport);
             resolve({ call: outgoing });

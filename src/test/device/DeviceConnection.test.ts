@@ -306,6 +306,24 @@ describe("DeviceConnection — calls map cleanup", () => {
             const [, , mediaPlan] = callStartEmit as [string, string, { type: string }];
             expect(mediaPlan.type).toBe("none");
         });
+
+        it("outgoing Call.type follows device.callType, not the server response 'type'", async () => {
+            const { dc, socket } = makeDeviceConnection();
+            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, false);
+
+            // Server lies and reports OFFICIAL in the call.start response.
+            socket.emit.mockImplementation((event: string, ...args: unknown[]) => {
+                if (event === "call.start") {
+                    const callback = args[args.length - 1] as (r: unknown) => void;
+                    callback({ type: "success", result: { id: "call-out-1", type: "OFFICIAL", peer } });
+                }
+            });
+
+            await dc.startCall("5511999999999");
+
+            const call = callsMap(dc).get("call-out-1") as { type: string } | undefined;
+            expect(call?.type).toBe("UNOFFICIAL");
+        });
     });
 
     describe("restriction", () => {
