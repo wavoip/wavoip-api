@@ -104,23 +104,37 @@ describe("Call.wireTransport", () => {
         expect(cb).toHaveBeenCalledWith(stats);
     });
 
-    it("UNOFFICIAL transport statsChanged is ignored (server call:stats is source of truth)", () => {
+    it("UNOFFICIAL transport statsChanged merges client-side fields into server-derived stats", () => {
         const call = makeCall("call-1", "UNOFFICIAL");
         const transport = makeMockTransport();
+        call.wireTransport(transport);
         const cb = vi.fn();
         call.on("stats", cb);
 
-        const stats: CallStats = {
-            rtt: { min: 1, max: 5, avg: 3 },
-            tx: { total: 100, total_bytes: 5000, loss: 2, bitrate_kbps: 0, audio_level: 0 },
-            rx: { total: 98, total_bytes: 4900, loss: 1, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
-            audio_context: { output_latency_ms: 0 },
+        const serverStats: ServerCallStats = {
+            rtt: { client: { min: 10, max: 30, avg: 20 }, whatsapp: { min: 5, max: 15, avg: 9 } },
+            tx: { total: 100, total_bytes: 5000, loss: 2 },
+            rx: { total: 98, total_bytes: 4900, loss: 1 },
         };
+        call.applyServerStats(serverStats);
 
-        call.wireTransport(transport);
-        (transport as unknown as EventEmitter<TransportEvents>).emit("statsChanged", stats);
+        const transportStats: CallStats = {
+            rtt: { min: 0, max: 0, avg: 0 },
+            tx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 60, audio_level: 0.3 },
+            rx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 58, audio_level: 0.4, jitter_ms: 12 },
+            audio_context: { output_latency_ms: 42 },
+        };
+        (transport as unknown as EventEmitter<TransportEvents>).emit("statsChanged", transportStats);
 
-        expect(cb).not.toHaveBeenCalled();
+        const last = cb.mock.calls[cb.mock.calls.length - 1][0] as CallStats;
+        expect(last.rtt).toEqual({ min: 10, max: 30, avg: 20 });
+        expect(last.tx.total_bytes).toBe(5000);
+        expect(last.tx.bitrate_kbps).toBe(60);
+        expect(last.tx.audio_level).toBe(0.3);
+        expect(last.rx.bitrate_kbps).toBe(58);
+        expect(last.rx.audio_level).toBe(0.4);
+        expect(last.rx.jitter_ms).toBe(12);
+        expect(last.audio_context.output_latency_ms).toBe(42);
     });
 
     it("transport iceDiagnostics → emits iceDiagnostics", () => {

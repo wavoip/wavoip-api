@@ -1,4 +1,4 @@
-import { type Call, toCallStats } from "@/modules/device/Call";
+import type { Call } from "@/modules/device/Call";
 import type { DeviceSocket, ServerEvents } from "@/modules/device/WebSocket";
 import type { Unsubscribe } from "@/modules/shared/EventEmitter";
 
@@ -90,13 +90,7 @@ export class CallRouter {
             this.calls.delete(id);
         });
         bind("call:stats", (id, stats) => {
-            const call = this.calls.get(id);
-            if (!call) return;
-            call.emit("serverStats", stats);
-            // UNOFFICIAL (relay) calls have no local transport stats — server view
-            // is the only stats source. OFFICIAL calls expose WebRTC peer-measured
-            // stats via `Call.wireTransport`, so don't double-emit here.
-            if (call.type === "UNOFFICIAL") call.emit("stats", toCallStats(stats));
+            this.calls.get(id)?.applyServerStats(stats);
         });
         bind("call:peer:muted", (id, muted) => {
             this.calls.get(id)?.emit("peerMuted", muted);

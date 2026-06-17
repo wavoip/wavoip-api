@@ -22,6 +22,9 @@ export type CallEvents = {
 };
 
 export class Call extends EventEmitter<CallEvents> {
+    private lastServerProjection: CallStats | null = null;
+    private lastTransportStats: CallStats | null = null;
+
     constructor(
         public readonly id: string,
         public readonly type: CallType,
@@ -52,6 +55,42 @@ export class Call extends EventEmitter<CallEvents> {
     fail(): boolean { return this.transition("fail"); }
 
     /**
+     * Apply a server-pushed `call:stats` payload. Called by CallRouter. Emits
+     * `serverStats` for retro-compat and — for UNOFFICIAL calls only — caches
+     * the server projection so `wireTransport`'s next transport-stats merge
+     * can produce the combined `stats` snapshot. Server-only RTT/loss/totals
+     * merge with client-side bitrate/level/jitter/output-latency from the WS
+     * transport (no other code path can measure those).
+     */
+    applyServerStats(stats: ServerCallStats): void {
+        this.emit("serverStats", stats);
+        if (this.type !== "UNOFFICIAL") return;
+        this.lastServerProjection = toCallStats(stats);
+        this.emit("stats", this.mergeUnofficialStats());
+    }
+
+    private mergeUnofficialStats(): CallStats {
+        const base = this.lastServerProjection ?? makeEmptyCallStats();
+        const t = this.lastTransportStats;
+        if (!t) return base;
+        return {
+            rtt: base.rtt,
+            tx: {
+                ...base.tx,
+                bitrate_kbps: t.tx.bitrate_kbps,
+                audio_level: t.tx.audio_level,
+            },
+            rx: {
+                ...base.rx,
+                bitrate_kbps: t.rx.bitrate_kbps,
+                audio_level: t.rx.audio_level,
+                jitter_ms: t.rx.jitter_ms,
+            },
+            audio_context: { ...t.audio_context },
+        };
+    }
+
+    /**
      * Subscribe to transport events. Called after construction once a
      * WebRTC/WebSocket transport is ready. Replays any ICE diagnostics the
      * transport gathered before being wired so late listeners catch up.
@@ -65,10 +104,16 @@ export class Call extends EventEmitter<CallEvents> {
         transport.on("peerMuted", (m) => this.emit("peerMuted", m));
 
         // OFFICIAL calls use WebRTC peer-measured stats as source of truth.
-        // UNOFFICIAL (relay) calls have no usable transport stats and rely on
-        // server-pushed `call:stats` (routed via CallRouter).
+        // UNOFFICIAL (relay) calls take RTT/loss/totals from server `call:stats` but
+        // merge client-side fields (bitrate, audio level, jitter, output latency) from
+        // the WebSocket transport — only the client can measure those.
         if (this.type === "OFFICIAL") {
             transport.on("statsChanged", (s) => this.emit("stats", s));
+        } else {
+            transport.on("statsChanged", (s) => {
+                this.lastTransportStats = s;
+                this.emit("stats", this.mergeUnofficialStats());
+            });
         }
 
         // ICE events come only from WebRTC transports. Narrow via the kind
@@ -120,6 +165,15 @@ export function toCallStats(s: ServerCallStats): CallStats {
         rtt: { ...s.rtt.client },
         tx: { ...s.tx, bitrate_kbps: 0, audio_level: 0 },
         rx: { ...s.rx, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
+        audio_context: { output_latency_ms: 0 },
+    };
+}
+
+function makeEmptyCallStats(): CallStats {
+    return {
+        rtt: { min: 0, max: 0, avg: 0 },
+        tx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0 },
+        rx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
         audio_context: { output_latency_ms: 0 },
     };
 }
