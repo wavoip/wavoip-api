@@ -84,7 +84,7 @@ describe("Call.wireTransport", () => {
         expect(cb).toHaveBeenCalledWith(true);
     });
 
-    it("transport statsChanged → emits stats", () => {
+    it("transport statsChanged is ignored — server call:stats is source of truth", () => {
         const call = makeCall();
         const transport = makeMockTransport();
         const cb = vi.fn();
@@ -99,7 +99,7 @@ describe("Call.wireTransport", () => {
         call.wireTransport(transport);
         (transport as unknown as EventEmitter<TransportEvents>).emit("statsChanged", stats);
 
-        expect(cb).toHaveBeenCalledWith(stats);
+        expect(cb).not.toHaveBeenCalled();
     });
 
     it("transport iceDiagnostics → emits iceDiagnostics", () => {

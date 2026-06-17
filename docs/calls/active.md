@@ -57,8 +57,8 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 | `peerMute`          | —                   | Parte remota silenciou o microfone.                                                                                    |
 | `peerUnmute`        | —                   | Parte remota ativou o microfone.                                                                                       |
 | `connectionStatus`  | `TransportStatus`   | Estado de conexão do transporte de mídia mudou.                                                                        |
-| `stats`             | `CallStats`         | Estatísticas periódicas de qualidade medidas no cliente (RTT, perda de pacotes).                                       |
-| `serverStats`       | `ServerCallStats`   | Estatísticas agregadas pelos servidores Wavoip (RTT separado: servidor↔cliente e servidor↔WhatsApp).                   |
+| `stats`             | `CallStats`         | Estatísticas periódicas de qualidade da chamada (RTT cliente, pacotes, perda). Projeção do payload `serverStats` — funciona igual em chamadas oficiais e não oficiais. |
+| `serverStats`       | `ServerCallStats`   | Estatísticas brutas agregadas pelos servidores Wavoip, com RTT separado (servidor↔cliente e servidor↔WhatsApp).        |
 | `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE (duração, candidatos por tipo, STUN/TURN alcançados, par selecionado). Replay em listeners tardios. |
 | `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado (`STUN_UNREACHABLE`, `ICE_GATHERING_TIMEOUT`, `ICE_CONNECTION_FAILED`, `NO_HOST_CANDIDATES`, `SYMMETRIC_NAT_SUSPECTED`). Todos os problemas observados são re-emitidos para listeners tardios. |
 | `error`             | `string`            | Ocorreu um erro no nível de transporte.                                                                                |
@@ -108,7 +108,7 @@ analyser.getByteFrequencyData(dataArray)
 
 ## Estatísticas de chamada
 
-O evento `stats` é emitido periodicamente com um objeto `CallStats` (medido no cliente). `serverStats` traz o agregado dos servidores Wavoip com RTT separado por trecho:
+Os servidores Wavoip são a fonte da verdade para estatísticas de chamada. O evento `stats` é uma projeção de `serverStats` no formato `CallStats` — usa o RTT do trecho servidor↔cliente. Use `serverStats` quando precisar do RTT servidor↔WhatsApp separadamente.
 
 ```typescript
 type CallStats = {

@@ -105,6 +105,29 @@ describe("CallRouter", () => {
             expect(cb).toHaveBeenCalledWith(stats);
         });
 
+        it("call:stats also emits 'stats' projected from client-leg RTT and tx/rx", () => {
+            const socket = makeMockSocket();
+            const router = new CallRouter(socket as unknown as DeviceSocket);
+            router.start();
+            const call = makeCall();
+            router.register(call);
+            const cb = vi.fn();
+            call.on("stats", cb);
+
+            const stats: ServerCallStats = {
+                rtt: { client: { min: 10, max: 30, avg: 20 }, whatsapp: { min: 5, max: 15, avg: 9 } },
+                tx: { total: 100, total_bytes: 5000, loss: 2 },
+                rx: { total: 98, total_bytes: 4900, loss: 1 },
+            };
+            emitSocket(socket, "call:stats", call.id, stats);
+
+            expect(cb).toHaveBeenCalledWith({
+                rtt: { min: 10, max: 30, avg: 20 },
+                tx: { total: 100, total_bytes: 5000, loss: 2 },
+                rx: { total: 98, total_bytes: 4900, loss: 1 },
+            });
+        });
+
         it("call:peer:muted emits peerMuted with the server-reported value", () => {
             const socket = makeMockSocket();
             const router = new CallRouter(socket as unknown as DeviceSocket);

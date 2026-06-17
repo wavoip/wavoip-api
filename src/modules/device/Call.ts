@@ -63,7 +63,8 @@ export class Call extends EventEmitter<CallEvents> {
         // is now driven exclusively by the signaling `call:*` terminal events (B3).
         transport.on("statusChanged", (s) => this.emit("connectionStatus", s));
         transport.on("peerMuted", (m) => this.emit("peerMuted", m));
-        transport.on("statsChanged", (s) => this.emit("stats", s));
+        // Local transport stats are intentionally ignored — server-pushed `call:stats`
+        // is the single source of truth for both OFFICIAL and UNOFFICIAL calls.
 
         // ICE events come only from WebRTC transports. Narrow via the kind
         // discriminator so the WS path doesn't see a no-op replay block, and so
@@ -103,6 +104,19 @@ const TRANSITIONS: Record<TransitionName, { allow: (s: CallStatus) => boolean; t
 };
 
 export type CallType = "OFFICIAL" | "UNOFFICIAL";
+
+/**
+ * Project server-pushed ServerCallStats onto the consumer-facing CallStats shape.
+ * Uses the client-leg RTT (device ↔ server) — the same value already shown in the
+ * status-bar ping indicator. The whatsapp-leg RTT remains available via `serverStats`.
+ */
+export function toCallStats(s: ServerCallStats): CallStats {
+    return {
+        rtt: { ...s.rtt.client },
+        tx: { ...s.tx },
+        rx: { ...s.rx },
+    };
+}
 
 export type Peer = {
     phone: string;
