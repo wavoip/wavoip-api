@@ -258,52 +258,55 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     }
 
     private async getStats(pc: RTCPeerConnection) {
-        const stats = await pc.getStats();
-
+        const report = await pc.getStats();
         let curBytesReceived = 0;
         let curBytesSent = 0;
 
-        for (const stat of stats.values()) {
-            if (stat.type === "inbound-rtp" && stat.kind === "audio") {
-                const inbound = stat as RTCInboundRtpStreamStats & { audioLevel?: number; jitter?: number };
-                if (inbound.bytesReceived) {
-                    this.stats.rx.total_bytes += inbound.bytesReceived;
-                    curBytesReceived = inbound.bytesReceived;
-                }
-                if (inbound.packetsLost) this.stats.rx.loss = inbound.packetsLost;
-                if (inbound.packetsReceived) this.stats.rx.total = inbound.packetsReceived;
-                if (typeof inbound.audioLevel === "number") this.stats.rx.audio_level = inbound.audioLevel;
-                if (typeof inbound.jitter === "number") this.stats.rx.jitter_ms = inbound.jitter * 1000;
-            }
-
-            if (stat.type === "outbound-rtp" && stat.kind === "audio") {
-                const outbound = stat as RTCOutboundRtpStreamStats;
-                if (outbound.bytesSent) {
-                    this.stats.tx.total_bytes += outbound.bytesSent;
-                    curBytesSent = outbound.bytesSent;
-                }
-            }
-
-            if (stat.type === "media-source" && (stat as { kind?: string }).kind === "audio") {
-                const src = stat as { audioLevel?: number };
-                if (typeof src.audioLevel === "number") this.stats.tx.audio_level = src.audioLevel;
-            }
-
-            if (stat.type === "remote-inbound-rtp" && stat.kind === "audio") {
-                if (stat.packetsLost) this.stats.tx.loss = stat.packetsLost;
-                if (stat.packetsReceived) this.stats.tx.total = stat.packetsReceived;
-
-                if (stat.roundTripTime && stat.roundTripTimeMeasurements) {
-                    this.stats.rtt.avg += (stat.roundTripTime - this.stats.rtt.avg) / stat.roundTripTimeMeasurements;
-
-                    if (this.stats.rtt.min === 0 || this.stats.rtt.min > stat.roundTripTime)
-                        this.stats.rtt.min = stat.roundTripTime;
-
-                    if (this.stats.rtt.max < stat.roundTripTime) this.stats.rtt.max = stat.roundTripTime;
-                }
-            }
+        for (const stat of report.values()) {
+            if (isAudioInbound(stat)) curBytesReceived = this.absorbInbound(stat);
+            else if (isAudioOutbound(stat)) curBytesSent = this.absorbOutbound(stat);
+            else if (isAudioMediaSource(stat)) this.absorbMediaSource(stat);
+            else if (isAudioRemoteInbound(stat)) this.absorbRemoteInbound(stat);
         }
 
+        this.updateBitrateSample(curBytesReceived, curBytesSent);
+        this.stats.audio_context.output_latency_ms = this.mediaManager.audioContext.outputLatency * 1000;
+
+        this.emit("statsChanged", this.stats);
+    }
+
+    private absorbInbound(stat: RTCInboundRtpStreamStats & { audioLevel?: number; jitter?: number }): number {
+        if (stat.bytesReceived) this.stats.rx.total_bytes += stat.bytesReceived;
+        if (stat.packetsLost) this.stats.rx.loss = stat.packetsLost;
+        if (stat.packetsReceived) this.stats.rx.total = stat.packetsReceived;
+        if (typeof stat.audioLevel === "number") this.stats.rx.audio_level = stat.audioLevel;
+        if (typeof stat.jitter === "number") this.stats.rx.jitter_ms = stat.jitter * 1000;
+        return stat.bytesReceived ?? 0;
+    }
+
+    private absorbOutbound(stat: RTCOutboundRtpStreamStats): number {
+        if (stat.bytesSent) this.stats.tx.total_bytes += stat.bytesSent;
+        return stat.bytesSent ?? 0;
+    }
+
+    private absorbMediaSource(stat: { audioLevel?: number }): void {
+        if (typeof stat.audioLevel === "number") this.stats.tx.audio_level = stat.audioLevel;
+    }
+
+    private absorbRemoteInbound(stat: RemoteInboundAudioStat): void {
+        if (stat.packetsLost) this.stats.tx.loss = stat.packetsLost;
+        if (stat.packetsReceived) this.stats.tx.total = stat.packetsReceived;
+        if (!stat.roundTripTime || !stat.roundTripTimeMeasurements) return;
+        this.foldRtt(stat.roundTripTime, stat.roundTripTimeMeasurements);
+    }
+
+    private foldRtt(rtt: number, measurements: number): void {
+        this.stats.rtt.avg += (rtt - this.stats.rtt.avg) / measurements;
+        if (this.stats.rtt.min === 0 || this.stats.rtt.min > rtt) this.stats.rtt.min = rtt;
+        if (this.stats.rtt.max < rtt) this.stats.rtt.max = rtt;
+    }
+
+    private updateBitrateSample(curBytesReceived: number, curBytesSent: number): void {
         const now = performance.now();
         if (this.prevSampleTs > 0) {
             const dtSec = (now - this.prevSampleTs) / 1000;
@@ -315,9 +318,29 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         this.prevBytesReceived = curBytesReceived;
         this.prevBytesSent = curBytesSent;
         this.prevSampleTs = now;
-
-        this.stats.audio_context.output_latency_ms = this.mediaManager.audioContext.outputLatency * 1000;
-
-        this.emit("statsChanged", this.stats);
     }
+}
+
+type RemoteInboundAudioStat = RTCStats & {
+    kind: "audio";
+    packetsLost?: number;
+    packetsReceived?: number;
+    roundTripTime?: number;
+    roundTripTimeMeasurements?: number;
+};
+
+function isAudioInbound(s: RTCStats): s is RTCInboundRtpStreamStats & { audioLevel?: number; jitter?: number } {
+    return s.type === "inbound-rtp" && (s as RTCInboundRtpStreamStats).kind === "audio";
+}
+
+function isAudioOutbound(s: RTCStats): s is RTCOutboundRtpStreamStats {
+    return s.type === "outbound-rtp" && (s as RTCOutboundRtpStreamStats).kind === "audio";
+}
+
+function isAudioMediaSource(s: RTCStats): s is RTCStats & { audioLevel?: number } {
+    return s.type === "media-source" && (s as { kind?: string }).kind === "audio";
+}
+
+function isAudioRemoteInbound(s: RTCStats): s is RemoteInboundAudioStat {
+    return s.type === "remote-inbound-rtp" && (s as RemoteInboundAudioStat).kind === "audio";
 }

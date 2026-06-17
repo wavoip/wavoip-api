@@ -1,4 +1,5 @@
 import type { CallStats } from "@/modules/call/Stats";
+import { rmsInt16 } from "@/modules/media/audio-level";
 import type { Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
@@ -246,17 +247,6 @@ class AudioInput {
         this.source = null;
         this.lastLevel = 0;
     }
-}
-
-function rmsInt16(buf: ArrayBuffer): number {
-    const samples = new Int16Array(buf);
-    if (samples.length === 0) return 0;
-    let sum = 0;
-    for (let i = 0; i < samples.length; i += 1) {
-        const s = samples[i] / 32768;
-        sum += s * s;
-    }
-    return Math.sqrt(sum / samples.length);
 }
 
 class AudioOutput {

@@ -1,4 +1,4 @@
-import type { CallStats } from "@/modules/call/Stats";
+import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import { Call } from "@/modules/device/Call";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { IRTCTransport, Events as TransportEvents } from "@/modules/media/ITransport";
