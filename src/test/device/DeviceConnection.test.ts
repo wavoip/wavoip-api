@@ -101,9 +101,9 @@ function makeDeviceConnection() {
     return { dc, socket };
 }
 
-/** Access the private calls map */
+/** Access the routing table inside the DeviceConnection's CallRouter. */
 function callsMap(dc: DeviceConnection): Map<string, unknown> {
-    return (dc as unknown as { calls: Map<string, unknown> }).calls;
+    return (dc as unknown as { router: { calls: Map<string, unknown> } }).router.calls;
 }
 
 const offerProps = (id: string) => ({
