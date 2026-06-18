@@ -5,6 +5,7 @@ import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagn
 import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
+import { forwardEvents } from "@/modules/shared/forwardEvents";
 
 export type CallActiveEvents = {
     error: [err: string];
@@ -68,6 +69,15 @@ export function CallActiveProxy(
         return Promise.resolve(transport.stop()).catch(() => {});
     };
 
+    // Pure 1:1 relays — kept type-checked via the typed mapping.
+    forwardEvents(call, emitter, {
+        stats: "stats",
+        serverStats: "serverStats",
+        connectionStatus: "connectionStatus",
+        status: "status",
+    });
+
+    // Side-effecting subscribers (dispose, rename, buffered replay) stay inline.
     call.on("failed", (err) => {
         emitter.emit("error", err);
         void dispose();
@@ -79,18 +89,6 @@ export function CallActiveProxy(
     call.on("ended", () => {
         emitter.emit("ended");
         void dispose();
-    });
-    call.on("stats", (stats) => {
-        emitter.emit("stats", stats);
-    });
-    call.on("serverStats", (stats) => {
-        emitter.emit("serverStats", stats);
-    });
-    call.on("connectionStatus", (status) => {
-        emitter.emit("connectionStatus", status);
-    });
-    call.on("status", (status) => {
-        emitter.emit("status", status);
     });
     call.on("iceDiagnostics", (diag) => {
         lastIceDiagnostics = diag;

@@ -3,6 +3,7 @@ import type { CallPeer } from "@/modules/call/Peer";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
+import { forwardEvents } from "@/modules/shared/forwardEvents";
 
 export type OfferEvents = {
     acceptedElsewhere: [];
@@ -76,9 +77,13 @@ export function OfferProxy(
             dispose();
         }),
     );
-    callUnsubs.push(call.on("status", (status) => emitter.emit("status", status)));
-    callUnsubs.push(call.on("iceDiagnostics", (diag) => emitter.emit("iceDiagnostics", diag)));
-    callUnsubs.push(call.on("connectivityIssue", (issue) => emitter.emit("connectivityIssue", issue)));
+    callUnsubs.push(
+        forwardEvents(call, emitter, {
+            status: "status",
+            iceDiagnostics: "iceDiagnostics",
+            connectivityIssue: "connectivityIssue",
+        }),
+    );
 
     let onAcceptedElsewhereUnsub: Unsubscribe | undefined;
     let onRejectedElsewhereUnsub: Unsubscribe | undefined;
