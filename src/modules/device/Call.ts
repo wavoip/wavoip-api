@@ -1,7 +1,7 @@
 import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import type { MediaPlan } from "@/modules/device/WebSocket";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
-import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
+import { type ITransport, type TransportStatus, isRTCTransport } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
 export type CallEvents = {
@@ -64,13 +64,16 @@ export class Call extends EventEmitter<CallEvents> {
         transport.on("statusChanged", (s) => this.emit("connectionStatus", s));
         transport.on("peerMuted", (m) => this.emit("peerMuted", m));
         transport.on("statsChanged", (s) => this.emit("stats", s));
+
+        // ICE events come only from WebRTC transports. Narrow via the kind
+        // discriminator so the WS path doesn't see a no-op replay block, and so
+        // the WebRTC-only fields stop polluting the base ITransport surface.
+        if (!isRTCTransport(transport)) return;
         transport.on("iceDiagnostics", (d) => this.emit("iceDiagnostics", d));
         transport.on("connectivityIssue", (i) => this.emit("connectivityIssue", i));
 
         if (transport.lastDiagnostics) this.emit("iceDiagnostics", transport.lastDiagnostics);
-        if (transport.emittedConnectivityIssues) {
-            for (const issue of transport.emittedConnectivityIssues) this.emit("connectivityIssue", issue);
-        }
+        for (const issue of transport.emittedConnectivityIssues) this.emit("connectivityIssue", issue);
     }
 
     static CreateOffer(id: string, type: CallType, peer: Peer, deviceToken: string) {

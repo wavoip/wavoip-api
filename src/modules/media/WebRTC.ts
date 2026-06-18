@@ -14,6 +14,7 @@ import { EventEmitter } from "@/modules/shared/EventEmitter";
 const SYMMETRIC_NAT_DETECTION_WINDOW_MS = 10_000;
 
 export class WebRTCTransport extends EventEmitter<Events> implements ITransport {
+    readonly kind = "webrtc" as const;
     status: TransportStatus = "disconnected";
     peerMuted = false;
     audioAnalyser: Promise<AnalyserNode>;

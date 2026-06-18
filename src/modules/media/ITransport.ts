@@ -3,6 +3,7 @@ import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagn
 import type { EventEmitter } from "@/modules/shared/EventEmitter";
 
 export type TransportStatus = "disconnected" | "connected" | "connecting" | "reconnecting";
+export type TransportKind = "webrtc" | "ws";
 
 export type Events = {
     statusChanged: [status: TransportStatus];
@@ -13,16 +14,31 @@ export type Events = {
 };
 
 export interface ITransport extends EventEmitter<Events> {
+    readonly kind: TransportKind;
     status: TransportStatus;
     peerMuted: boolean;
     audioAnalyser: Promise<AnalyserNode>;
     stats: CallStats;
 
-    /** Last `iceDiagnostics` payload emitted, if any. Used by Call.wireTransport to replay. */
-    lastDiagnostics?: IceDiagnostics | null;
-    /** Set of `connectivityIssue`s already fired. Used by Call.wireTransport to replay. */
-    emittedConnectivityIssues?: ReadonlySet<ConnectivityIssue>;
-
     start(): Promise<void>;
     stop(): Promise<void>;
+}
+
+/**
+ * WebRTC-specific surface. Adds SDP-handshake methods and replay state for ICE
+ * diagnostics so Call.wireTransport can catch late listeners up.
+ *
+ * Use `isRTCTransport` to narrow an `ITransport` to this richer type.
+ */
+export interface IRTCTransport extends ITransport {
+    readonly kind: "webrtc";
+    readonly answer: Promise<RTCSessionDescriptionInit>;
+    lastDiagnostics: IceDiagnostics | null;
+    emittedConnectivityIssues: ReadonlySet<ConnectivityIssue>;
+    createOffer(): Promise<string>;
+    setAnswer(sdp: string): Promise<void>;
+}
+
+export function isRTCTransport(t: ITransport): t is IRTCTransport {
+    return t.kind === "webrtc";
 }
