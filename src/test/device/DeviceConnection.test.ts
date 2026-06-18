@@ -22,9 +22,22 @@ const { makeSocket, getSocket } = vi.hoisted(() => {
                 listeners.get(event)?.push(cb);
                 return this;
             },
+            off(event: string, cb: SocketListener) {
+                const arr = listeners.get(event);
+                if (!arr) return this;
+                listeners.set(
+                    event,
+                    arr.filter((fn) => fn !== cb),
+                );
+                return this;
+            },
             /** Simulate a message arriving from the server */
             receive(event: string, ...args: unknown[]) {
                 for (const cb of listeners.get(event) ?? []) cb(...args);
+            },
+            /** Test helper — count listeners for an event */
+            listenerCount(event: string): number {
+                return listeners.get(event)?.length ?? 0;
             },
         };
         _last = s;
