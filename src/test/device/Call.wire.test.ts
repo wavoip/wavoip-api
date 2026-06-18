@@ -1,7 +1,7 @@
 import type { CallStats } from "@/modules/call/Stats";
 import { Call } from "@/modules/device/Call";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
-import type { ITransport, Events as TransportEvents } from "@/modules/media/ITransport";
+import type { IRTCTransport, Events as TransportEvents } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import { describe, expect, it, vi } from "vitest";
 
@@ -11,8 +11,9 @@ function makeCall(id = "call-1") {
     return Call.CreateOffer(id, "OFFICIAL", peer, "device-token");
 }
 
-function makeMockTransport(): ITransport {
-    const t = new EventEmitter<TransportEvents>() as unknown as ITransport;
+function makeMockTransport(kind: "webrtc" | "ws" = "webrtc"): IRTCTransport {
+    const t = new EventEmitter<TransportEvents>() as unknown as IRTCTransport;
+    (t as unknown as { kind: string }).kind = kind;
     t.status = "disconnected";
     t.peerMuted = false;
     t.audioAnalyser = Promise.resolve({} as AnalyserNode);
@@ -21,6 +22,8 @@ function makeMockTransport(): ITransport {
         tx: { total: 0, total_bytes: 0, loss: 0 },
         rx: { total: 0, total_bytes: 0, loss: 0 },
     };
+    t.lastDiagnostics = null;
+    Object.defineProperty(t, "emittedConnectivityIssues", { value: new Set(), writable: true, configurable: true });
     t.start = vi.fn().mockResolvedValue(undefined);
     t.stop = vi.fn().mockResolvedValue(undefined);
     return t;
@@ -149,6 +152,28 @@ describe("Call.wireTransport", () => {
         call.wireTransport(transport);
 
         expect(cb).toHaveBeenCalledWith(diag);
+    });
+
+    it("skips ICE event subscriptions when transport kind is 'ws'", () => {
+        const call = makeCall();
+        const transport = makeMockTransport("ws");
+        const iceCb = vi.fn();
+        const issueCb = vi.fn();
+        call.on("iceDiagnostics", iceCb);
+        call.on("connectivityIssue", issueCb);
+
+        call.wireTransport(transport);
+        (transport as unknown as EventEmitter<TransportEvents>).emit("iceDiagnostics", {
+            gatheringDurationMs: 1,
+            gatheringTimedOut: false,
+            candidatesByType: { host: 0, srflx: 0, prflx: 0, relay: 0 },
+            stunReached: false,
+            turnReached: false,
+        });
+        (transport as unknown as EventEmitter<TransportEvents>).emit("connectivityIssue", "STUN_UNREACHABLE");
+
+        expect(iceCb).not.toHaveBeenCalled();
+        expect(issueCb).not.toHaveBeenCalled();
     });
 
     it("replays transport.emittedConnectivityIssues when wired late", () => {

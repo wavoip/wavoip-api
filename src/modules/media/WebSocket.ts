@@ -12,6 +12,7 @@ const RECONNECT_DELAY_MS = 1_000;
 const RECONNECT_TIMEOUT_MS = 30_000;
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
+    public readonly kind = "ws" as const;
     public status: TransportStatus = "connecting";
     public peerMuted = false;
     public audioAnalyser: Promise<AnalyserNode>;
