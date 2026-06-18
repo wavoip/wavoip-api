@@ -73,6 +73,39 @@ describe("CallActive", () => {
             expect(active.connection_status).toBe("connected");
         });
 
+        it("status reflects later mutations of call.status", () => {
+            const call = makeCall();
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
+
+            expect(active.status).toBe("ACTIVE");
+            call.status = "ENDED";
+            expect(active.status).toBe("ENDED");
+        });
+
+        it("connection_status reflects later mutations of transport.status", () => {
+            const call = makeCall();
+            const transport = makeMockTransport({ status: "connecting" } as Partial<ITransport>);
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
+
+            expect(active.connection_status).toBe("connecting");
+            transport.status = "connected";
+            expect(active.connection_status).toBe("connected");
+        });
+
+        it("peer.muted reflects later mutations of transport.peerMuted", () => {
+            const call = makeCall();
+            const transport = makeMockTransport({ peerMuted: false } as Partial<ITransport>);
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
+
+            expect(active.peer.muted).toBe(false);
+            transport.peerMuted = true;
+            expect(active.peer.muted).toBe(true);
+        });
+
         it("audio_analyser reads transport.audioAnalyser", async () => {
             const call = makeCall();
             

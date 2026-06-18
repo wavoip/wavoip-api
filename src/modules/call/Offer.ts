@@ -86,13 +86,11 @@ export function OfferProxy(
     let onEndUnsub: Unsubscribe | undefined;
     let onStatusUnsub: Unsubscribe | undefined;
 
-    return {
+    const proxy = {
         id: call.id,
         type: call.type,
         device_token: call.deviceToken,
         direction: call.direction,
-        status: call.status,
-        peer: { ...call.peer, muted: false },
 
         async accept(): Promise<{ call: CallActive; err: null } | { call: null; err: string }> {
             try {
@@ -143,5 +141,13 @@ export function OfferProxy(
             onStatusUnsub?.();
             onStatusUnsub = emitter.on("status", cb);
         },
-    };
+    } as Offer;
+
+    // Live getters — see CallActive.ts.
+    Object.defineProperties(proxy, {
+        status: { get: () => call.status, enumerable: true },
+        peer: { get: () => ({ ...call.peer, muted: false }), enumerable: true },
+    });
+
+    return proxy;
 }

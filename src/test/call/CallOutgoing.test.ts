@@ -53,6 +53,19 @@ function makeMockPreBuiltTransport() {
 }
 
 describe("CallOutgoing", () => {
+    describe("getters", () => {
+        it("status reflects later mutations of call.status", () => {
+            const call = makeCall();
+            const socket = makeMockSocket();
+            const mm = makeMockMediaManager();
+            const outgoing = CallOutgoingProxy(call, socket, mm as never);
+
+            expect(outgoing.status).toBe("RINGING");
+            call.status = "ACTIVE";
+            expect(outgoing.status).toBe("ACTIVE");
+        });
+    });
+
     describe("terminal cleanup (mic release pre-answer)", () => {
         it("stops preBuiltTransport on bus 'rejected'", () => {
             const call = makeCall();

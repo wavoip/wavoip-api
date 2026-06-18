@@ -48,9 +48,18 @@ describe("Offer", () => {
 
         it("peer spreads call.peer and adds muted: false", () => {
             const call = makeCall();
-            
+
             const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
             expect(offer.peer).toEqual({ ...peer, muted: false });
+        });
+
+        it("status reflects later mutations of call.status", () => {
+            const call = makeCall();
+            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
+
+            expect(offer.status).toBe("CALLING");
+            call.status = "ACTIVE";
+            expect(offer.status).toBe("ACTIVE");
         });
     });
 

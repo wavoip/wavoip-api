@@ -109,14 +109,11 @@ export function CallActiveProxy(
     let onConnectionStatusUnsub: Unsubscribe | undefined;
     let onStatusUnsub: Unsubscribe | undefined;
 
-    return {
+    const proxy = {
         id: call.id,
         type: call.type,
         device_token: call.deviceToken,
         direction: call.direction,
-        status: call.status,
-        peer: { ...call.peer, muted: transport.peerMuted },
-        connection_status: transport.status,
         audio_analyser: transport.audioAnalyser,
 
         mute(): Promise<{ err: string | null }> {
@@ -190,5 +187,15 @@ export function CallActiveProxy(
             onStatusUnsub?.();
             onStatusUnsub = emitter.on("status", cb);
         },
-    };
+    } as CallActive;
+
+    // Live getters — Call.status, transport.status and transport.peerMuted change over the
+    // lifetime of the proxy. Snapshotting would freeze them at construction time.
+    Object.defineProperties(proxy, {
+        status: { get: () => call.status, enumerable: true },
+        connection_status: { get: () => transport.status, enumerable: true },
+        peer: { get: () => ({ ...call.peer, muted: transport.peerMuted }), enumerable: true },
+    });
+
+    return proxy;
 }
