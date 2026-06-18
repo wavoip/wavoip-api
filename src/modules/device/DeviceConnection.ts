@@ -2,6 +2,7 @@ import { type CallActive, CallActiveProxy } from "@/modules/call/CallActive";
 import { type CallOutgoing, CallOutgoingProxy } from "@/modules/call/CallOutgoing";
 import { type Offer, OfferProxy } from "@/modules/call/Offer";
 import { Call } from "@/modules/device/Call";
+import { CallRouter } from "@/modules/device/CallRouter";
 import { DeviceModel } from "@/modules/device/Device";
 import type { Contact, DeviceStatus } from "@/modules/device/Device";
 import { type DeviceSocket, DeviceWebSocketFactory } from "@/modules/device/WebSocket";
@@ -47,9 +48,9 @@ export interface Device {
 export class DeviceConnection extends EventEmitter<Events> implements Device {
     private readonly wss: DeviceSocket;
     private readonly api: AxiosInstance;
+    private readonly router: CallRouter;
 
     private readonly device: DeviceModel;
-    private calls: Map<string, Call> = new Map();
 
     private _onStatusUnsub?: () => void;
     private _onQRCodeUnsub?: () => void;
@@ -67,6 +68,8 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         this.device = new DeviceModel(token);
         this.api = axios.create({ baseURL: `https://devices.wavoip.com/${this.device.token}` });
         this.wss = DeviceWebSocketFactory(token, platform);
+        this.router = new CallRouter(this.wss);
+        this.router.start();
         this.wss.on("disconnect", this.onDisconnect.bind(this));
 
         this.wss.on("device:init", (status, callType, contact, qrCode, restricted) => {
@@ -187,12 +190,8 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
             const { id, type, peer } = response.result;
             const call = new Call(id, type, "OUTGOING", peer, this.device.token, "RINGING");
-            call.wireSocket(this.wss);
-            call.on("ended", () => this.calls.delete(id));
-            call.on("unanswered", () => this.calls.delete(id));
-            call.on("rejected", () => this.calls.delete(id));
+            this.router.register(call);
             const outgoing = CallOutgoingProxy(call, this.wss, this.mediaManager, preBuiltTransport);
-            this.calls.set(id, call);
             resolve({ call: outgoing });
         });
 
@@ -296,9 +295,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         ackOffer();
 
         const call = this.device.receiveOffer(offerProps.id, this.device.callType, offerProps.peer);
-        call.wireSocket(this.wss);
-        call.on("ended", () => this.calls.delete(call.id));
-        call.on("unanswered", () => this.calls.delete(call.id));
+        const unregister = this.router.register(call);
 
         const offer = OfferProxy(call, {
             onAccept: (call) => {
@@ -314,13 +311,14 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
                 return Promise.reject("Unsupported media plan type");
             },
+            // Local reject: server may or may not echo `call:rejected`. Drop the
+            // router entry now so it can't leak if the server response never lands.
             onReject: (call) => {
                 this.wss.emit("call.reject", call.id, () => {});
-                this.calls.delete(call.id);
+                unregister();
             },
         });
 
-        this.calls.set(call.id, call);
         this.emit("offerReceived", offer);
     }
 
@@ -333,9 +331,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
         const active = CallActiveProxy(call, webRTC, this.mediaManager, {
             onEnd: (call) => {
-                this.wss.emit("call.end", call.id, () => {
-                    this.calls.delete(call.id);
-                });
+                this.wss.emit("call.end", call.id, () => {});
             },
         });
         call.wireTransport(webRTC);
@@ -347,9 +343,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         call.accept();
         const active = CallActiveProxy(call, wsTransport, this.mediaManager, {
             onEnd: (call) => {
-                this.wss.emit("call.end", call.id, () => {
-                    this.calls.delete(call.id);
-                });
+                this.wss.emit("call.end", call.id, () => {});
             },
         });
         call.wireTransport(wsTransport);
