@@ -63,9 +63,19 @@ export function CallOutgoingProxy(
 
         let transport: ITransport;
         if (preBuiltTransport && mediaPlan.type === "webRTC") {
+            // Defer marking `disposed` until handover succeeds. Otherwise a throw
+            // mid-await leaves preBuiltTransport orphaned (mic stream live, pc open)
+            // because the later dispose() short-circuits on the flag (B7).
+            try {
+                await preBuiltTransport.setAnswer(mediaPlan.sdp);
+                await preBuiltTransport.start();
+            } catch {
+                await preBuiltTransport.stop().catch(() => {});
+                disposed = true;
+                emitter.emit("ended");
+                return;
+            }
             disposed = true;
-            await preBuiltTransport.setAnswer(mediaPlan.sdp);
-            await preBuiltTransport.start();
             transport = preBuiltTransport;
         } else {
             await dispose();

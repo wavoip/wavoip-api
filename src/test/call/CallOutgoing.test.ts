@@ -173,7 +173,7 @@ describe("CallOutgoing", () => {
 
         it("no preBuiltTransport — terminal events do not throw", () => {
             const call = makeCall();
-            
+
             const socket = makeMockSocket();
             const mm = makeMockMediaManager();
 
@@ -182,6 +182,42 @@ describe("CallOutgoing", () => {
             expect(() => call.emit("ended")).not.toThrow();
             expect(() => call.emit("rejected")).not.toThrow();
             expect(() => call.emit("unanswered")).not.toThrow();
+        });
+
+        it("setAnswer throw during handover stops preBuiltTransport and emits 'ended' (B7)", async () => {
+            const call = makeCall();
+            const socket = makeMockSocket();
+            const mm = makeMockMediaManager();
+            const preBuilt = makeMockPreBuiltTransport();
+            preBuilt.setAnswer = vi.fn().mockRejectedValue(new Error("boom"));
+
+            const outgoing = CallOutgoingProxy(call, socket, mm as never, preBuilt);
+            const endedCb = vi.fn();
+            outgoing.on("ended", endedCb);
+
+            call.emit("answered", { type: "webRTC", sdp: "answer-sdp" });
+            await new Promise((r) => setTimeout(r, 0));
+
+            expect(preBuilt.stop).toHaveBeenCalledOnce();
+            expect(endedCb).toHaveBeenCalledOnce();
+        });
+
+        it("start() throw during handover stops preBuiltTransport and emits 'ended' (B7)", async () => {
+            const call = makeCall();
+            const socket = makeMockSocket();
+            const mm = makeMockMediaManager();
+            const preBuilt = makeMockPreBuiltTransport();
+            preBuilt.start = vi.fn().mockRejectedValue(new Error("boom"));
+
+            const outgoing = CallOutgoingProxy(call, socket, mm as never, preBuilt);
+            const endedCb = vi.fn();
+            outgoing.on("ended", endedCb);
+
+            call.emit("answered", { type: "webRTC", sdp: "answer-sdp" });
+            await new Promise((r) => setTimeout(r, 0));
+
+            expect(preBuilt.stop).toHaveBeenCalledOnce();
+            expect(endedCb).toHaveBeenCalledOnce();
         });
     });
 
