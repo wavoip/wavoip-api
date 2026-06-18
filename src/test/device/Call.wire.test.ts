@@ -225,6 +225,84 @@ describe("Call.wireSocket", () => {
 
         expect(cb).not.toHaveBeenCalled();
     });
+
+    it("returned Unsubscribe removes all socket listeners", () => {
+        const call = makeCall();
+        const socket = makeMockSocket();
+        const unsub = call.wireSocket(socket);
+        const ringingCb = vi.fn();
+        call.on("ringing", ringingCb);
+
+        unsub();
+        emitSocket(socket, "call:ringing", call.id);
+
+        expect(ringingCb).not.toHaveBeenCalled();
+    });
+
+    it("auto-disposes socket listeners after terminal call:ended (B2)", () => {
+        const call = makeCall();
+        const socket = makeMockSocket();
+        call.wireSocket(socket);
+        const ringingCb = vi.fn();
+        call.on("ringing", ringingCb);
+
+        emitSocket(socket, "call:ended", call.id);
+        emitSocket(socket, "call:ringing", call.id);
+
+        expect(ringingCb).not.toHaveBeenCalled();
+    });
+
+    it("auto-disposes socket listeners after terminal call:rejected (B2)", () => {
+        const call = makeCall();
+        const socket = makeMockSocket();
+        call.wireSocket(socket);
+        const ringingCb = vi.fn();
+        call.on("ringing", ringingCb);
+
+        emitSocket(socket, "call:rejected", call.id);
+        emitSocket(socket, "call:ringing", call.id);
+
+        expect(ringingCb).not.toHaveBeenCalled();
+    });
+
+    it("auto-disposes socket listeners after terminal call:unanswered (B2)", () => {
+        const call = makeCall();
+        const socket = makeMockSocket();
+        call.wireSocket(socket);
+        const ringingCb = vi.fn();
+        call.on("ringing", ringingCb);
+
+        emitSocket(socket, "call:unanswered", call.id);
+        emitSocket(socket, "call:ringing", call.id);
+
+        expect(ringingCb).not.toHaveBeenCalled();
+    });
+
+    it("auto-disposes socket listeners after terminal call:failed (B2)", () => {
+        const call = makeCall();
+        const socket = makeMockSocket();
+        call.wireSocket(socket);
+        const ringingCb = vi.fn();
+        call.on("ringing", ringingCb);
+
+        emitSocket(socket, "call:failed", call.id, "boom");
+        emitSocket(socket, "call:ringing", call.id);
+
+        expect(ringingCb).not.toHaveBeenCalled();
+    });
+
+    it("ignores cross-call terminal events when filtering by id (no premature dispose)", () => {
+        const call = makeCall("call-1");
+        const socket = makeMockSocket();
+        call.wireSocket(socket);
+        const ringingCb = vi.fn();
+        call.on("ringing", ringingCb);
+
+        emitSocket(socket, "call:ended", "other-call");
+        emitSocket(socket, "call:ringing", call.id);
+
+        expect(ringingCb).toHaveBeenCalledOnce();
+    });
 });
 
 describe("Call.wireTransport", () => {

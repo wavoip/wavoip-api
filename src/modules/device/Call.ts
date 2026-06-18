@@ -1,8 +1,8 @@
 import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
-import type { DeviceSocket, MediaPlan } from "@/modules/device/WebSocket";
+import type { DeviceSocket, MediaPlan, ServerEvents } from "@/modules/device/WebSocket";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
-import { EventEmitter } from "@/modules/shared/EventEmitter";
+import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 
 export type CallEvents = {
     status: [status: CallStatus];
@@ -71,48 +71,77 @@ export class Call extends EventEmitter<CallEvents> {
 
     /**
      * Subscribe to socket events scoped to this call.id. Aggregates raw
-     * `call:*` server events into the typed Call event stream.
+     * `call:*` server events into the typed Call event stream. The returned
+     * Unsubscribe removes every socket listener installed here; it is also
+     * invoked automatically when a terminal status event arrives so abandoned
+     * Calls do not leak listeners on the shared device socket (B2).
      */
-    wireSocket(socket: DeviceSocket): void {
-        socket.on("call:ringing", (id) => {
+    wireSocket(socket: DeviceSocket): Unsubscribe {
+        const unsubs: Array<() => void> = [];
+        let disposed = false;
+        const disposeAll = () => {
+            if (disposed) return;
+            disposed = true;
+            for (const u of unsubs) u();
+        };
+        // socket.io's typed Socket exposes a FallbackToUntypedListener that the
+        // compiler can't unify with our local E generic. Cast once via `unknown` to
+        // a narrowly-typed shape so the rest of bind stays fully typed.
+        type SocketLike = {
+            on<E extends keyof ServerEvents>(event: E, handler: ServerEvents[E]): unknown;
+            off<E extends keyof ServerEvents>(event: E, handler: ServerEvents[E]): unknown;
+        };
+        const s = socket as unknown as SocketLike;
+        const bind = <E extends keyof ServerEvents>(event: E, handler: ServerEvents[E]) => {
+            s.on(event, handler);
+            unsubs.push(() => s.off(event, handler));
+        };
+
+        bind("call:ringing", (id) => {
             if (id !== this.id) return;
             this.emit("ringing");
             this.emit("status", "RINGING");
         });
-        socket.on("call:ended", (id) => {
+        bind("call:ended", (id) => {
             if (id !== this.id) return;
             this.emit("ended");
             this.emit("status", "ENDED");
+            disposeAll();
         });
-        socket.on("call:accepted", (id) => {
+        bind("call:accepted", (id) => {
             if (id !== this.id) return;
             this.emit("accepted");
             this.emit("status", "ACTIVE");
         });
-        socket.on("call:answered", (id, mediaPlan) => {
+        bind("call:answered", (id, mediaPlan) => {
             if (id !== this.id) return;
             this.emit("answered", mediaPlan);
             this.emit("status", "ACTIVE");
         });
-        socket.on("call:unanswered", (id) => {
+        bind("call:unanswered", (id) => {
             if (id !== this.id) return;
             this.emit("unanswered");
             this.emit("status", "NOT_ANSWERED");
+            disposeAll();
         });
-        socket.on("call:rejected", (id) => {
+        bind("call:rejected", (id) => {
             if (id !== this.id) return;
             this.emit("rejected");
             this.emit("status", "REJECTED");
+            disposeAll();
         });
-        socket.on("call:failed", (id, err) => {
+        bind("call:failed", (id, err) => {
             if (id !== this.id) return;
             this.emit("failed", err);
             this.emit("status", "FAILED");
+            disposeAll();
         });
-        socket.on("call:stats", (id, stats) => {
+        bind("call:stats", (id, stats) => {
             if (id !== this.id) return;
             this.emit("serverStats", stats);
         });
+
+        return disposeAll;
     }
 
     /**
