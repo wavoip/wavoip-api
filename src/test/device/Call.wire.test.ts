@@ -226,6 +226,32 @@ describe("Call.wireSocket", () => {
         expect(cb).not.toHaveBeenCalled();
     });
 
+    it("call:peer:muted emits peerMuted with server-reported value (B5)", () => {
+        const call = makeCall();
+        const socket = makeMockSocket();
+        call.wireSocket(socket);
+        const cb = vi.fn();
+        call.on("peerMuted", cb);
+
+        emitSocket(socket, "call:peer:muted", call.id, true);
+        emitSocket(socket, "call:peer:muted", call.id, false);
+
+        expect(cb).toHaveBeenNthCalledWith(1, true);
+        expect(cb).toHaveBeenNthCalledWith(2, false);
+    });
+
+    it("ignores call:peer:muted for different call id", () => {
+        const call = makeCall("call-1");
+        const socket = makeMockSocket();
+        call.wireSocket(socket);
+        const cb = vi.fn();
+        call.on("peerMuted", cb);
+
+        emitSocket(socket, "call:peer:muted", "other-call", true);
+
+        expect(cb).not.toHaveBeenCalled();
+    });
+
     it("returned Unsubscribe removes all socket listeners", () => {
         const call = makeCall();
         const socket = makeMockSocket();

@@ -140,6 +140,13 @@ export class Call extends EventEmitter<CallEvents> {
             if (id !== this.id) return;
             this.emit("serverStats", stats);
         });
+        // Relay (UNOFFICIAL) peer mute travels through the server: only WebRTC
+        // transports detect mute via track events. Wiring this here covers both
+        // transports uniformly (B5).
+        bind("call:peer:muted", (id, muted) => {
+            if (id !== this.id) return;
+            this.emit("peerMuted", muted);
+        });
 
         return disposeAll;
     }
