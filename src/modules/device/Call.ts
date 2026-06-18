@@ -1,8 +1,8 @@
 import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
-import type { DeviceSocket, MediaPlan, ServerEvents } from "@/modules/device/WebSocket";
+import type { MediaPlan } from "@/modules/device/WebSocket";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
-import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
+import { EventEmitter } from "@/modules/shared/EventEmitter";
 
 export type CallEvents = {
     status: [status: CallStatus];
@@ -36,7 +36,7 @@ export class Call extends EventEmitter<CallEvents> {
     // Status-transition table. Each entry guards a transition by predicate on the
     // current status and declares the target. Behavior matches the historical
     // ad-hoc methods exactly — emitting `status` on transition stays the
-    // responsibility of `wireSocket`'s server-event handlers (no double-emit).
+    // responsibility of the CallRouter's server-event handlers (no double-emit).
     private transition(name: TransitionName): boolean {
         const def = TRANSITIONS[name];
         if (!def.allow(this.status)) return false;
@@ -50,88 +50,6 @@ export class Call extends EventEmitter<CallEvents> {
     end(): boolean { return this.transition("end"); }
     timeout(): boolean { return this.transition("timeout"); }
     fail(): boolean { return this.transition("fail"); }
-
-    /**
-     * Subscribe to socket events scoped to this call.id. Aggregates raw
-     * `call:*` server events into the typed Call event stream. The returned
-     * Unsubscribe removes every socket listener installed here; it is also
-     * invoked automatically when a terminal status event arrives so abandoned
-     * Calls do not leak listeners on the shared device socket (B2).
-     */
-    wireSocket(socket: DeviceSocket): Unsubscribe {
-        const unsubs: Array<() => void> = [];
-        let disposed = false;
-        const disposeAll = () => {
-            if (disposed) return;
-            disposed = true;
-            for (const u of unsubs) u();
-        };
-        // socket.io's typed Socket exposes a FallbackToUntypedListener that the
-        // compiler can't unify with our local E generic. Cast once via `unknown` to
-        // a narrowly-typed shape so the rest of bind stays fully typed.
-        type SocketLike = {
-            on<E extends keyof ServerEvents>(event: E, handler: ServerEvents[E]): unknown;
-            off<E extends keyof ServerEvents>(event: E, handler: ServerEvents[E]): unknown;
-        };
-        const s = socket as unknown as SocketLike;
-        const bind = <E extends keyof ServerEvents>(event: E, handler: ServerEvents[E]) => {
-            s.on(event, handler);
-            unsubs.push(() => s.off(event, handler));
-        };
-
-        bind("call:ringing", (id) => {
-            if (id !== this.id) return;
-            this.emit("ringing");
-            this.emit("status", "RINGING");
-        });
-        bind("call:ended", (id) => {
-            if (id !== this.id) return;
-            this.emit("ended");
-            this.emit("status", "ENDED");
-            disposeAll();
-        });
-        bind("call:accepted", (id) => {
-            if (id !== this.id) return;
-            this.emit("accepted");
-            this.emit("status", "ACTIVE");
-        });
-        bind("call:answered", (id, mediaPlan) => {
-            if (id !== this.id) return;
-            this.emit("answered", mediaPlan);
-            this.emit("status", "ACTIVE");
-        });
-        bind("call:unanswered", (id) => {
-            if (id !== this.id) return;
-            this.emit("unanswered");
-            this.emit("status", "NOT_ANSWERED");
-            disposeAll();
-        });
-        bind("call:rejected", (id) => {
-            if (id !== this.id) return;
-            this.emit("rejected");
-            this.emit("status", "REJECTED");
-            disposeAll();
-        });
-        bind("call:failed", (id, err) => {
-            if (id !== this.id) return;
-            this.emit("failed", err);
-            this.emit("status", "FAILED");
-            disposeAll();
-        });
-        bind("call:stats", (id, stats) => {
-            if (id !== this.id) return;
-            this.emit("serverStats", stats);
-        });
-        // Relay (UNOFFICIAL) peer mute travels through the server: only WebRTC
-        // transports detect mute via track events. Wiring this here covers both
-        // transports uniformly (B5).
-        bind("call:peer:muted", (id, muted) => {
-            if (id !== this.id) return;
-            this.emit("peerMuted", muted);
-        });
-
-        return disposeAll;
-    }
 
     /**
      * Subscribe to transport events. Called after construction once a
