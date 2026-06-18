@@ -8,6 +8,7 @@ import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
 import { WebsocketTransport } from "@/modules/media/WebSocket";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
+import { forwardEvents } from "@/modules/shared/forwardEvents";
 
 export type CallOutgoingEvents = {
     peerAccept: [call: CallActive];
@@ -96,6 +97,14 @@ export function CallOutgoingProxy(
         });
         emitter.emit("peerAccept", active);
     });
+    // Pure 1:1 relays.
+    forwardEvents(call, emitter, {
+        status: "status",
+        iceDiagnostics: "iceDiagnostics",
+        connectivityIssue: "connectivityIssue",
+    });
+
+    // Side-effecting (dispose, rename) stay inline.
     call.on("rejected", () => {
         emitter.emit("peerReject");
         void dispose();
@@ -107,15 +116,6 @@ export function CallOutgoingProxy(
     call.on("ended", () => {
         emitter.emit("ended");
         void dispose();
-    });
-    call.on("status", (status) => {
-        emitter.emit("status", status);
-    });
-    call.on("iceDiagnostics", (diag) => {
-        emitter.emit("iceDiagnostics", diag);
-    });
-    call.on("connectivityIssue", (issue) => {
-        emitter.emit("connectivityIssue", issue);
     });
 
     let onPeerAcceptUnsub: Unsubscribe | undefined;
