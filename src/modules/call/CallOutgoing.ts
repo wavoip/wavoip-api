@@ -114,13 +114,11 @@ export function CallOutgoingProxy(
     let onEndUnsub: Unsubscribe | undefined;
     let onStatusUnsub: Unsubscribe | undefined;
 
-    return {
+    const proxy = {
         id: call.id,
         type: call.type,
         device_token: call.deviceToken,
         direction: call.direction,
-        status: call.status,
-        peer: { ...call.peer, muted: false },
 
         mute(): Promise<{ err: string | null }> {
             return new Promise((resolve) => {
@@ -186,7 +184,15 @@ export function CallOutgoingProxy(
             onStatusUnsub?.();
             onStatusUnsub = emitter.on("status", cb);
         },
-    };
+    } as CallOutgoing;
+
+    // Live getters — see CallActive.ts. `peer.muted` stays false until a transport exists.
+    Object.defineProperties(proxy, {
+        status: { get: () => call.status, enumerable: true },
+        peer: { get: () => ({ ...call.peer, muted: false }), enumerable: true },
+    });
+
+    return proxy;
 }
 
 function createTransport(mediaPlan: MediaPlan, mediaManager: MediaManager, deviceToken: string): ITransport {
