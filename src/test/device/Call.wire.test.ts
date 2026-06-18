@@ -333,7 +333,7 @@ describe("Call.wireTransport", () => {
         expect(endedCb).not.toHaveBeenCalled();
     });
 
-    it("transport statusChanged 'disconnected' → emits connectionStatus AND 'ended'", () => {
+    it("transport statusChanged 'disconnected' → emits connectionStatus but NOT 'ended' (B3)", () => {
         const call = makeCall();
         const transport = makeMockTransport();
         const connectionCb = vi.fn();
@@ -345,7 +345,7 @@ describe("Call.wireTransport", () => {
         (transport as unknown as EventEmitter<TransportEvents>).emit("statusChanged", "disconnected");
 
         expect(connectionCb).toHaveBeenCalledWith("disconnected");
-        expect(endedCb).toHaveBeenCalledOnce();
+        expect(endedCb).not.toHaveBeenCalled();
     });
 
     it("transport peerMuted → emits peerMuted", () => {

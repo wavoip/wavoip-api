@@ -150,10 +150,11 @@ export class Call extends EventEmitter<CallEvents> {
      * transport gathered before being wired so late listeners catch up.
      */
     wireTransport(transport: ITransport): void {
-        transport.on("statusChanged", (s) => {
-            this.emit("connectionStatus", s);
-            if (s === "disconnected") this.emit("ended");
-        });
+        // Forward connection status without inferring call termination from it.
+        // Transient transport drops (WS reconnect, brief WebRTC ICE disconnect) used
+        // to end the call here, which racy reconnects could fire. Call termination
+        // is now driven exclusively by the signaling `call:*` terminal events (B3).
+        transport.on("statusChanged", (s) => this.emit("connectionStatus", s));
         transport.on("peerMuted", (m) => this.emit("peerMuted", m));
         transport.on("statsChanged", (s) => this.emit("stats", s));
         transport.on("iceDiagnostics", (d) => this.emit("iceDiagnostics", d));
