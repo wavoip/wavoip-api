@@ -33,41 +33,23 @@ export class Call extends EventEmitter<CallEvents> {
         super();
     }
 
-    accept(): boolean {
-        if (!["RINGING", "CALLING"].includes(this.status)) return false;
-        this.status = "ACTIVE";
+    // Status-transition table. Each entry guards a transition by predicate on the
+    // current status and declares the target. Behavior matches the historical
+    // ad-hoc methods exactly — emitting `status` on transition stays the
+    // responsibility of `wireSocket`'s server-event handlers (no double-emit).
+    private transition(name: TransitionName): boolean {
+        const def = TRANSITIONS[name];
+        if (!def.allow(this.status)) return false;
+        this.status = def.to;
         return true;
     }
 
-    reject(): boolean {
-        if (this.status !== "ACTIVE") return false;
-        this.status = "REJECTED";
-        return true;
-    }
-
-    cancel(): boolean {
-        if (this.status === "ACTIVE") return false;
-        this.status = "ENDED";
-        return true;
-    }
-
-    end(): boolean {
-        if (this.status !== "ACTIVE") return false;
-        this.status = "ENDED";
-        return true;
-    }
-
-    timeout() {
-        if (!["RINGING", "CALLING"].includes(this.status)) return false;
-        this.status = "NOT_ANSWERED";
-        return true;
-    }
-
-    fail() {
-        if (!["ACTIVE"].includes(this.status)) return false;
-        this.status = "FAILED";
-        return true;
-    }
+    accept(): boolean { return this.transition("accept"); }
+    reject(): boolean { return this.transition("reject"); }
+    cancel(): boolean { return this.transition("cancel"); }
+    end(): boolean { return this.transition("end"); }
+    timeout(): boolean { return this.transition("timeout"); }
+    fail(): boolean { return this.transition("fail"); }
 
     /**
      * Subscribe to socket events scoped to this call.id. Aggregates raw
@@ -187,6 +169,17 @@ export type CallStatus =
     | "REJECTED"
     | "FAILED"
     | "DISCONNECTED";
+
+type TransitionName = "accept" | "reject" | "cancel" | "end" | "timeout" | "fail";
+
+const TRANSITIONS: Record<TransitionName, { allow: (s: CallStatus) => boolean; to: CallStatus }> = {
+    accept:  { allow: (s) => s === "RINGING" || s === "CALLING", to: "ACTIVE" },
+    reject:  { allow: (s) => s === "ACTIVE", to: "REJECTED" },
+    cancel:  { allow: (s) => s !== "ACTIVE", to: "ENDED" },
+    end:     { allow: (s) => s === "ACTIVE", to: "ENDED" },
+    timeout: { allow: (s) => s === "RINGING" || s === "CALLING", to: "NOT_ANSWERED" },
+    fail:    { allow: (s) => s === "ACTIVE", to: "FAILED" },
+};
 
 export type CallType = "OFFICIAL" | "UNOFFICIAL";
 
