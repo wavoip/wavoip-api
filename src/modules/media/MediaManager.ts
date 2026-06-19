@@ -1,4 +1,9 @@
 import { EventEmitter } from "@/modules/shared/EventEmitter";
+// Vendored at build time via vite-plugin-worklet: the upstream
+// `libsamplerate.worklet.js` (WASM inlined) is built to a Blob URL inside the
+// dist bundle. Replaces the previous jsdelivr CDN URL so the library no longer
+// depends on a network fetch nor on the CDN being up at consumer page-load.
+import libSampleRateWorkletUrl from "@alexanderolsen/libsamplerate-js/dist/libsamplerate.worklet.js?worklet";
 import micWorkletUrl from "../worklets/AudioWorkletMic.ts?worklet";
 import outWorkletUrl from "../worklets/AudioWorkletOut.ts?worklet";
 
@@ -48,7 +53,7 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
     private loadWorklets(): Promise<void> {
         if (this._workletReady) return this._workletReady;
         this._workletReady = Promise.all([
-            this.audioContext.audioWorklet.addModule(LIB_SAMPLE_RATE_URL),
+            this.audioContext.audioWorklet.addModule(libSampleRateWorkletUrl),
             this.audioContext.audioWorklet.addModule(micWorkletUrl),
             this.audioContext.audioWorklet.addModule(outWorkletUrl),
         ]).then(() => this.audioContext.suspend());
@@ -299,9 +304,6 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
         }
     }
 }
-
-export const LIB_SAMPLE_RATE_URL =
-    "https://cdn.jsdelivr.net/npm/@alexanderolsen/libsamplerate-js@2.1.2/dist/libsamplerate.worklet.js";
 
 function buildAudioConstraints(deviceId?: string): MediaStreamConstraints {
     return {
