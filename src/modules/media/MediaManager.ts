@@ -28,23 +28,30 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
     private attachedElements: Set<HTMLAudioElement> = new Set();
     private activeSpeakerId?: string;
     private permissionGranted = false;
-    private readonly _workletReady: Promise<void>;
+    // Lazily memoised on first `waitReady()` / `startMedia()` so a MediaManager
+    // that is constructed-then-never-used does not fetch the libsamplerate
+    // worklet over the network nor pay the addModule parse cost.
+    private _workletReady: Promise<void> | null = null;
 
     constructor() {
         super();
         this.audioContext = new AudioContext({ latencyHint: 0 });
-
-        this._workletReady = Promise.all([
-            this.audioContext.audioWorklet.addModule(LIB_SAMPLE_RATE_URL),
-            this.audioContext.audioWorklet.addModule(micWorkletUrl),
-            this.audioContext.audioWorklet.addModule(outWorkletUrl),
-        ]).then(() => this.audioContext.suspend());
 
         this.enumerateDevices();
         navigator.mediaDevices.addEventListener("devicechange", this.handleDeviceChange);
     }
 
     waitReady(): Promise<void> {
+        return this.loadWorklets();
+    }
+
+    private loadWorklets(): Promise<void> {
+        if (this._workletReady) return this._workletReady;
+        this._workletReady = Promise.all([
+            this.audioContext.audioWorklet.addModule(LIB_SAMPLE_RATE_URL),
+            this.audioContext.audioWorklet.addModule(micWorkletUrl),
+            this.audioContext.audioWorklet.addModule(outWorkletUrl),
+        ]).then(() => this.audioContext.suspend());
         return this._workletReady;
     }
 
@@ -65,7 +72,7 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
     async startMedia(): Promise<MediaStream> {
         if (this.stream) return this.stream;
 
-        await this._workletReady;
+        await this.loadWorklets();
 
         const mic = this.activeMic ?? this.devices.find((d) => d.kind === "audioinput");
         const pinned = this.permissionGranted ? mic?.deviceId : undefined;
