@@ -4,6 +4,7 @@ import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
+import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
 
@@ -146,42 +147,49 @@ export function CallActiveProxy(
 
         /** @deprecated Use `on("error", callback)` instead. */
         onError(callback: (err: string) => void): void {
+            warnDeprecated("CallActive.onError", 'use `active.on("error", cb)` instead.');
             onErrorUnsub?.();
             onErrorUnsub = emitter.on("error", callback);
         },
 
         /** @deprecated Use `on("peerMute", callback)` instead. */
         onPeerMute(callback: () => void): void {
+            warnDeprecated("CallActive.onPeerMute", 'use `active.on("peerMute", cb)` instead.');
             onPeerMuteUnsub?.();
             onPeerMuteUnsub = emitter.on("peerMute", callback);
         },
 
         /** @deprecated Use `on("peerUnmute", callback)` instead. */
         onPeerUnmute(callback: () => void): void {
+            warnDeprecated("CallActive.onPeerUnmute", 'use `active.on("peerUnmute", cb)` instead.');
             onPeerUnmuteUnsub?.();
             onPeerUnmuteUnsub = emitter.on("peerUnmute", callback);
         },
 
         /** @deprecated Use `on("ended", callback)` instead. */
         onEnd(callback: () => void): void {
+            warnDeprecated("CallActive.onEnd", 'use `active.on("ended", cb)` instead.');
             onEndUnsub?.();
             onEndUnsub = emitter.on("ended", callback);
         },
 
         /** @deprecated Use `on("stats", callback)` instead. */
         onStats(callback: (stats: CallStats) => void): void {
+            warnDeprecated("CallActive.onStats", 'use `active.on("stats", cb)` instead.');
             onStatsUnsub?.();
             onStatsUnsub = emitter.on("stats", callback);
         },
 
         /** @deprecated Use `on("connectionStatus", callback)` instead. */
         onConnectionStatus(callback: (status: TransportStatus) => void): void {
+            warnDeprecated("CallActive.onConnectionStatus", 'use `active.on("connectionStatus", cb)` instead.');
             onConnectionStatusUnsub?.();
             onConnectionStatusUnsub = emitter.on("connectionStatus", callback);
         },
 
         /** @deprecated Use `on("status", callback)` instead. */
         onStatus(cb: (status: CallStatus) => void): void {
+            warnDeprecated("CallActive.onStatus", 'use `active.on("status", cb)` instead.');
             onStatusUnsub?.();
             onStatusUnsub = emitter.on("status", cb);
         },

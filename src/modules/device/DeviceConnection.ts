@@ -11,6 +11,7 @@ import type { IceConfig } from "@/modules/media/ICEDiagnostics";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
 import { WebsocketTransport } from "@/modules/media/WebSocket";
+import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import type { AxiosInstance } from "axios";
 import axios from "axios";
@@ -200,6 +201,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
     /** @deprecated Use `on("statusChanged", callback)` instead. */
     onStatus(cb: (status: DeviceStatus) => void): () => void {
+        warnDeprecated("Device.onStatus", 'use `device.on("statusChanged", cb)` instead.');
         this._onStatusUnsub?.();
         this._onStatusUnsub = this.on("statusChanged", cb);
         return this._onStatusUnsub;
@@ -207,6 +209,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
     /** @deprecated Use `on("qrCodeChanged", callback)` instead. */
     onQRCode(cb: (qrcode?: string) => void): () => void {
+        warnDeprecated("Device.onQRCode", 'use `device.on("qrCodeChanged", cb)` instead.');
         this._onQRCodeUnsub?.();
         this._onQRCodeUnsub = this.on("qrCodeChanged", cb);
         return this._onQRCodeUnsub;
@@ -214,6 +217,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
     /** @deprecated Use `on("contactChanged", callback)` instead. */
     onContact(cb: (contact?: Contact) => void): () => void {
+        warnDeprecated("Device.onContact", 'use `device.on("contactChanged", cb)` instead.');
         this._onContactUnsub?.();
         this._onContactUnsub = this.on("contactChanged", cb);
         return this._onContactUnsub;
