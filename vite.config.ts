@@ -26,7 +26,6 @@ export default defineConfig({
                 globals: {
                     "socket.io-client": "io",
                     axios: "axios",
-                    "@alexanderolsen/libsamplerate-js": "libsamplerate",
                     a18n: "a18n",
                 },
             },
