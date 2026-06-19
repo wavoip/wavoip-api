@@ -7,6 +7,7 @@ import type { ITransport } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
 import { WebsocketTransport } from "@/modules/media/WebSocket";
+import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
 
@@ -167,30 +168,35 @@ export function CallOutgoingProxy(
 
         /** @deprecated Use `on("peerAccept", callback)` instead. */
         onPeerAccept(callback: (call: CallActive) => void): void {
+            warnDeprecated("CallOutgoing.onPeerAccept", 'use `outgoing.on("peerAccept", cb)` instead.');
             onPeerAcceptUnsub?.();
             onPeerAcceptUnsub = emitter.on("peerAccept", callback);
         },
 
         /** @deprecated Use `on("peerReject", callback)` instead. */
         onPeerReject(callback: () => void): void {
+            warnDeprecated("CallOutgoing.onPeerReject", 'use `outgoing.on("peerReject", cb)` instead.');
             onPeerRejectUnsub?.();
             onPeerRejectUnsub = emitter.on("peerReject", callback);
         },
 
         /** @deprecated Use `on("unanswered", callback)` instead. */
         onUnanswered(callback: () => void): void {
+            warnDeprecated("CallOutgoing.onUnanswered", 'use `outgoing.on("unanswered", cb)` instead.');
             onUnansweredUnsub?.();
             onUnansweredUnsub = emitter.on("unanswered", callback);
         },
 
         /** @deprecated Use `on("ended", callback)` instead. */
         onEnd(callback: () => void): void {
+            warnDeprecated("CallOutgoing.onEnd", 'use `outgoing.on("ended", cb)` instead.');
             onEndUnsub?.();
             onEndUnsub = emitter.on("ended", callback);
         },
 
         /** @deprecated Use `on("status", callback)` instead. */
         onStatus(cb: (status: CallStatus) => void): void {
+            warnDeprecated("CallOutgoing.onStatus", 'use `outgoing.on("status", cb)` instead.');
             onStatusUnsub?.();
             onStatusUnsub = emitter.on("status", cb);
         },
