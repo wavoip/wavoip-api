@@ -11,6 +11,7 @@ export { RTCConnection } from "./RTCConnection";
 export { WSConnection } from "./WSConnection";
 
 export type { IAudioPipe, PipeEvents } from "./AudioPipe";
+export { RTCAudioPipe } from "./RTCAudioPipe";
 
 export type { IStatsAdapter } from "./StatsAdapter";
 export { RTCStatsAdapter } from "./RTCStatsAdapter";
