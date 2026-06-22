@@ -22,6 +22,14 @@ export interface ITransport extends EventEmitter<Events> {
 
     start(): Promise<void>;
     stop(): Promise<void>;
+
+    /**
+     * Pull-based stats accessor — triggers an adapter `refresh()` and returns
+     * the resulting snapshot. The internal `statsChanged` event still fires at
+     * a fixed 200ms cadence (deprecated; consumers should call `Call.getStats()`
+     * at their preferred cadence instead).
+     */
+    getStats(): Promise<CallStats>;
 }
 
 /**

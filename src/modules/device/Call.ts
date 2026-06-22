@@ -25,10 +25,12 @@ export type CallEvents = {
 export class Call extends EventEmitter<CallEvents> {
     private lastServerProjection: CallStats | null = null;
     private lastTransportStats: CallStats | null = null;
-    // Most recent CallStats snapshot, populated by transport.statsChanged or
-    // applyServerStats. Read by the pull API `getStats()`; consumers using the
-    // deprecated `stats` event observe the same value.
+    // Most recent CallStats snapshot — populated by the deprecated 200ms tick
+    // (transport.statsChanged) and by applyServerStats. The pull API `getStats()`
+    // bypasses this cache and triggers a fresh transport-side refresh; this
+    // field exists only to back the deprecated `stats` event.
     private lastStats: CallStats = makeEmptyCallStats();
+    private transport: ITransport | null = null;
 
     constructor(
         public readonly id: string,
@@ -76,16 +78,28 @@ export class Call extends EventEmitter<CallEvents> {
     }
 
     /**
-     * Pull-based stats accessor — the supported API going forward. Returns the
-     * most recent CallStats snapshot the call has observed (either from the
-     * WebRTC transport's `pc.getStats` tick for OFFICIAL calls, or from the
-     * server-pushed merge for UNOFFICIAL). The returned object is a snapshot:
-     * subsequent mutations on the cache don't reach earlier callers.
+     * Pull-based stats accessor — the supported API going forward. Triggers a
+     * fresh transport-side `getStats()` (WebRTC: `pc.getStats()`; WS: recompute
+     * bitrate/level/latency from current counters) and returns the resulting
+     * snapshot.
      *
-     * The legacy `on("stats", cb)` event remains supported but is deprecated.
+     * For UNOFFICIAL calls the transport's client-side fields are merged with
+     * the most recent server-pushed projection (RTT, loss, totals from the
+     * `call:stats` socket event), since neither side alone has the full picture.
+     *
+     * Before any transport is wired, returns an empty snapshot. The legacy
+     * `on("stats", cb)` event remains supported but is deprecated.
      */
-    getStats(): Promise<CallStats> {
-        return Promise.resolve(this.lastStats);
+    async getStats(): Promise<CallStats> {
+        if (!this.transport) return makeEmptyCallStats();
+        const transportStats = await this.transport.getStats();
+        if (this.type === "OFFICIAL") {
+            this.lastStats = transportStats;
+            return transportStats;
+        }
+        this.lastTransportStats = transportStats;
+        this.lastStats = this.mergeUnofficialStats();
+        return this.lastStats;
     }
 
     override on<K extends keyof CallEvents>(event: K, listener: (...args: CallEvents[K]) => void): Unsubscribe {
@@ -125,6 +139,8 @@ export class Call extends EventEmitter<CallEvents> {
      * transport gathered before being wired so late listeners catch up.
      */
     wireTransport(transport: ITransport): void {
+        this.transport = transport;
+
         // Forward connection status without inferring call termination from it.
         // Transient transport drops (WS reconnect, brief WebRTC ICE disconnect) used
         // to end the call here, which racy reconnects could fire. Call termination

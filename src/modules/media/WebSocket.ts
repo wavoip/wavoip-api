@@ -71,6 +71,11 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         }
     }
 
+    async getStats(): Promise<CallStats> {
+        await this.statsAdapter.refresh();
+        return this.statsAdapter.snapshot();
+    }
+
     private async tickStats(): Promise<void> {
         await this.statsAdapter.refresh();
         this.emit("statsChanged", this.statsAdapter.snapshot());

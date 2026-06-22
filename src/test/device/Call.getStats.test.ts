@@ -27,6 +27,7 @@ function makeMockTransport(): IRTCTransport {
     Object.defineProperty(t, "emittedConnectivityIssues", { value: new Set(), writable: true, configurable: true });
     t.start = vi.fn().mockResolvedValue(undefined);
     t.stop = vi.fn().mockResolvedValue(undefined);
+    t.getStats = vi.fn().mockResolvedValue(t.stats);
     return t;
 }
 
@@ -49,7 +50,7 @@ describe("Call.getStats — pull-based stats API", () => {
         expect(s.tx.total_bytes).toBe(0);
     });
 
-    it("returns the latest OFFICIAL transport.statsChanged value", async () => {
+    it("returns the latest OFFICIAL transport.getStats() value", async () => {
         const call = makeCall("OFFICIAL");
         const transport = makeMockTransport();
         call.wireTransport(transport);
@@ -60,13 +61,14 @@ describe("Call.getStats — pull-based stats API", () => {
             rx: { total: 48, total_bytes: 2400, loss: 0, bitrate_kbps: 40, audio_level: 0.6, jitter_ms: 3 },
             audio_context: { output_latency_ms: 30 },
         };
-        (transport as unknown as EventEmitter<TransportEvents>).emit("statsChanged", stats);
+        (transport.getStats as ReturnType<typeof vi.fn>).mockResolvedValue(stats);
 
         const s = await call.getStats();
         expect(s).toEqual(stats);
+        expect(transport.getStats).toHaveBeenCalled();
     });
 
-    it("returns the merged UNOFFICIAL stats from server projection + transport stats", async () => {
+    it("returns the merged UNOFFICIAL stats from server projection + transport pull", async () => {
         const call = makeCall("UNOFFICIAL");
         const transport = makeMockTransport();
         call.wireTransport(transport);
@@ -84,7 +86,7 @@ describe("Call.getStats — pull-based stats API", () => {
             rx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 58, audio_level: 0.4, jitter_ms: 12 },
             audio_context: { output_latency_ms: 42 },
         };
-        (transport as unknown as EventEmitter<TransportEvents>).emit("statsChanged", transportStats);
+        (transport.getStats as ReturnType<typeof vi.fn>).mockResolvedValue(transportStats);
 
         const s = await call.getStats();
         expect(s.rtt).toEqual({ min: 10, max: 30, avg: 20 });
