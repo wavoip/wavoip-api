@@ -1,4 +1,4 @@
-import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
+import { type CallStats, type ServerCallStats, makeEmptyCallStats } from "@/modules/call/Stats";
 import type { MediaPlan } from "@/modules/device/WebSocket";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import { type ITransport, type TransportStatus, isRTCTransport } from "@/modules/media/ITransport";
@@ -198,15 +198,6 @@ export function toCallStats(s: ServerCallStats): CallStats {
         rtt: { ...s.rtt.client },
         tx: { ...s.tx, bitrate_kbps: 0, audio_level: 0 },
         rx: { ...s.rx, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
-        audio_context: { output_latency_ms: 0 },
-    };
-}
-
-function makeEmptyCallStats(): CallStats {
-    return {
-        rtt: { min: 0, max: 0, avg: 0 },
-        tx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0 },
-        rx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
         audio_context: { output_latency_ms: 0 },
     };
 }

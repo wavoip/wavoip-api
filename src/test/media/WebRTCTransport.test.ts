@@ -431,8 +431,7 @@ describe("WebRTCTransport", () => {
             transport.on("statsChanged", cb);
 
             // Advance past the 5s stats interval
-            vi.advanceTimersByTime(5_000);
-            await Promise.resolve(); // flush async getStats
+            await vi.advanceTimersByTimeAsync(5_000); // flush async getStats
 
             expect(cb).toHaveBeenCalled();
             const emittedStats = cb.mock.calls[0][0];
@@ -465,8 +464,7 @@ describe("WebRTCTransport", () => {
             const cb = vi.fn();
             transport.on("statsChanged", cb);
 
-            vi.advanceTimersByTime(5_000);
-            await Promise.resolve();
+            await vi.advanceTimersByTimeAsync(5_000);
 
             expect(cb).toHaveBeenCalled();
             const emittedStats = cb.mock.calls[0][0];
@@ -501,8 +499,7 @@ describe("WebRTCTransport", () => {
             const cb = vi.fn();
             transport.on("statsChanged", cb);
 
-            vi.advanceTimersByTime(5_000);
-            await Promise.resolve();
+            await vi.advanceTimersByTimeAsync(5_000);
 
             expect(cb).toHaveBeenCalled();
             const emitted = cb.mock.calls[0][0];
