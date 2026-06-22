@@ -1,6 +1,6 @@
 import type { CallStats } from "@/modules/call/Stats";
 import { RTCAudioPipe, RTCConnection, RTCStatsAdapter } from "@/modules/media/composition";
-import type { ConnectivityIssue, IceConfig, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
+import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import {
     DEFAULT_STATS_TICK_MS,
     type Events,
@@ -52,12 +52,12 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         return this.statsAdapter.snapshot();
     }
 
-    constructor(mediaManager: MediaManager, offer?: string, iceConfig?: IceConfig, options?: TransportOptions) {
+    constructor(mediaManager: MediaManager, offer?: string, options?: TransportOptions) {
         super();
 
         this.hasRemoteOffer = !!offer;
         this.statsTickMs = options?.statsTickMs ?? DEFAULT_STATS_TICK_MS;
-        this.connection = new RTCConnection(offer, iceConfig);
+        this.connection = new RTCConnection(offer, options?.iceConfig);
         this.audioPipe = new RTCAudioPipe(this.connection.pc, mediaManager);
         this.statsAdapter = new RTCStatsAdapter(this.connection.pc, mediaManager.audioContext);
         this.audioAnalyser = this.audioPipe.audioAnalyser;

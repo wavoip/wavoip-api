@@ -511,7 +511,7 @@ describe("WebRTCTransport", () => {
         it("uses options.statsTickMs as the interval cadence", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", undefined, { statsTickMs: 1_000 });
+            const transport = new WebRTCTransport(mm as never, "offer-sdp", { statsTickMs: 1_000 });
             await startTransport(transport);
 
             const cb = vi.fn();

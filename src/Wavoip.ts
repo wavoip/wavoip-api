@@ -14,7 +14,6 @@ type Events = {
 
 export class Wavoip extends EventEmitter<Events> {
     private readonly mediaManager: MediaManager;
-    private readonly iceConfig?: IceConfig;
     private readonly transportOptions?: TransportOptions;
     private readonly platform?: string;
     private _devices: DeviceConnection[] = [];
@@ -37,18 +36,11 @@ export class Wavoip extends EventEmitter<Events> {
         setLanguage(params.language ?? "pt-BR");
 
         this.mediaManager = new MediaManager();
-        this.iceConfig = params.iceConfig;
-        this.transportOptions = params.statsTickMs !== undefined ? { statsTickMs: params.statsTickMs } : undefined;
+        this.transportOptions = collectTransportOptions(params);
         this.platform = params.platform;
 
         for (const token of [...new Set(params.tokens)]) {
-            const device = new DeviceConnection(
-                this.mediaManager,
-                token,
-                this.platform,
-                this.iceConfig,
-                this.transportOptions,
-            );
+            const device = new DeviceConnection(this.mediaManager, token, this.platform, this.transportOptions);
             this.bindDeviceEvents(device);
             this._devices.push(device);
         }
@@ -170,13 +162,7 @@ export class Wavoip extends EventEmitter<Events> {
         const added: DeviceConnection[] = [];
         for (const token of tokens) {
             if (this._devices.some((d) => d.token === token)) continue;
-            const device = new DeviceConnection(
-                this.mediaManager,
-                token,
-                this.platform,
-                this.iceConfig,
-                this.transportOptions,
-            );
+            const device = new DeviceConnection(this.mediaManager, token, this.platform, this.transportOptions);
             this._devices.push(device);
             added.push(device);
             this.bindDeviceEvents(device);
@@ -231,4 +217,14 @@ export class Wavoip extends EventEmitter<Events> {
             this.emit("offer", offer);
         });
     }
+}
+
+function collectTransportOptions(params: {
+    iceConfig?: IceConfig;
+    statsTickMs?: number;
+}): TransportOptions | undefined {
+    const out: TransportOptions = {};
+    if (params.iceConfig) out.iceConfig = params.iceConfig;
+    if (params.statsTickMs !== undefined) out.statsTickMs = params.statsTickMs;
+    return Object.keys(out).length ? out : undefined;
 }

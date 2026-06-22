@@ -219,7 +219,7 @@ function createTransport(
     transportOptions?: TransportOptions,
 ): ITransport {
     if (mediaPlan.type === "webRTC") {
-        return new WebRTCTransport(mediaManager, mediaPlan.sdp, undefined, transportOptions);
+        return new WebRTCTransport(mediaManager, mediaPlan.sdp, transportOptions);
     }
 
     if (mediaPlan.type === "relay") {

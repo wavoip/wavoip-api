@@ -1,5 +1,5 @@
 import type { CallStats } from "@/modules/call/Stats";
-import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
+import type { ConnectivityIssue, IceConfig, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { EventEmitter } from "@/modules/shared/EventEmitter";
 
 export type TransportStatus = "disconnected" | "connected" | "connecting" | "reconnecting";
@@ -8,14 +8,19 @@ export type TransportKind = "webrtc" | "ws";
 export const DEFAULT_STATS_TICK_MS = 200;
 
 /**
- * Transport-wide options. The internal `statsChanged` ticker remains for
- * deprecated `stats` / `serverStats` event consumers; this knob lets a host
- * app tune how often the library emits — or set it high enough that the
- * deprecated event path becomes a rare event and consumers migrate to
- * `Call.getStats()` (which is unaffected by this value and reflects the
- * caller's chosen cadence).
+ * Transport-wide options bag. Bundles every per-call knob the host app might
+ * want to tune so transport constructors stay terse (`mediaManager, offer?, options?`)
+ * instead of growing a positional zoo. Both fields are optional — defaults
+ * cover the common case.
+ *
+ * - `iceConfig` — STUN/TURN servers and ICE gathering timeout. WebRTC only;
+ *   ignored by the WS transport.
+ * - `statsTickMs` — cadence of the (deprecated) `stats` / `serverStats`
+ *   event ticker. Has no effect on `Call.getStats()`, which is pull-based and
+ *   runs at the caller's chosen cadence.
  */
 export type TransportOptions = {
+    iceConfig?: IceConfig;
     statsTickMs?: number;
 };
 
