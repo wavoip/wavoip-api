@@ -2,7 +2,8 @@ import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import type { MediaPlan } from "@/modules/device/WebSocket";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import { type ITransport, type TransportStatus, isRTCTransport } from "@/modules/media/ITransport";
-import { EventEmitter } from "@/modules/shared/EventEmitter";
+import { warnDeprecated } from "@/modules/shared/deprecation";
+import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 
 export type CallEvents = {
     status: [status: CallStatus];
@@ -24,6 +25,10 @@ export type CallEvents = {
 export class Call extends EventEmitter<CallEvents> {
     private lastServerProjection: CallStats | null = null;
     private lastTransportStats: CallStats | null = null;
+    // Most recent CallStats snapshot, populated by transport.statsChanged or
+    // applyServerStats. Read by the pull API `getStats()`; consumers using the
+    // deprecated `stats` event observe the same value.
+    private lastStats: CallStats = makeEmptyCallStats();
 
     constructor(
         public readonly id: string,
@@ -66,7 +71,31 @@ export class Call extends EventEmitter<CallEvents> {
         this.emit("serverStats", stats);
         if (this.type !== "UNOFFICIAL") return;
         this.lastServerProjection = toCallStats(stats);
-        this.emit("stats", this.mergeUnofficialStats());
+        this.lastStats = this.mergeUnofficialStats();
+        this.emit("stats", this.lastStats);
+    }
+
+    /**
+     * Pull-based stats accessor — the supported API going forward. Returns the
+     * most recent CallStats snapshot the call has observed (either from the
+     * WebRTC transport's `pc.getStats` tick for OFFICIAL calls, or from the
+     * server-pushed merge for UNOFFICIAL). The returned object is a snapshot:
+     * subsequent mutations on the cache don't reach earlier callers.
+     *
+     * The legacy `on("stats", cb)` event remains supported but is deprecated.
+     */
+    getStats(): Promise<CallStats> {
+        return Promise.resolve(this.lastStats);
+    }
+
+    override on<K extends keyof CallEvents>(event: K, listener: (...args: CallEvents[K]) => void): Unsubscribe {
+        if (event === "stats") {
+            warnDeprecated("Call.stats event", 'use `call.getStats()` instead.');
+        }
+        if (event === "serverStats") {
+            warnDeprecated("Call.serverStats event", 'use `call.getStats()` instead.');
+        }
+        return super.on(event, listener);
     }
 
     private mergeUnofficialStats(): CallStats {
@@ -108,11 +137,15 @@ export class Call extends EventEmitter<CallEvents> {
         // merge client-side fields (bitrate, audio level, jitter, output latency) from
         // the WebSocket transport — only the client can measure those.
         if (this.type === "OFFICIAL") {
-            transport.on("statsChanged", (s) => this.emit("stats", s));
+            transport.on("statsChanged", (s) => {
+                this.lastStats = s;
+                this.emit("stats", s);
+            });
         } else {
             transport.on("statsChanged", (s) => {
                 this.lastTransportStats = s;
-                this.emit("stats", this.mergeUnofficialStats());
+                this.lastStats = this.mergeUnofficialStats();
+                this.emit("stats", this.lastStats);
             });
         }
 

@@ -33,6 +33,13 @@ export interface CallActive {
     mute(): Promise<{ err: string | null }>;
     unmute(): Promise<{ err: string | null }>;
     end(): Promise<{ err: string | null }>;
+    /**
+     * Pull the most recent CallStats snapshot. The `stats` event is deprecated
+     * and pinned to the library's internal cadence; this method lets the
+     * consumer drive cadence (e.g. paint waveform per RAF, or refresh a
+     * dashboard once per second).
+     */
+    getStats(): Promise<CallStats>;
     on<T extends keyof CallActiveEvents>(event: T, callback: (...args: CallActiveEvents[T]) => void): Unsubscribe;
     /** @deprecated Use `on("error", callback)` instead. */
     onError(callback: (err: string) => void): void;
@@ -132,7 +139,17 @@ export function CallActiveProxy(
             return { err: null };
         },
 
+        getStats(): Promise<CallStats> {
+            return call.getStats();
+        },
+
         on<T extends keyof CallActiveEvents>(event: T, callback: (...args: CallActiveEvents[T]) => void): Unsubscribe {
+            if (event === "stats") {
+                warnDeprecated("CallActive.stats event", 'use `active.getStats()` instead.');
+            }
+            if (event === "serverStats") {
+                warnDeprecated("CallActive.serverStats event", 'use `active.getStats()` instead.');
+            }
             const unsub = emitter.on(event, callback);
             if (event === "iceDiagnostics" && lastIceDiagnostics) {
                 (callback as (diag: IceDiagnostics) => void)(lastIceDiagnostics);
