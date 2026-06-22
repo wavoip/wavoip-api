@@ -30,14 +30,15 @@ wavoip.on("offer", async (offer) => {
 
 ## Propriedades do Offer
 
-| Propriedade    | Tipo            | Descrição                                               |
-| -------------- | --------------- | ------------------------------------------------------- |
-| `id`           | `string`        | Identificador único da chamada.                         |
-| `type`         | `CallType`      | `"official"` (WebRTC) ou `"unofficial"` (relay).        |
-| `direction`    | `CallDirection` | Sempre `"INCOMING"` para ofertas.                       |
-| `peer`         | `CallPeer`      | Telefone, nome de exibição e foto de perfil do chamador.|
-| `device_token` | `string`        | Token do dispositivo que recebeu a chamada.             |
-| `status`       | `CallStatus`    | Estado atual da chamada (ex: `"CALLING"`).              |
+| Propriedade                       | Tipo            | Descrição                                               |
+| --------------------------------- | --------------- | ------------------------------------------------------- |
+| `id`                              | `string`        | Identificador único da chamada.                         |
+| `type`                            | `CallType`      | `"official"` (WebRTC) ou `"unofficial"` (relay).        |
+| `direction`                       | `CallDirection` | Sempre `"INCOMING"` para ofertas.                       |
+| `peer`                            | `CallPeer`      | Telefone, nome de exibição e foto de perfil do chamador.|
+| `deviceToken`                     | `string`        | Token do dispositivo que recebeu a chamada.             |
+| `status`                          | `CallStatus`    | Estado atual da chamada (ex: `"CALLING"`).              |
+| ~~`device_token`~~ **(deprecated)** | `string`      | **Use `deviceToken` no lugar.** Acesso emite `console.warn` único. |
 
 ---
 

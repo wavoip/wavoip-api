@@ -55,14 +55,15 @@ call.on("unanswered", () => console.log("Sem resposta"))
 
 ## Propriedades do CallOutgoing
 
-| Propriedade    | Tipo            | Descrição                                                  |
-| -------------- | --------------- | ---------------------------------------------------------- |
-| `id`           | `string`        | Identificador único da chamada.                            |
-| `type`         | `CallType`      | `"official"` ou `"unofficial"`.                            |
-| `direction`    | `CallDirection` | Sempre `"OUTGOING"`.                                       |
-| `peer`         | `CallPeer`      | Telefone, nome de exibição e foto de perfil do destinatário.|
-| `device_token` | `string`        | Token do dispositivo que está realizando a chamada.        |
-| `status`       | `CallStatus`    | Estado atual da chamada.                                   |
+| Propriedade                       | Tipo            | Descrição                                                  |
+| --------------------------------- | --------------- | ---------------------------------------------------------- |
+| `id`                              | `string`        | Identificador único da chamada.                            |
+| `type`                            | `CallType`      | `"official"` ou `"unofficial"`.                            |
+| `direction`                       | `CallDirection` | Sempre `"OUTGOING"`.                                       |
+| `peer`                            | `CallPeer`      | Telefone, nome de exibição e foto de perfil do destinatário.|
+| `deviceToken`                     | `string`        | Token do dispositivo que está realizando a chamada.        |
+| `status`                          | `CallStatus`    | Estado atual da chamada.                                   |
+| ~~`device_token`~~ **(deprecated)** | `string`      | **Use `deviceToken` no lugar.** Acesso emite `console.warn` único. |
 
 ---
 

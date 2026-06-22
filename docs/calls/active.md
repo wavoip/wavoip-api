@@ -11,16 +11,20 @@ Um objeto `CallActive` é fornecido quando uma oferta recebida é aceita ou quan
 
 ## Propriedades
 
-| Propriedade         | Tipo                    | Descrição                                                              |
-| ------------------- | ----------------------- | ---------------------------------------------------------------------- |
-| `id`                | `string`                | Identificador único da chamada.                                        |
-| `type`              | `CallType`              | `"official"` (WebRTC) ou `"unofficial"` (relay).                       |
-| `direction`         | `CallDirection`         | `"INCOMING"` ou `"OUTGOING"`.                                          |
-| `peer`              | `CallPeer`              | Parte remota — telefone, nome de exibição, foto de perfil e mudo.      |
-| `device_token`      | `string`                | Token do dispositivo que gerencia esta chamada.                        |
-| `status`            | `CallStatus`            | Estado atual da chamada.                                               |
-| `connection_status` | `TransportStatus`       | Estado do transporte de mídia: `"connecting"`, `"connected"`, `"reconnecting"` ou `"disconnected"`. |
-| `audio_analyser`    | `Promise<AnalyserNode>` | Resolve para um `AnalyserNode` do Web Audio conectado ao stream de áudio remoto. |
+| Propriedade           | Tipo                    | Descrição                                                              |
+| --------------------- | ----------------------- | ---------------------------------------------------------------------- |
+| `id`                  | `string`                | Identificador único da chamada.                                        |
+| `type`                | `CallType`              | `"official"` (WebRTC) ou `"unofficial"` (relay).                       |
+| `direction`           | `CallDirection`         | `"INCOMING"` ou `"OUTGOING"`.                                          |
+| `peer`                | `CallPeer`              | Parte remota — telefone, nome de exibição, foto de perfil e mudo.      |
+| `deviceToken`         | `string`                | Token do dispositivo que gerencia esta chamada.                        |
+| `status`              | `CallStatus`            | Estado atual da chamada.                                               |
+| `connectionStatus`    | `TransportStatus`       | Estado do transporte de mídia: `"connecting"`, `"connected"`, `"reconnecting"` ou `"disconnected"`. |
+| `audioAnalyserIn`     | `Promise<AnalyserNode>` | Resolve para um `AnalyserNode` conectado ao stream de áudio **recebido** (par → alto-falante local). |
+| `audioAnalyserOut`    | `Promise<AnalyserNode>` | Resolve para um `AnalyserNode` conectado ao stream de áudio **enviado** (microfone local → par). |
+| ~~`device_token`~~ **(deprecated)** | `string` | **Use `deviceToken` no lugar.** Acesso emite `console.warn` único. |
+| ~~`connection_status`~~ **(deprecated)** | `TransportStatus` | **Use `connectionStatus` no lugar.** Acesso emite `console.warn` único. |
+| ~~`audio_analyser`~~ **(deprecated)** | `Promise<AnalyserNode>` | **Use `audioAnalyserIn` no lugar.** Acesso emite `console.warn` único. |
 
 ---
 
@@ -118,15 +122,32 @@ setInterval(async () => {
 
 ## Análise de áudio
 
-`audio_analyser` resolve para um `AnalyserNode` do Web Audio conectado ao stream de áudio remoto. Use-o para visualizar a forma de onda da chamada ou detectar silêncio.
+Dois `AnalyserNode` do Web Audio são expostos — um por direção. Use-os para visualizar a forma de onda da chamada ou detectar silêncio em cada lado independentemente.
+
+- `audioAnalyserIn` — áudio **recebido** do par (vai para o alto-falante local).
+- `audioAnalyserOut` — áudio **enviado** pelo microfone local (vai para o par).
 
 ```typescript
-const analyser = await call.audio_analyser
+const [analyserIn, analyserOut] = await Promise.all([
+    call.audioAnalyserIn,
+    call.audioAnalyserOut,
+])
 
-const dataArray = new Uint8Array(analyser.frequencyBinCount)
-analyser.getByteFrequencyData(dataArray)
-// Desenhe dataArray em um canvas…
+const inBuf = new Uint8Array(analyserIn.frequencyBinCount)
+const outBuf = new Uint8Array(analyserOut.frequencyBinCount)
+
+function frame() {
+    analyserIn.getByteFrequencyData(inBuf)
+    analyserOut.getByteFrequencyData(outBuf)
+    // Desenhe inBuf (par falando) e outBuf (usuário falando) em canvas separados…
+    requestAnimationFrame(frame)
+}
+frame()
 ```
+
+{% hint style="info" %}
+O grafo do microfone é ancorado por um `GainNode(0)` ligado ao `destination` para que o `AudioContext` renderize amostras no `audioAnalyserOut` — o ganho zero garante que o seu próprio áudio **não** seja reproduzido no alto-falante.
+{% endhint %}
 
 ---
 
@@ -212,21 +233,21 @@ Para chamadas não oficiais (relay), o transporte WebSocket se reconecta automat
 {% step %}
 ## Conectado
 
-Chamada funcionando normalmente. `connection_status === "connected"`.
+Chamada funcionando normalmente. `connectionStatus === "connected"`.
 {% endstep %}
 
 {% step %}
 ## Reconectando
 
 WebSocket caiu inesperadamente. A biblioteca tenta reconectar a cada 1 segundo por até 30 segundos.
-`connection_status === "reconnecting"`.
+`connectionStatus === "reconnecting"`.
 {% endstep %}
 
 {% step %}
 ## Desconectado
 
 Prazo de 30 segundos excedido sem reconexão bem-sucedida.
-`connection_status === "disconnected"` — trate a chamada como perdida.
+`connectionStatus === "disconnected"` — trate a chamada como perdida.
 {% endstep %}
 {% endstepper %}
 
