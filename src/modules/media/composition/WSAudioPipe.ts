@@ -21,7 +21,8 @@ type AudioDataCallback = (data: ArrayBuffer) => void;
  */
 export class WSAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe {
     peerMuted = false;
-    readonly audioAnalyser: Promise<AnalyserNode>;
+    readonly audioAnalyserIn: Promise<AnalyserNode>;
+    readonly audioAnalyserOut: Promise<AnalyserNode>;
 
     private readonly audioIn: AudioInput;
     private readonly audioOut: AudioOutput;
@@ -36,7 +37,8 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe 
         const ctx = mediaManager.audioContext;
         this.audioIn = new AudioInput(ctx, onMicData);
         this.audioOut = new AudioOutput(ctx);
-        this.audioAnalyser = this.audioOut.audioAnalyser;
+        this.audioAnalyserIn = this.audioOut.audioAnalyser;
+        this.audioAnalyserOut = this.audioIn.audioAnalyser;
     }
 
     async start(): Promise<void> {
@@ -73,12 +75,20 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe 
 class AudioInput {
     private source: MediaStreamAudioSourceNode | null = null;
     private resampleNode: AudioWorkletNode | null = null;
+    private analyserNode: AnalyserNode | null = null;
+    private silentGain: GainNode | null = null;
     private lastLevel = 0;
+
+    public readonly audioAnalyser: Promise<AnalyserNode>;
+    private readonly analyserResolver: PromiseWithResolvers<AnalyserNode>;
 
     constructor(
         private readonly audioContext: AudioContext,
         private readonly onAudioData: AudioDataCallback,
-    ) {}
+    ) {
+        this.analyserResolver = Promise.withResolvers<AnalyserNode>();
+        this.audioAnalyser = this.analyserResolver.promise;
+    }
 
     start(stream: MediaStream): void {
         this.resampleNode = new AudioWorkletNode(this.audioContext, "resample-processor", {
@@ -98,7 +108,21 @@ class AudioInput {
 
         // ResampleProcessor only processes — it does not connect to destination.
         // Output goes to the main thread via port.postMessage. RMS is computed in main
-        // thread from the same buffer (AnalyserNode reads empty when no destination path).
+        // thread from the same buffer.
+        //
+        // Tx analyser tap: fan-out the same source through an AnalyserNode anchored
+        // to destination via a silent GainNode. AnalyserNode reads empty without a
+        // path to destination; the silent gain keeps the graph rendering without
+        // echoing the mic into the speaker.
+        this.analyserNode = this.audioContext.createAnalyser();
+        this.analyserNode.fftSize = 256;
+        this.silentGain = this.audioContext.createGain();
+        this.silentGain.gain.value = 0;
+        this.source.connect(this.analyserNode);
+        this.analyserNode.connect(this.silentGain);
+        this.silentGain.connect(this.audioContext.destination);
+
+        this.analyserResolver.resolve(this.analyserNode);
     }
 
     readLevel(): number {
@@ -109,11 +133,18 @@ class AudioInput {
         if (this.source && this.resampleNode) {
             this.source.disconnect(this.resampleNode);
         }
+        if (this.source && this.analyserNode) {
+            this.source.disconnect(this.analyserNode);
+        }
         if (this.resampleNode) {
             this.resampleNode.port.onmessage = null;
             this.resampleNode.disconnect();
             this.resampleNode = null;
         }
+        this.analyserNode?.disconnect();
+        this.analyserNode = null;
+        this.silentGain?.disconnect();
+        this.silentGain = null;
         this.source = null;
         this.lastLevel = 0;
     }
