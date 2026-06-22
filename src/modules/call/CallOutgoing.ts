@@ -26,8 +26,10 @@ export interface CallOutgoing {
     type: CallType;
     direction: CallDirection;
     peer: CallPeer;
-    device_token: string;
+    deviceToken: string;
     status: CallStatus;
+    /** @deprecated Use `deviceToken` instead. */
+    device_token: string;
     on<T extends keyof CallOutgoingEvents>(event: T, callback: (...args: CallOutgoingEvents[T]) => void): Unsubscribe;
     /** @deprecated Use `on("peerAccept", callback)` instead. */
     onPeerAccept(callback: (call: CallActive) => void): void;
@@ -129,7 +131,7 @@ export function CallOutgoingProxy(
     const proxy = {
         id: call.id,
         type: call.type,
-        device_token: call.deviceToken,
+        deviceToken: call.deviceToken,
         direction: call.direction,
 
         mute(): Promise<{ err: string | null }> {
@@ -207,6 +209,13 @@ export function CallOutgoingProxy(
     Object.defineProperties(proxy, {
         status: { get: () => call.status, enumerable: true },
         peer: { get: () => ({ ...call.peer, muted: false }), enumerable: true },
+        device_token: {
+            get: () => {
+                warnDeprecated("CallOutgoing.device_token", "use `outgoing.deviceToken` instead.");
+                return call.deviceToken;
+            },
+            enumerable: true,
+        },
     });
 
     return proxy;

@@ -26,9 +26,18 @@ export interface CallActive {
     type: CallType;
     direction: CallDirection;
     peer: CallPeer;
-    device_token: string;
+    deviceToken: string;
     status: CallStatus;
+    connectionStatus: TransportStatus;
+    /** Inbound (peer → local speaker) AnalyserNode. */
+    audioAnalyserIn: Promise<AnalyserNode>;
+    /** Outbound (local mic → peer) AnalyserNode. */
+    audioAnalyserOut: Promise<AnalyserNode>;
+    /** @deprecated Use `deviceToken` instead. */
+    device_token: string;
+    /** @deprecated Use `connectionStatus` instead. */
     connection_status: TransportStatus;
+    /** @deprecated Use `audioAnalyserIn` instead. */
     audio_analyser: Promise<AnalyserNode>;
     mute(): Promise<{ err: string | null }>;
     unmute(): Promise<{ err: string | null }>;
@@ -118,9 +127,10 @@ export function CallActiveProxy(
     const proxy = {
         id: call.id,
         type: call.type,
-        device_token: call.deviceToken,
+        deviceToken: call.deviceToken,
         direction: call.direction,
-        audio_analyser: transport.audioAnalyser,
+        audioAnalyserIn: transport.audioAnalyserIn,
+        audioAnalyserOut: transport.audioAnalyserOut,
 
         mute(): Promise<{ err: string | null }> {
             mediaManager.setMuted(true);
@@ -216,8 +226,30 @@ export function CallActiveProxy(
     // lifetime of the proxy. Snapshotting would freeze them at construction time.
     Object.defineProperties(proxy, {
         status: { get: () => call.status, enumerable: true },
-        connection_status: { get: () => transport.status, enumerable: true },
+        connectionStatus: { get: () => transport.status, enumerable: true },
         peer: { get: () => ({ ...call.peer, muted: transport.peerMuted }), enumerable: true },
+        // Deprecated snake-case aliases — warn-once on access.
+        device_token: {
+            get: () => {
+                warnDeprecated("CallActive.device_token", "use `active.deviceToken` instead.");
+                return call.deviceToken;
+            },
+            enumerable: true,
+        },
+        connection_status: {
+            get: () => {
+                warnDeprecated("CallActive.connection_status", "use `active.connectionStatus` instead.");
+                return transport.status;
+            },
+            enumerable: true,
+        },
+        audio_analyser: {
+            get: () => {
+                warnDeprecated("CallActive.audio_analyser", "use `active.audioAnalyserIn` instead.");
+                return transport.audioAnalyserIn;
+            },
+            enumerable: true,
+        },
     });
 
     return proxy;
