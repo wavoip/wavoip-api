@@ -12,3 +12,5 @@ export type { IAudioPipe, PipeEvents } from "./AudioPipe";
 
 export type { IStatsAdapter } from "./StatsAdapter";
 export { RTCStatsAdapter } from "./RTCStatsAdapter";
+export type { AudioLevelProvider } from "./WSStatsAdapter";
+export { WSStatsAdapter } from "./WSStatsAdapter";

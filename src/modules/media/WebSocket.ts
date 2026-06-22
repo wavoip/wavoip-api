@@ -1,5 +1,6 @@
 import type { CallStats } from "@/modules/call/Stats";
 import { rmsInt16 } from "@/modules/media/audio-level";
+import { WSStatsAdapter } from "@/modules/media/composition";
 import type { Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
@@ -12,32 +13,25 @@ const NO_RECONNECT_CODES = [1000, 1008];
 const RECONNECT_DELAY_MS = 1_000;
 const RECONNECT_TIMEOUT_MS = 30_000;
 const STATS_TICK_MS = 200;
-// PCMU at 8kHz, 20ms frames = 160 bytes / 20ms.
-const RX_EXPECTED_INTERVAL_MS = 20;
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
     public readonly kind = "ws" as const;
     public status: TransportStatus = "connecting";
     public peerMuted = false;
     public audioAnalyser: Promise<AnalyserNode>;
-    public stats: CallStats = {
-        rtt: { avg: 0, max: 0, min: 0 },
-        rx: { loss: 0, total: 0, total_bytes: 0, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
-        tx: { loss: 0, total: 0, total_bytes: 0, bitrate_kbps: 0, audio_level: 0 },
-        audio_context: { output_latency_ms: 0 },
-    };
+
+    get stats(): CallStats {
+        return this.statsAdapter.snapshot();
+    }
 
     private ws?: WebSocket;
     private stopped = false;
     private reconnectDeadline: ReturnType<typeof setTimeout> | null = null;
     private readonly audioIn: AudioInput;
     private readonly audioOut: AudioOutput;
+    private readonly statsAdapter: WSStatsAdapter;
 
     private statsTimer: ReturnType<typeof setInterval> | null = null;
-    private prevRxBytes = 0;
-    private prevTxBytes = 0;
-    private prevSampleTs = 0;
-    private lastRxArrivalTs = 0;
 
     constructor(
         private readonly mediaManager: MediaManager,
@@ -51,12 +45,15 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         this.audioIn = new AudioInput(ctx, (data) => {
             if (this.ws?.readyState === WebSocket.OPEN) {
                 this.ws.send(data);
-                this.stats.tx.total_bytes += data.byteLength;
-                this.stats.tx.total += 1;
+                this.statsAdapter.noteSent(data.byteLength);
             }
         });
         this.audioOut = new AudioOutput(ctx);
         this.audioAnalyser = this.audioOut.audioAnalyser;
+        this.statsAdapter = new WSStatsAdapter(ctx, {
+            readTxLevel: () => this.audioIn.readLevel(),
+            readRxLevel: () => this.audioOut.readLevel(),
+        });
     }
 
     async start(): Promise<void> {
@@ -113,7 +110,7 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
                 this.ws?.send("pong");
                 return;
             }
-            this.trackRxArrival((event.data as ArrayBuffer).byteLength);
+            this.statsAdapter.noteReceived((event.data as ArrayBuffer).byteLength);
             this.audioOut.sendAudioData(event.data as ArrayBuffer);
         });
 
@@ -151,22 +148,8 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         this.emit("statusChanged", status);
     }
 
-    private trackRxArrival(byteLength: number): void {
-        this.stats.rx.total_bytes += byteLength;
-        this.stats.rx.total += 1;
-
-        const now = performance.now();
-        if (this.lastRxArrivalTs > 0) {
-            const arrivalDelta = now - this.lastRxArrivalTs;
-            const d = Math.abs(arrivalDelta - RX_EXPECTED_INTERVAL_MS);
-            // RFC 3550 jitter estimate: J += (|D| - J) / 16
-            this.stats.rx.jitter_ms += (d - this.stats.rx.jitter_ms) / 16;
-        }
-        this.lastRxArrivalTs = now;
-    }
-
     private startStatsLoop(): void {
-        this.statsTimer = setInterval(() => this.sampleStats(), STATS_TICK_MS);
+        this.statsTimer = setInterval(() => void this.tickStats(), STATS_TICK_MS);
     }
 
     private stopStatsLoop(): void {
@@ -176,27 +159,9 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         }
     }
 
-    private sampleStats(): void {
-        const now = performance.now();
-        const txBytes = this.stats.tx.total_bytes;
-        const rxBytes = this.stats.rx.total_bytes;
-
-        if (this.prevSampleTs > 0) {
-            const dtSec = (now - this.prevSampleTs) / 1000;
-            if (dtSec > 0) {
-                this.stats.tx.bitrate_kbps = ((txBytes - this.prevTxBytes) * 8) / dtSec / 1000;
-                this.stats.rx.bitrate_kbps = ((rxBytes - this.prevRxBytes) * 8) / dtSec / 1000;
-            }
-        }
-        this.prevTxBytes = txBytes;
-        this.prevRxBytes = rxBytes;
-        this.prevSampleTs = now;
-
-        this.stats.tx.audio_level = this.audioIn.readLevel();
-        this.stats.rx.audio_level = this.audioOut.readLevel();
-        this.stats.audio_context.output_latency_ms = this.mediaManager.audioContext.outputLatency * 1000;
-
-        this.emit("statsChanged", this.stats);
+    private async tickStats(): Promise<void> {
+        await this.statsAdapter.refresh();
+        this.emit("statsChanged", this.statsAdapter.snapshot());
     }
 }
 
