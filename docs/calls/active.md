@@ -47,6 +47,28 @@ await call.end()
 
 ---
 
+### `getStats()`
+
+Retorna um snapshot fresco de `CallStats`. Você controla a cadência — chame conforme a sua UI precisa (por exemplo, por frame de animação para um indicador de áudio, ou a cada segundo para um painel de qualidade).
+
+```typescript
+const stats = await call.getStats()
+console.log(`RTT médio: ${stats.rtt.avg}ms | bitrate RX: ${stats.rx.bitrate_kbps}kbps`)
+```
+
+Comportamento por tipo de chamada:
+
+- **`official`**: dispara `pc.getStats()` no transporte WebRTC e retorna o snapshot resultante (RTT par-a-par, perda, bitrate, audio level, jitter).
+- **`unofficial`** (relay): mescla os campos do lado cliente medidos pelo transporte WebSocket (bitrate, audio level, jitter RX, latência de saída) com a última projeção de `serverStats` recebida via push do servidor (RTT, perda, totais). Apenas a combinação tem a imagem completa — nenhum lado sozinho a possui.
+
+Antes do transporte ser conectado (raro, apenas durante a transição `RINGING` → `ACTIVE`), retorna um snapshot vazio com zeros.
+
+{% hint style="info" %}
+`getStats()` é a API recomendada. Os eventos `stats` e `serverStats` permanecem disponíveis por compatibilidade, mas estão marcados como **deprecated** — eles disparam em uma cadência fixa de 200ms controlada pela biblioteca, enquanto `getStats()` permite que você escolha quando e com qual frequência ler.
+{% endhint %}
+
+---
+
 ## Eventos
 
 Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
@@ -57,8 +79,8 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 | `peerMute`          | —                   | Parte remota silenciou o microfone.                                                                                    |
 | `peerUnmute`        | —                   | Parte remota ativou o microfone.                                                                                       |
 | `connectionStatus`  | `TransportStatus`   | Estado de conexão do transporte de mídia mudou.                                                                        |
-| `stats`             | `CallStats`         | Estatísticas periódicas de qualidade da chamada. Em chamadas **oficiais** vêm do transporte WebRTC local (RTT par-a-par). Em chamadas **não oficiais** (relay) são uma projeção de `serverStats` com o RTT servidor↔cliente. |
-| `serverStats`       | `ServerCallStats`   | Estatísticas brutas agregadas pelos servidores Wavoip, com RTT separado (servidor↔cliente e servidor↔WhatsApp). Emitido para qualquer tipo de chamada.                  |
+| ~~`stats`~~ **(deprecated)** | `CallStats`         | Tick fixo de 200ms com `CallStats`. **Use [`getStats()`](#getstats) no lugar** — você controla a cadência. Ainda disparado por retrocompatibilidade; emite um aviso `console.warn` único na primeira assinatura. |
+| ~~`serverStats`~~ **(deprecated)** | `ServerCallStats`   | `call:stats` bruto enviado pelo servidor (RTT servidor↔cliente e servidor↔WhatsApp). **Use [`getStats()`](#getstats) no lugar** — os mesmos campos já estão mesclados ali para chamadas `unofficial`. Emite um aviso `console.warn` único na primeira assinatura. |
 | `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE (duração, candidatos por tipo, STUN/TURN alcançados, par selecionado). Replay em listeners tardios. |
 | `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado (`STUN_UNREACHABLE`, `ICE_GATHERING_TIMEOUT`, `ICE_CONNECTION_FAILED`, `NO_HOST_CANDIDATES`, `SYMMETRIC_NAT_SUSPECTED`). Todos os problemas observados são re-emitidos para listeners tardios. |
 | `error`             | `string`            | Ocorreu um erro no nível de transporte.                                                                                |
@@ -81,13 +103,15 @@ call.on("connectionStatus", (status) => {
     console.log("Transporte:", status)
 })
 
-call.on("stats", (stats) => {
-    console.log(`RTT médio: ${stats.rtt.avg}ms | Perda RX: ${stats.rx.loss}`)
-})
-
 call.on("error", (err) => {
     console.error("Erro na chamada:", err)
 })
+
+// Pull de estatísticas — você decide a cadência.
+setInterval(async () => {
+    const stats = await call.getStats()
+    updateStatsDisplay(stats)
+}, 1000)
 ```
 
 ---
@@ -108,34 +132,52 @@ analyser.getByteFrequencyData(dataArray)
 
 ## Estatísticas de chamada
 
-A fonte do evento `stats` depende do tipo da chamada:
-
-- **Chamada oficial**: estatísticas medidas localmente pelo `RTCPeerConnection` (RTT par-a-par, bytes enviados/recebidos, perda).
-- **Chamada não oficial (relay)**: como o transporte WebSocket não tem stats locais, a biblioteca projeta o payload `serverStats` no formato `CallStats` usando o RTT do trecho servidor↔cliente.
-
-`serverStats` permanece disponível em ambos os casos e expõe o RTT servidor↔WhatsApp separadamente.
+O formato completo de `CallStats`:
 
 ```typescript
 type CallStats = {
-    rtt: { min: number; max: number; avg: number }  // milissegundos
-    tx: { total: number; total_bytes: number; loss: number }
-    rx: { total: number; total_bytes: number; loss: number }
+    rtt: {
+        min: number  // ms
+        max: number
+        avg: number
+    }
+    tx: {
+        total:        number  // pacotes enviados
+        total_bytes:  number
+        loss:         number  // perda de pacotes (0–1 ou contagem)
+        bitrate_kbps: number  // janela do último tick
+        audio_level:  number  // RMS do microfone (0–1)
+    }
+    rx: {
+        total:        number
+        total_bytes:  number
+        loss:         number
+        bitrate_kbps: number
+        audio_level:  number  // RMS do alto-falante (0–1)
+        jitter_ms:    number  // jitter de chegada estimado (RFC 3550)
+    }
+    audio_context: {
+        output_latency_ms: number  // AudioContext.outputLatency × 1000
+    }
 }
+```
 
+A origem dos campos depende do tipo da chamada:
+
+- **Chamada oficial**: tudo medido localmente pelo `RTCPeerConnection.getStats()` (RTT par-a-par, perda, bitrate, audio levels, jitter).
+- **Chamada não oficial (relay)**: o servidor envia `RTT` / `loss` / totais via `call:stats`; o transporte WebSocket mede `bitrate_kbps`, `audio_level` (tx/rx), `rx.jitter_ms` e `audio_context.output_latency_ms`. `getStats()` retorna a mescla.
+
+`ServerCallStats` permanece exposto para quem precisa do RTT separado servidor↔cliente / servidor↔WhatsApp em chamadas não oficiais:
+
+```typescript
 type ServerCallStats = {
     rtt: {
-        client:   { min: number; max: number; avg: number }  // servidor ↔ cliente
-        whatsapp: { min: number; max: number; avg: number }  // servidor ↔ WhatsApp
+        client:   { min: number; max: number; avg: number }  // ms — servidor ↔ cliente
+        whatsapp: { min: number; max: number; avg: number }  // ms — servidor ↔ WhatsApp
     }
     tx: { total: number; total_bytes: number; loss: number }
     rx: { total: number; total_bytes: number; loss: number }
 }
-```
-
-```typescript
-call.on("serverStats", ({ rtt }) => {
-    console.log(`servidor↔cliente: ${rtt.client.avg}ms | servidor↔WhatsApp: ${rtt.whatsapp.avg}ms`)
-})
 ```
 
 ---
@@ -205,11 +247,13 @@ wavoip.on("offer", async (offer) => {
         if (status === "connected")   hideReconnectingBanner()
     })
 
-    call.on("stats", ({ rtt, rx }) => {
-        updateStatsDisplay({ rtt: rtt.avg, loss: rx.loss })
-    })
+    const statsTimer = setInterval(async () => {
+        const { rtt, rx } = await call.getStats()
+        updateStatsDisplay({ rtt: rtt.avg, loss: rx.loss, jitter: rx.jitter_ms })
+    }, 500)
 
     call.on("ended", () => {
+        clearInterval(statsTimer)
         closeCallUI()
     })
 

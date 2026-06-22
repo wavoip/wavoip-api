@@ -76,7 +76,7 @@ type CallPeer = {
 
 ## Estatísticas de chamada
 
-`CallStats` é medido pelo navegador (lado do cliente). `ServerCallStats` é o agregado periódico enviado pelos servidores Wavoip, com RTT separado entre o cliente e o WhatsApp.
+`CallStats` é o snapshot retornado por [`CallActive.getStats()`](calls/active.md#getstats). Em chamadas `official` todos os campos vêm de `RTCPeerConnection.getStats()`. Em chamadas `unofficial` os campos de RTT, perda e totais vêm do push `serverStats` do servidor, enquanto bitrate, audio levels, jitter RX e latência de saída vêm das medições do transporte WebSocket — `getStats()` retorna os dois mesclados.
 
 ```typescript
 type CallStats = {
@@ -86,14 +86,22 @@ type CallStats = {
         avg: number   // Tempo médio de ida e volta (ms)
     }
     tx: {
-        total:       number  // Pacotes enviados
-        total_bytes: number  // Bytes enviados
-        loss:        number  // Perda de pacotes (0–1)
+        total:        number  // Pacotes enviados
+        total_bytes:  number  // Bytes enviados
+        loss:         number  // Perda de pacotes
+        bitrate_kbps: number  // Bitrate de envio na última janela de tick
+        audio_level:  number  // RMS do microfone (0–1)
     }
     rx: {
-        total:       number  // Pacotes recebidos
-        total_bytes: number  // Bytes recebidos
-        loss:        number  // Perda de pacotes (0–1)
+        total:        number  // Pacotes recebidos
+        total_bytes:  number  // Bytes recebidos
+        loss:         number  // Perda de pacotes
+        bitrate_kbps: number  // Bitrate de recepção na última janela de tick
+        audio_level:  number  // RMS do alto-falante (0–1)
+        jitter_ms:    number  // Jitter estimado (RFC 3550)
+    }
+    audio_context: {
+        output_latency_ms: number  // AudioContext.outputLatency × 1000
     }
 }
 
@@ -233,7 +241,9 @@ type CallActiveEvents = {
     peerMute:          []
     peerUnmute:        []
     ended:             []
+    /** @deprecated Use `CallActive.getStats()` — você controla a cadência. */
     stats:             [stats: CallStats]
+    /** @deprecated Use `CallActive.getStats()` — já mescla servidor + cliente. */
     serverStats:       [stats: ServerCallStats]
     connectionStatus:  [status: TransportStatus]
     status:            [status: CallStatus]
