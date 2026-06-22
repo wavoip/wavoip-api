@@ -36,7 +36,8 @@ export interface ITransport extends EventEmitter<Events> {
     readonly kind: TransportKind;
     status: TransportStatus;
     peerMuted: boolean;
-    audioAnalyser: Promise<AnalyserNode>;
+    audioAnalyserIn: Promise<AnalyserNode>;
+    audioAnalyserOut: Promise<AnalyserNode>;
     stats: CallStats;
 
     start(): Promise<void>;

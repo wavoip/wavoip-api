@@ -16,9 +16,18 @@ export type PipeEvents = {
 export interface IAudioPipe extends EventEmitter<PipeEvents> {
     /**
      * Promise resolves once the speaker-side AnalyserNode is wired into the
-     * AudioContext graph. Consumers can probe the analyser for visualisations.
+     * AudioContext graph. Consumers can probe the analyser for inbound (peer →
+     * local speaker) audio visualisations.
      */
-    readonly audioAnalyser: Promise<AnalyserNode>;
+    readonly audioAnalyserIn: Promise<AnalyserNode>;
+    /**
+     * Promise resolves once the microphone-side AnalyserNode is wired into the
+     * AudioContext graph. Consumers can probe the analyser for outbound (local
+     * mic → peer) audio visualisations. The mic chain is anchored with a silent
+     * `GainNode(0) → destination` so the WebAudio graph renders and the
+     * AnalyserNode actually receives samples.
+     */
+    readonly audioAnalyserOut: Promise<AnalyserNode>;
     peerMuted: boolean;
     start(): Promise<void>;
     stop(): Promise<void>;
