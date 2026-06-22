@@ -507,5 +507,24 @@ describe("WebRTCTransport", () => {
             expect(emitted.rx.audio_level).toBe(0.42);
             expect(emitted.tx.audio_level).toBe(0.7);
         });
+
+        it("uses options.statsTickMs as the interval cadence", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+            const transport = new WebRTCTransport(mm as never, "offer-sdp", undefined, { statsTickMs: 1_000 });
+            await startTransport(transport);
+
+            const cb = vi.fn();
+            transport.on("statsChanged", cb);
+
+            await vi.advanceTimersByTimeAsync(500);
+            expect(cb).not.toHaveBeenCalled();
+
+            await vi.advanceTimersByTimeAsync(600);
+            expect(cb).toHaveBeenCalledTimes(1);
+
+            await vi.advanceTimersByTimeAsync(1_000);
+            expect(cb).toHaveBeenCalledTimes(2);
+        });
     });
 });

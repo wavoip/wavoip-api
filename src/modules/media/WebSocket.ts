@@ -1,10 +1,14 @@
 import type { CallStats } from "@/modules/call/Stats";
 import { WSAudioPipe, WSConnection, WSStatsAdapter } from "@/modules/media/composition";
-import type { Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
+import {
+    DEFAULT_STATS_TICK_MS,
+    type Events,
+    type ITransport,
+    type TransportOptions,
+    type TransportStatus,
+} from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-
-const STATS_TICK_MS = 200;
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
     public readonly kind = "ws" as const;
@@ -22,12 +26,19 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     private readonly connection: WSConnection;
     private readonly audioPipe: WSAudioPipe;
     private readonly statsAdapter: WSStatsAdapter;
+    private readonly statsTickMs: number;
 
     private statsTimer: ReturnType<typeof setInterval> | null = null;
 
-    constructor(mediaManager: MediaManager, server: { host: string; port: string }, token: string) {
+    constructor(
+        mediaManager: MediaManager,
+        server: { host: string; port: string },
+        token: string,
+        options?: TransportOptions,
+    ) {
         super();
 
+        this.statsTickMs = options?.statsTickMs ?? DEFAULT_STATS_TICK_MS;
         this.connection = new WSConnection(server, token);
 
         this.audioPipe = new WSAudioPipe(mediaManager, (data) => {
@@ -61,7 +72,7 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     }
 
     private startStatsLoop(): void {
-        this.statsTimer = setInterval(() => void this.tickStats(), STATS_TICK_MS);
+        this.statsTimer = setInterval(() => void this.tickStats(), this.statsTickMs);
     }
 
     private stopStatsLoop(): void {

@@ -5,6 +5,20 @@ import type { EventEmitter } from "@/modules/shared/EventEmitter";
 export type TransportStatus = "disconnected" | "connected" | "connecting" | "reconnecting";
 export type TransportKind = "webrtc" | "ws";
 
+export const DEFAULT_STATS_TICK_MS = 200;
+
+/**
+ * Transport-wide options. The internal `statsChanged` ticker remains for
+ * deprecated `stats` / `serverStats` event consumers; this knob lets a host
+ * app tune how often the library emits — or set it high enough that the
+ * deprecated event path becomes a rare event and consumers migrate to
+ * `Call.getStats()` (which is unaffected by this value and reflects the
+ * caller's chosen cadence).
+ */
+export type TransportOptions = {
+    statsTickMs?: number;
+};
+
 export type Events = {
     statusChanged: [status: TransportStatus];
     statsChanged: [stats: CallStats];

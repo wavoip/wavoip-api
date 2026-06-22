@@ -3,7 +3,7 @@ import type { CallPeer } from "@/modules/call/Peer";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
 import type { DeviceSocket, MediaPlan } from "@/modules/device/WebSocket";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
-import type { ITransport } from "@/modules/media/ITransport";
+import type { ITransport, TransportOptions } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
 import { WebsocketTransport } from "@/modules/media/WebSocket";
@@ -49,6 +49,7 @@ export function CallOutgoingProxy(
     wss: DeviceSocket,
     mediaManager: MediaManager,
     preBuiltTransport?: WebRTCTransport,
+    transportOptions?: TransportOptions,
 ): CallOutgoing {
     const emitter = new EventEmitter<CallOutgoingEvents>();
 
@@ -81,7 +82,7 @@ export function CallOutgoingProxy(
             transport = preBuiltTransport;
         } else {
             await dispose();
-            transport = createTransport(mediaPlan, mediaManager, call.deviceToken);
+            transport = createTransport(mediaPlan, mediaManager, call.deviceToken, transportOptions);
             await transport.start();
 
             if (mediaPlan.type === "webRTC") {
@@ -211,13 +212,18 @@ export function CallOutgoingProxy(
     return proxy;
 }
 
-function createTransport(mediaPlan: MediaPlan, mediaManager: MediaManager, deviceToken: string): ITransport {
+function createTransport(
+    mediaPlan: MediaPlan,
+    mediaManager: MediaManager,
+    deviceToken: string,
+    transportOptions?: TransportOptions,
+): ITransport {
     if (mediaPlan.type === "webRTC") {
-        return new WebRTCTransport(mediaManager, mediaPlan.sdp);
+        return new WebRTCTransport(mediaManager, mediaPlan.sdp, undefined, transportOptions);
     }
 
     if (mediaPlan.type === "relay") {
-        return new WebsocketTransport(mediaManager, mediaPlan, deviceToken);
+        return new WebsocketTransport(mediaManager, mediaPlan, deviceToken, transportOptions);
     }
 
     throw new Error(`Unsupported media plan type: ${mediaPlan.type}`);

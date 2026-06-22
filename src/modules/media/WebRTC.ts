@@ -1,7 +1,13 @@
 import type { CallStats } from "@/modules/call/Stats";
 import { RTCAudioPipe, RTCConnection, RTCStatsAdapter } from "@/modules/media/composition";
 import type { ConnectivityIssue, IceConfig, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
-import type { Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
+import {
+    DEFAULT_STATS_TICK_MS,
+    type Events,
+    type ITransport,
+    type TransportOptions,
+    type TransportStatus,
+} from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
@@ -13,6 +19,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     private readonly audioPipe: RTCAudioPipe;
     private readonly statsAdapter: RTCStatsAdapter;
     private readonly hasRemoteOffer: boolean;
+    private readonly statsTickMs: number;
     private statsJob = 0;
     private startedOnce = false;
     private stoppedOnce = false;
@@ -45,10 +52,11 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         return this.statsAdapter.snapshot();
     }
 
-    constructor(mediaManager: MediaManager, offer?: string, iceConfig?: IceConfig) {
+    constructor(mediaManager: MediaManager, offer?: string, iceConfig?: IceConfig, options?: TransportOptions) {
         super();
 
         this.hasRemoteOffer = !!offer;
+        this.statsTickMs = options?.statsTickMs ?? DEFAULT_STATS_TICK_MS;
         this.connection = new RTCConnection(offer, iceConfig);
         this.audioPipe = new RTCAudioPipe(this.connection.pc, mediaManager);
         this.statsAdapter = new RTCStatsAdapter(this.connection.pc, mediaManager.audioContext);
@@ -74,7 +82,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         await this.connection.start();
 
         await this.tickStats();
-        this.statsJob = setInterval(() => void this.tickStats(), 200) as unknown as number;
+        this.statsJob = setInterval(() => void this.tickStats(), this.statsTickMs) as unknown as number;
     }
 
     async createOffer(): Promise<string> {
