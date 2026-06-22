@@ -13,7 +13,8 @@ import { EventEmitter } from "@/modules/shared/EventEmitter";
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
     public readonly kind = "ws" as const;
     public peerMuted = false;
-    public audioAnalyser: Promise<AnalyserNode>;
+    public audioAnalyserIn: Promise<AnalyserNode>;
+    public audioAnalyserOut: Promise<AnalyserNode>;
 
     get status(): TransportStatus {
         return this.connection.status;
@@ -45,7 +46,8 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
             this.connection.send(data);
             this.statsAdapter.noteSent(data.byteLength);
         });
-        this.audioAnalyser = this.audioPipe.audioAnalyser;
+        this.audioAnalyserIn = this.audioPipe.audioAnalyserIn;
+        this.audioAnalyserOut = this.audioPipe.audioAnalyserOut;
 
         this.statsAdapter = new WSStatsAdapter(mediaManager.audioContext, {
             readTxLevel: () => this.audioPipe.readTxLevel(),
