@@ -8,6 +8,7 @@ export type {
 } from "./Connection";
 export { isRTCConnection, isWSConnection } from "./Connection";
 export { RTCConnection } from "./RTCConnection";
+export { WSConnection } from "./WSConnection";
 
 export type { IAudioPipe, PipeEvents } from "./AudioPipe";
 

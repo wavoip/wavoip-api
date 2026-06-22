@@ -1,32 +1,28 @@
 import type { CallStats } from "@/modules/call/Stats";
 import { rmsInt16 } from "@/modules/media/audio-level";
-import { WSStatsAdapter } from "@/modules/media/composition";
+import { WSConnection, WSStatsAdapter } from "@/modules/media/composition";
 import type { Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
 type AudioDataCallback = (data: ArrayBuffer) => void;
 
-// 1000 = Normal Closure (server intentionally ended the connection)
-// 1008 = Policy Violation (server rejected the connection, e.g. invalid token)
-const NO_RECONNECT_CODES = [1000, 1008];
-const RECONNECT_DELAY_MS = 1_000;
-const RECONNECT_TIMEOUT_MS = 30_000;
 const STATS_TICK_MS = 200;
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
     public readonly kind = "ws" as const;
-    public status: TransportStatus = "connecting";
     public peerMuted = false;
     public audioAnalyser: Promise<AnalyserNode>;
+
+    get status(): TransportStatus {
+        return this.connection.status;
+    }
 
     get stats(): CallStats {
         return this.statsAdapter.snapshot();
     }
 
-    private ws?: WebSocket;
-    private stopped = false;
-    private reconnectDeadline: ReturnType<typeof setTimeout> | null = null;
+    private readonly connection: WSConnection;
     private readonly audioIn: AudioInput;
     private readonly audioOut: AudioOutput;
     private readonly statsAdapter: WSStatsAdapter;
@@ -35,24 +31,30 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
 
     constructor(
         private readonly mediaManager: MediaManager,
-        private readonly server: { host: string; port: string },
-        private readonly token: string,
+        server: { host: string; port: string },
+        token: string,
     ) {
         super();
 
         const ctx = mediaManager.audioContext;
 
+        this.connection = new WSConnection(server, token);
+
         this.audioIn = new AudioInput(ctx, (data) => {
-            if (this.ws?.readyState === WebSocket.OPEN) {
-                this.ws.send(data);
-                this.statsAdapter.noteSent(data.byteLength);
-            }
+            this.connection.send(data);
+            this.statsAdapter.noteSent(data.byteLength);
         });
         this.audioOut = new AudioOutput(ctx);
         this.audioAnalyser = this.audioOut.audioAnalyser;
         this.statsAdapter = new WSStatsAdapter(ctx, {
             readTxLevel: () => this.audioIn.readLevel(),
             readRxLevel: () => this.audioOut.readLevel(),
+        });
+
+        this.connection.on("statusChanged", (s) => this.emit("statusChanged", s));
+        this.connection.on("message", (data) => {
+            this.statsAdapter.noteReceived(data.byteLength);
+            this.audioOut.sendAudioData(data);
         });
     }
 
@@ -63,89 +65,16 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         this.audioIn.start(stream);
         this.audioOut.start();
 
-        this.ws = this.connect();
+        await this.connection.start();
         this.startStatsLoop();
     }
 
     async stop(): Promise<void> {
-        this.stopped = true;
-        this.clearReconnectDeadline();
         this.stopStatsLoop();
-
-        this.ws?.close();
-        this.ws = undefined;
-
+        await this.connection.stop();
         this.audioIn.stop();
         this.audioOut.stop();
-
         await this.mediaManager.stopMedia();
-
-        this.setStatus("disconnected");
-    }
-
-    private connect(): WebSocket {
-        const url = `wss://${this.server.host}:${this.server.port}?token=${this.token}`;
-
-        const ws = new WebSocket(url);
-        ws.binaryType = "arraybuffer";
-
-        this.setStatus("connecting");
-        this.bindSocketListeners(ws);
-
-        return ws;
-    }
-
-    private bindSocketListeners(socket: WebSocket): void {
-        socket.addEventListener("open", () => {
-            this.clearReconnectDeadline();
-            this.setStatus("connected");
-        });
-
-        socket.addEventListener("error", () => {
-            this.setStatus("disconnected");
-        });
-
-        socket.addEventListener("message", (event: MessageEvent) => {
-            if ((event.data as ArrayBuffer).byteLength === 4) {
-                this.ws?.send("pong");
-                return;
-            }
-            this.statsAdapter.noteReceived((event.data as ArrayBuffer).byteLength);
-            this.audioOut.sendAudioData(event.data as ArrayBuffer);
-        });
-
-        socket.addEventListener("close", (event: CloseEvent) => {
-            if (this.stopped || NO_RECONNECT_CODES.includes(event.code)) {
-                this.setStatus("disconnected");
-                return;
-            }
-
-            this.setStatus("connecting");
-
-            if (!this.reconnectDeadline) {
-                this.reconnectDeadline = setTimeout(() => {
-                    this.reconnectDeadline = null;
-                    this.setStatus("disconnected");
-                }, RECONNECT_TIMEOUT_MS);
-            }
-
-            setTimeout(() => {
-                if (this.stopped) return;
-                this.ws = this.connect();
-            }, RECONNECT_DELAY_MS);
-        });
-    }
-
-    private clearReconnectDeadline(): void {
-        if (this.reconnectDeadline) {
-            clearTimeout(this.reconnectDeadline);
-            this.reconnectDeadline = null;
-        }
-    }
-
-    private setStatus(status: TransportStatus): void {
-        this.status = status;
-        this.emit("statusChanged", status);
     }
 
     private startStatsLoop(): void {
