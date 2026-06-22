@@ -85,12 +85,15 @@ function makeMockMediaManager() {
         fftSize: 256,
         getByteTimeDomainData: vi.fn((arr: Uint8Array) => arr.fill(128)), // silence = 128, avg deviation = 0
         connect: vi.fn(),
+        disconnect: vi.fn(),
     };
-    const source = { connect: vi.fn() };
+    const source = { connect: vi.fn(), disconnect: vi.fn() };
     const audioContext = {
         createMediaStreamSource: vi.fn().mockReturnValue(source),
         createAnalyser: vi.fn().mockReturnValue(analyser),
+        createGain: vi.fn().mockReturnValue({ gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() }),
         destination: {},
+        outputLatency: 0,
     };
     const mockTrack = { enabled: false };
     const mockStream = {
@@ -146,8 +149,16 @@ describe("WebRTCTransport", () => {
         expect(transport.status).toBe("disconnected");
         expect(transport.peerMuted).toBe(false);
         expect(transport.stats.rtt).toEqual({ min: 0, max: 0, avg: 0 });
-        expect(transport.stats.tx).toEqual({ total: 0, total_bytes: 0, loss: 0 });
-        expect(transport.stats.rx).toEqual({ total: 0, total_bytes: 0, loss: 0 });
+        expect(transport.stats.tx).toEqual({ total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0 });
+        expect(transport.stats.rx).toEqual({
+            total: 0,
+            total_bytes: 0,
+            loss: 0,
+            bitrate_kbps: 0,
+            audio_level: 0,
+            jitter_ms: 0,
+        });
+        expect(transport.stats.audio_context).toEqual({ output_latency_ms: 0 });
     });
 
     describe("start()", () => {
@@ -263,23 +274,33 @@ describe("WebRTCTransport", () => {
     });
 
     describe("ontrack event", () => {
-        it("resolves audioAnalyser promise after ontrack fires", async () => {
+        it("resolves audioAnalyserIn promise after ontrack fires", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
             const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
-            await expect(transport.audioAnalyser).resolves.toBeDefined();
+            await expect(transport.audioAnalyserIn).resolves.toBeDefined();
         });
 
-        it("creates analyser node and connects audio graph", async () => {
+        it("resolves audioAnalyserOut promise once mic stream is wired", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
             const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
-            expect(mm.audioContext.createMediaStreamSource).toHaveBeenCalledOnce();
-            expect(mm.audioContext.createAnalyser).toHaveBeenCalledOnce();
+            await expect(transport.audioAnalyserOut).resolves.toBeDefined();
+        });
+
+        it("creates analyser nodes (rx + tx) and connects audio graph", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
+            await startTransport(transport);
+
+            // 2x: rx (handleRemoteTrack) + tx (wireTxAnalyser).
+            expect(mm.audioContext.createMediaStreamSource).toHaveBeenCalledTimes(2);
+            expect(mm.audioContext.createAnalyser).toHaveBeenCalledTimes(2);
         });
     });
 
@@ -422,8 +443,7 @@ describe("WebRTCTransport", () => {
             transport.on("statsChanged", cb);
 
             // Advance past the 5s stats interval
-            vi.advanceTimersByTime(5_000);
-            await Promise.resolve(); // flush async getStats
+            await vi.advanceTimersByTimeAsync(5_000); // flush async getStats
 
             expect(cb).toHaveBeenCalled();
             const emittedStats = cb.mock.calls[0][0];
@@ -456,12 +476,67 @@ describe("WebRTCTransport", () => {
             const cb = vi.fn();
             transport.on("statsChanged", cb);
 
-            vi.advanceTimersByTime(5_000);
-            await Promise.resolve();
+            await vi.advanceTimersByTimeAsync(5_000);
 
             expect(cb).toHaveBeenCalled();
             const emittedStats = cb.mock.calls[0][0];
             expect(emittedStats.rtt.avg).toBeGreaterThan(0);
+        });
+
+        it("captures rx jitter and audio levels from getStats", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+
+            const statsMap = new Map<string, unknown>([
+                [
+                    "inbound",
+                    {
+                        type: "inbound-rtp",
+                        kind: "audio",
+                        bytesReceived: 2000,
+                        packetsReceived: 100,
+                        packetsLost: 0,
+                        audioLevel: 0.42,
+                        jitter: 0.015,
+                    },
+                ],
+                ["source", { type: "media-source", kind: "audio", audioLevel: 0.7 }],
+            ]);
+
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
+            mockPcInstance.getStats = vi.fn().mockResolvedValue(statsMap);
+
+            await startTransport(transport);
+
+            const cb = vi.fn();
+            transport.on("statsChanged", cb);
+
+            await vi.advanceTimersByTimeAsync(5_000);
+
+            expect(cb).toHaveBeenCalled();
+            const emitted = cb.mock.calls[0][0];
+            expect(emitted.rx.jitter_ms).toBeCloseTo(15, 5);
+            expect(emitted.rx.audio_level).toBe(0.42);
+            expect(emitted.tx.audio_level).toBe(0.7);
+        });
+
+        it("uses options.statsTickMs as the interval cadence", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+            const transport = new WebRTCTransport(mm as never, "offer-sdp", { statsTickMs: 1_000 });
+            await startTransport(transport);
+
+            const cb = vi.fn();
+            transport.on("statsChanged", cb);
+
+            await vi.advanceTimersByTimeAsync(500);
+            expect(cb).not.toHaveBeenCalled();
+
+            await vi.advanceTimersByTimeAsync(600);
+            expect(cb).toHaveBeenCalledTimes(1);
+
+            await vi.advanceTimersByTimeAsync(1_000);
+            expect(cb).toHaveBeenCalledTimes(2);
         });
     });
 });

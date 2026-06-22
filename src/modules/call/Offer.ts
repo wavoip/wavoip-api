@@ -21,8 +21,10 @@ export interface Offer {
     type: CallType;
     direction: CallDirection;
     peer: CallPeer;
-    device_token: string;
+    deviceToken: string;
     status: CallStatus;
+    /** @deprecated Use `deviceToken` instead. */
+    device_token: string;
     accept(): Promise<{ call: CallActive; err: null } | { call: null; err: string }>;
     reject(): Promise<{ err: null | string }>;
     on<T extends keyof OfferEvents>(event: T, callback: (...args: OfferEvents[T]) => void): Unsubscribe;
@@ -95,7 +97,7 @@ export function OfferProxy(
     const proxy = {
         id: call.id,
         type: call.type,
-        device_token: call.deviceToken,
+        deviceToken: call.deviceToken,
         direction: call.direction,
 
         async accept(): Promise<{ call: CallActive; err: null } | { call: null; err: string }> {
@@ -158,6 +160,13 @@ export function OfferProxy(
     Object.defineProperties(proxy, {
         status: { get: () => call.status, enumerable: true },
         peer: { get: () => ({ ...call.peer, muted: false }), enumerable: true },
+        device_token: {
+            get: () => {
+                warnDeprecated("Offer.device_token", "use `offer.deviceToken` instead.");
+                return call.deviceToken;
+            },
+            enumerable: true,
+        },
     });
 
     return proxy;

@@ -35,7 +35,7 @@ describe("WebRTCTransport ICE server config", () => {
             { urls: "stun:my-stun.example.com:3478" },
             { urls: ["turn:my-turn.example.com:3478"], username: "u", credential: "c" },
         ];
-        new WebRTCTransport(mm as never, undefined, { iceServers: custom });
+        new WebRTCTransport(mm as never, undefined, { iceConfig: { iceServers: custom } });
 
         expect(pcFactory.last()._config.iceServers).toEqual(custom);
     });

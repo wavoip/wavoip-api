@@ -90,7 +90,7 @@ export class CallRouter {
             this.calls.delete(id);
         });
         bind("call:stats", (id, stats) => {
-            this.calls.get(id)?.emit("serverStats", stats);
+            this.calls.get(id)?.applyServerStats(stats);
         });
         bind("call:peer:muted", (id, muted) => {
             this.calls.get(id)?.emit("peerMuted", muted);

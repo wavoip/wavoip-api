@@ -3,7 +3,7 @@ import type { CallPeer } from "@/modules/call/Peer";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
 import type { DeviceSocket, MediaPlan } from "@/modules/device/WebSocket";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
-import type { ITransport } from "@/modules/media/ITransport";
+import type { ITransport, TransportOptions } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
 import { WebsocketTransport } from "@/modules/media/WebSocket";
@@ -26,8 +26,10 @@ export interface CallOutgoing {
     type: CallType;
     direction: CallDirection;
     peer: CallPeer;
-    device_token: string;
+    deviceToken: string;
     status: CallStatus;
+    /** @deprecated Use `deviceToken` instead. */
+    device_token: string;
     on<T extends keyof CallOutgoingEvents>(event: T, callback: (...args: CallOutgoingEvents[T]) => void): Unsubscribe;
     /** @deprecated Use `on("peerAccept", callback)` instead. */
     onPeerAccept(callback: (call: CallActive) => void): void;
@@ -49,6 +51,7 @@ export function CallOutgoingProxy(
     wss: DeviceSocket,
     mediaManager: MediaManager,
     preBuiltTransport?: WebRTCTransport,
+    transportOptions?: TransportOptions,
 ): CallOutgoing {
     const emitter = new EventEmitter<CallOutgoingEvents>();
 
@@ -81,7 +84,7 @@ export function CallOutgoingProxy(
             transport = preBuiltTransport;
         } else {
             await dispose();
-            transport = createTransport(mediaPlan, mediaManager, call.deviceToken);
+            transport = createTransport(mediaPlan, mediaManager, call.deviceToken, transportOptions);
             await transport.start();
 
             if (mediaPlan.type === "webRTC") {
@@ -128,7 +131,7 @@ export function CallOutgoingProxy(
     const proxy = {
         id: call.id,
         type: call.type,
-        device_token: call.deviceToken,
+        deviceToken: call.deviceToken,
         direction: call.direction,
 
         mute(): Promise<{ err: string | null }> {
@@ -206,18 +209,30 @@ export function CallOutgoingProxy(
     Object.defineProperties(proxy, {
         status: { get: () => call.status, enumerable: true },
         peer: { get: () => ({ ...call.peer, muted: false }), enumerable: true },
+        device_token: {
+            get: () => {
+                warnDeprecated("CallOutgoing.device_token", "use `outgoing.deviceToken` instead.");
+                return call.deviceToken;
+            },
+            enumerable: true,
+        },
     });
 
     return proxy;
 }
 
-function createTransport(mediaPlan: MediaPlan, mediaManager: MediaManager, deviceToken: string): ITransport {
+function createTransport(
+    mediaPlan: MediaPlan,
+    mediaManager: MediaManager,
+    deviceToken: string,
+    transportOptions?: TransportOptions,
+): ITransport {
     if (mediaPlan.type === "webRTC") {
-        return new WebRTCTransport(mediaManager, mediaPlan.sdp);
+        return new WebRTCTransport(mediaManager, mediaPlan.sdp, transportOptions);
     }
 
     if (mediaPlan.type === "relay") {
-        return new WebsocketTransport(mediaManager, mediaPlan, deviceToken);
+        return new WebsocketTransport(mediaManager, mediaPlan, deviceToken, transportOptions);
     }
 
     throw new Error(`Unsupported media plan type: ${mediaPlan.type}`);

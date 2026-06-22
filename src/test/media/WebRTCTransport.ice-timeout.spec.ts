@@ -33,7 +33,7 @@ describe("WebRTCTransport ICE gathering timeout", () => {
 
         it("resolves at the configured timeout when gathering never completes", async () => {
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, undefined, { gatheringTimeoutMs: 800 });
+            const transport = new WebRTCTransport(mm as never, undefined, { iceConfig: { gatheringTimeoutMs: 800 } });
 
             const offerPromise = transport.createOffer();
 
@@ -85,7 +85,7 @@ describe("WebRTCTransport ICE gathering timeout", () => {
 
         it("removes the icegatheringstatechange listener after timing out", async () => {
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, undefined, { gatheringTimeoutMs: 500 });
+            const transport = new WebRTCTransport(mm as never, undefined, { iceConfig: { gatheringTimeoutMs: 500 } });
 
             const offerPromise = transport.createOffer();
             await vi.advanceTimersByTimeAsync(600);
@@ -109,7 +109,7 @@ describe("WebRTCTransport ICE gathering timeout", () => {
     describe("start (incoming) honors the same timeout cap", () => {
         it("resolves the answer at the configured timeout when gathering hangs", async () => {
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", { gatheringTimeoutMs: 400 });
+            const transport = new WebRTCTransport(mm as never, "offer-sdp", { iceConfig: { gatheringTimeoutMs: 400 } });
 
             const startPromise = transport.start();
 

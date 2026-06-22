@@ -43,11 +43,17 @@ function makeMockPreBuiltTransport() {
     t.setAnswer = vi.fn().mockResolvedValue(undefined);
     (t as unknown as { status: string }).status = "disconnected";
     (t as unknown as { peerMuted: boolean }).peerMuted = false;
-    (t as unknown as { audioAnalyser: Promise<AnalyserNode> }).audioAnalyser = Promise.resolve({} as AnalyserNode);
+    (t as unknown as { audioAnalyserIn: Promise<AnalyserNode> }).audioAnalyserIn = Promise.resolve(
+        {} as AnalyserNode,
+    );
+    (t as unknown as { audioAnalyserOut: Promise<AnalyserNode> }).audioAnalyserOut = Promise.resolve(
+        {} as AnalyserNode,
+    );
     (t as unknown as { stats: object }).stats = {
         rtt: { min: 0, max: 0, avg: 0 },
-        tx: { total: 0, total_bytes: 0, loss: 0 },
-        rx: { total: 0, total_bytes: 0, loss: 0 },
+        tx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0 },
+        rx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
+        audio_context: { output_latency_ms: 0 },
     };
     return t;
 }

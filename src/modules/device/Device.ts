@@ -25,8 +25,8 @@ export class DeviceModel {
 
     constructor(public readonly token: string) {}
 
-    receiveOffer(id: string, type: CallType, peer: Peer) {
-        const offer = Call.CreateOffer(id, type, peer, this.token);
+    receiveOffer(id: string, peer: Peer) {
+        const offer = Call.CreateOffer(id, this.callType, peer, this.token);
         return offer;
     }
 

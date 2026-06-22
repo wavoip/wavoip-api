@@ -25,6 +25,7 @@
         "dev": "vite",
         "lint": "pnpm exec tsc --noEmit && pnpm exec biome lint --fix .",
         "build": "vite build",
+        "prepare": "vite build",
         "build:pack": "pnpm pre-deploy && pnpm pack",
         "test": "vitest run",
         "test:watch": "vitest",

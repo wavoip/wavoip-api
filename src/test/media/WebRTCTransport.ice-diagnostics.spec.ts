@@ -69,7 +69,7 @@ describe("WebRTCTransport ICE diagnostics", () => {
 
         it("emits with gatheringTimedOut=true when the timeout fires first", async () => {
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, undefined, { gatheringTimeoutMs: 200 });
+            const transport = new WebRTCTransport(mm as never, undefined, { iceConfig: { gatheringTimeoutMs: 200 } });
 
             const cb = vi.fn();
             transport.on("iceDiagnostics", cb);
@@ -107,7 +107,7 @@ describe("WebRTCTransport ICE diagnostics", () => {
     describe("connectivityIssue event", () => {
         it("emits STUN_UNREACHABLE when gathering times out without an srflx candidate", async () => {
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, undefined, { gatheringTimeoutMs: 200 });
+            const transport = new WebRTCTransport(mm as never, undefined, { iceConfig: { gatheringTimeoutMs: 200 } });
 
             const issues: ConnectivityIssue[] = [];
             transport.on("connectivityIssue", (i) => issues.push(i));
@@ -122,7 +122,7 @@ describe("WebRTCTransport ICE diagnostics", () => {
 
         it("does not emit STUN_UNREACHABLE when an srflx candidate is gathered before timeout", async () => {
             const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, undefined, { gatheringTimeoutMs: 200 });
+            const transport = new WebRTCTransport(mm as never, undefined, { iceConfig: { gatheringTimeoutMs: 200 } });
 
             const issues: ConnectivityIssue[] = [];
             transport.on("connectivityIssue", (i) => issues.push(i));

@@ -13,13 +13,19 @@ import { Wavoip } from "@wavoip/wavoip-api"
 const wavoip = new Wavoip({
     tokens: ["token-1", "token-2"],
     platform?: string,        // opcional — identifica a plataforma do cliente
+    language?: "pt-BR" | "en-US" | "es-ES",
+    iceConfig?: IceConfig,    // opcional — sobrescreve servidores STUN/TURN
+    statsTickMs?: number,     // opcional — cadência do evento `stats` (default 200ms)
 })
 ```
 
-| Parâmetro  | Tipo       | Obrigatório | Descrição                                                       |
-| ---------- | ---------- | ----------- | --------------------------------------------------------------- |
-| `tokens`   | `string[]` | Sim         | Um ou mais tokens de dispositivo Wavoip. Duplicatas são ignoradas. |
-| `platform` | `string`   | Não         | Identificador de plataforma enviado ao servidor na conexão.     |
+| Parâmetro      | Tipo                  | Obrigatório | Descrição                                                                                                                                                                          |
+| -------------- | --------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tokens`       | `string[]`            | Sim         | Um ou mais tokens de dispositivo Wavoip. Duplicatas são ignoradas.                                                                                                                |
+| `platform`     | `string`              | Não         | Identificador de plataforma enviado ao servidor na conexão.                                                                                                                       |
+| `language`     | `Language`            | Não         | Locale para mensagens de erro internas. Default `"pt-BR"`.                                                                                                                        |
+| `iceConfig`    | `IceConfig`           | Não         | Servidores STUN/TURN e timeout de coleta ICE.                                                                                                                                     |
+| `statsTickMs`  | `number`              | Não         | Intervalo do tick interno que emite os eventos **deprecated** `stats` e `serverStats` (padrão `200`). Não afeta [`CallActive.getStats()`](../calls/active.md#getstats), que é pull e roda na cadência do consumidor. |
 
 Cada token cria uma conexão WebSocket persistente com a infraestrutura Wavoip. A biblioteca começa a se conectar imediatamente na construção — nenhuma chamada explícita a `.connect()` é necessária.
 

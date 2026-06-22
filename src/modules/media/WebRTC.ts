@@ -1,288 +1,116 @@
 import type { CallStats } from "@/modules/call/Stats";
+import { RTCAudioPipe, RTCConnection, RTCStatsAdapter } from "@/modules/media/composition";
+import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import {
-    type ConnectivityIssue,
-    DEFAULT_ICE_GATHERING_TIMEOUT_MS,
-    DEFAULT_ICE_SERVERS,
-    type IceCandidateKind,
-    type IceConfig,
-    type IceDiagnostics,
-} from "@/modules/media/ICEDiagnostics";
-import type { Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
+    DEFAULT_STATS_TICK_MS,
+    type Events,
+    type ITransport,
+    type TransportOptions,
+    type TransportStatus,
+} from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
-const SYMMETRIC_NAT_DETECTION_WINDOW_MS = 10_000;
-
 export class WebRTCTransport extends EventEmitter<Events> implements ITransport {
     readonly kind = "webrtc" as const;
-    status: TransportStatus = "disconnected";
-    peerMuted = false;
-    audioAnalyser: Promise<AnalyserNode>;
-    stats: CallStats = {
-        rtt: { min: 0, max: 0, avg: 0 },
-        tx: { total: 0, total_bytes: 0, loss: 0 },
-        rx: { total: 0, total_bytes: 0, loss: 0 },
-    };
+    audioAnalyserIn: Promise<AnalyserNode>;
+    audioAnalyserOut: Promise<AnalyserNode>;
 
-    readonly answer: Promise<RTCSessionDescriptionInit>;
-
-    private pc: RTCPeerConnection;
-    private remoteOffer?: RTCSessionDescriptionInit;
-    private answerResolver: PromiseWithResolvers<RTCSessionDescriptionInit>;
+    private readonly connection: RTCConnection;
+    private readonly audioPipe: RTCAudioPipe;
+    private readonly statsAdapter: RTCStatsAdapter;
+    private readonly hasRemoteOffer: boolean;
+    private readonly statsTickMs: number;
     private statsJob = 0;
-    private started = false;
-    private offerCreated = false;
-    private stopped = false;
+    private startedOnce = false;
+    private stoppedOnce = false;
 
-    private readonly gatheringTimeoutMs: number;
-    private gatheringStartedAt = 0;
-    private candidatesByType: Record<IceCandidateKind, number> = {
-        host: 0,
-        srflx: 0,
-        prflx: 0,
-        relay: 0,
-    };
-    private symmetricNatTimer = 0;
-    private _emittedConnectivityIssues = new Set<ConnectivityIssue>();
-    lastDiagnostics: IceDiagnostics | null = null;
+    get status(): TransportStatus {
+        return this.connection.status;
+    }
+
+    get peerMuted(): boolean {
+        return this.audioPipe.peerMuted;
+    }
+
+    get pc(): RTCPeerConnection {
+        return this.connection.pc;
+    }
+
+    get answer(): Promise<RTCSessionDescriptionInit> {
+        return this.connection.answer;
+    }
+
+    get lastDiagnostics(): IceDiagnostics | null {
+        return this.connection.lastDiagnostics;
+    }
 
     get emittedConnectivityIssues(): ReadonlySet<ConnectivityIssue> {
-        return this._emittedConnectivityIssues;
+        return this.connection.emittedConnectivityIssues;
     }
 
-    constructor(
-        private readonly mediaManager: MediaManager,
-        offer?: string,
-        iceConfig?: IceConfig,
-    ) {
+    get stats(): CallStats {
+        return this.statsAdapter.snapshot();
+    }
+
+    constructor(mediaManager: MediaManager, offer?: string, options?: TransportOptions) {
         super();
 
-        this.gatheringTimeoutMs = iceConfig?.gatheringTimeoutMs ?? DEFAULT_ICE_GATHERING_TIMEOUT_MS;
-        const iceServers = iceConfig?.iceServers ?? DEFAULT_ICE_SERVERS;
+        this.hasRemoteOffer = !!offer;
+        this.statsTickMs = options?.statsTickMs ?? DEFAULT_STATS_TICK_MS;
+        this.connection = new RTCConnection(offer, options?.iceConfig);
+        this.audioPipe = new RTCAudioPipe(this.connection.pc, mediaManager);
+        this.statsAdapter = new RTCStatsAdapter(this.connection.pc, mediaManager.audioContext);
+        this.audioAnalyserIn = this.audioPipe.audioAnalyserIn;
+        this.audioAnalyserOut = this.audioPipe.audioAnalyserOut;
 
-        this.pc = new RTCPeerConnection({ iceServers });
-        if (offer) this.remoteOffer = { type: "offer", sdp: offer };
-
-        const { promise: audioAnalyserPromise, resolve: resolveAudioAnalyser } = Promise.withResolvers<AnalyserNode>();
-        this.audioAnalyser = audioAnalyserPromise;
-
-        this.answerResolver = Promise.withResolvers<RTCSessionDescriptionInit>();
-        this.answer = this.answerResolver.promise;
-
-        this.pc.onicecandidate = (event) => {
-            const candidate = event.candidate;
-            if (!candidate) return;
-            const kind = candidate.type as IceCandidateKind | undefined;
-            if (kind && kind in this.candidatesByType) this.candidatesByType[kind] += 1;
-        };
-
-        this.pc.oniceconnectionstatechange = () => {
-            if (this.pc.iceConnectionState === "failed") {
-                this.emitIssue("ICE_CONNECTION_FAILED");
-            }
-            if (this.pc.iceConnectionState === "connected" || this.pc.iceConnectionState === "completed") {
-                clearTimeout(this.symmetricNatTimer);
-            }
-        };
-
-        this.pc.ontrack = (event) => {
-            const remoteStream = event.streams[0];
-
-            const audio = new Audio();
-            audio.muted = true;
-            audio.srcObject = remoteStream;
-
-            const remoteTrack = remoteStream.getAudioTracks()[0];
-            if (remoteTrack) {
-                remoteTrack.addEventListener("mute", () => {
-                    if (this.peerMuted) return;
-                    this.peerMuted = true;
-                    this.emit("peerMuted", true);
-                });
-                remoteTrack.addEventListener("unmute", () => {
-                    if (!this.peerMuted) return;
-                    this.peerMuted = false;
-                    this.emit("peerMuted", false);
-                });
-            }
-
-            const source = this.mediaManager.audioContext.createMediaStreamSource(remoteStream);
-            const analyser = this.mediaManager.audioContext.createAnalyser();
-            analyser.fftSize = 256;
-
-            source.connect(analyser);
-            analyser.connect(this.mediaManager.audioContext.destination);
-
-            resolveAudioAnalyser(analyser);
-        };
-
-        this.pc.onconnectionstatechange = () => {
-            if (this.pc.connectionState === "connecting") this.setStatus("connecting");
-            if (this.pc.connectionState === "disconnected" || this.pc.connectionState === "closed") {
-                this.setStatus("disconnected");
-            }
-            if (this.pc.connectionState === "closed") this.mediaManager.stopMedia();
-            if (this.pc.connectionState === "connected") this.setStatus("connected");
-        };
-    }
-
-    async start(): Promise<void> {
-        if (this.started) return;
-        this.started = true;
-
-        if (this.remoteOffer) {
-            const micStream = await this.mediaManager.startMedia();
-
-            for (const track of micStream.getTracks()) {
-                track.enabled = !this.mediaManager.muted;
-                this.pc.addTrack(track, micStream);
-            }
-
-            await this.pc.setRemoteDescription(this.remoteOffer);
-            const answer = await this.pc.createAnswer();
-            await this.pc.setLocalDescription(answer);
-
-            await this.waitForIceGathering();
-
-            this.answerResolver.resolve(this.pc.localDescription as RTCSessionDescription);
-        }
-
-        this.getStats(this.pc);
-        this.statsJob = setInterval(() => this.getStats(this.pc), 5_000) as unknown as number;
-    }
-
-    async createOffer(): Promise<string> {
-        if (this.offerCreated) return this.pc.localDescription?.sdp as string;
-        this.offerCreated = true;
-
-        const micStream = await this.mediaManager.startMedia();
-
-        for (const track of micStream.getTracks()) {
-            track.enabled = !this.mediaManager.muted;
-            this.pc.addTrack(track, micStream);
-        }
-
-        const offer = await this.pc.createOffer();
-        await this.pc.setLocalDescription(offer);
-
-        await this.waitForIceGathering();
-
-        return this.pc.localDescription?.sdp as string;
-    }
-
-    async setAnswer(sdp: string): Promise<void> {
-        await this.pc.setRemoteDescription({ type: "answer", sdp });
-    }
-
-    private async waitForIceGathering(): Promise<void> {
-        this.gatheringStartedAt = Date.now();
-
-        const timedOut = await this.raceGatheringWithTimeout();
-
-        const duration = Date.now() - this.gatheringStartedAt;
-        const stunReached = this.candidatesByType.srflx > 0;
-        const turnReached = this.candidatesByType.relay > 0;
-
-        const diag: IceDiagnostics = {
-            gatheringDurationMs: duration,
-            gatheringTimedOut: timedOut,
-            candidatesByType: { ...this.candidatesByType },
-            stunReached,
-            turnReached,
-        };
-        this.lastDiagnostics = diag;
-        this.emit("iceDiagnostics", diag);
-
-        if (timedOut) this.emitIssue("ICE_GATHERING_TIMEOUT");
-        if (timedOut && !stunReached) this.emitIssue("STUN_UNREACHABLE");
-        if (this.candidatesByType.host === 0) this.emitIssue("NO_HOST_CANDIDATES");
-
-        this.scheduleSymmetricNatCheck(stunReached);
-    }
-
-    private raceGatheringWithTimeout(): Promise<boolean> {
-        if (this.pc.iceGatheringState === "complete") return Promise.resolve(false);
-
-        return new Promise<boolean>((resolve) => {
-            const handler = () => {
-                if (this.pc.iceGatheringState !== "complete") return;
-                this.pc.removeEventListener("icegatheringstatechange", handler);
-                clearTimeout(timer);
-                resolve(false);
-            };
-
-            const timer = setTimeout(() => {
-                this.pc.removeEventListener("icegatheringstatechange", handler);
-                resolve(true);
-            }, this.gatheringTimeoutMs);
-
-            this.pc.addEventListener("icegatheringstatechange", handler);
+        this.audioPipe.on("peerMuted", (m) => this.emit("peerMuted", m));
+        this.connection.on("iceDiagnostics", (d) => this.emit("iceDiagnostics", d));
+        this.connection.on("connectivityIssue", (i) => this.emit("connectivityIssue", i));
+        this.connection.on("statusChanged", (s) => {
+            this.emit("statusChanged", s);
+            // Autonomous close (pc.connectionState transitions to "closed" outside
+            // stop()) still needs to release the mic. RTCConnection has no
+            // MediaManager dependency; the pipe owns mic lifecycle.
+            if (this.connection.pc.connectionState === "closed") void this.audioPipe.stop();
         });
     }
 
-    private scheduleSymmetricNatCheck(stunReached: boolean) {
-        if (!stunReached) return;
-        if (this.symmetricNatTimer) return;
-        this.symmetricNatTimer = setTimeout(() => {
-            const noConnection =
-                this.pc.iceConnectionState !== "connected" && this.pc.iceConnectionState !== "completed";
-            if (noConnection) this.emitIssue("SYMMETRIC_NAT_SUSPECTED");
-        }, SYMMETRIC_NAT_DETECTION_WINDOW_MS) as unknown as number;
+    async start(): Promise<void> {
+        if (this.startedOnce) return;
+        this.startedOnce = true;
+
+        if (this.hasRemoteOffer) await this.audioPipe.start();
+        await this.connection.start();
+
+        await this.tickStats();
+        this.statsJob = setInterval(() => void this.tickStats(), this.statsTickMs) as unknown as number;
     }
 
-    private emitIssue(issue: ConnectivityIssue) {
-        if (this._emittedConnectivityIssues.has(issue)) return;
-        this._emittedConnectivityIssues.add(issue);
-        this.emit("connectivityIssue", issue);
+    async createOffer(): Promise<string> {
+        await this.audioPipe.start();
+        return this.connection.createOffer();
+    }
+
+    async setAnswer(sdp: string): Promise<void> {
+        await this.connection.setAnswer(sdp);
     }
 
     async stop(): Promise<void> {
-        if (this.stopped) return;
-        this.stopped = true;
-
+        if (this.stoppedOnce) return;
+        this.stoppedOnce = true;
         clearInterval(this.statsJob);
-        clearTimeout(this.symmetricNatTimer);
-
-        this.pc.close();
-        await this.mediaManager.stopMedia();
+        await this.connection.stop();
+        await this.audioPipe.stop();
     }
 
-    private setStatus(status: TransportStatus) {
-        this.status = status;
-        this.emit("statusChanged", status);
+    async getStats(): Promise<CallStats> {
+        await this.statsAdapter.refresh();
+        return this.statsAdapter.snapshot();
     }
 
-    private async getStats(pc: RTCPeerConnection) {
-        const stats = await pc.getStats();
-
-        for (const stat of stats.values()) {
-            if (stat.type === "inbound-rtp" && stat.kind === "audio") {
-                const inbound = stat as RTCInboundRtpStreamStats;
-                if (inbound.bytesReceived) this.stats.rx.total_bytes += inbound.bytesReceived;
-                if (inbound.packetsLost) this.stats.rx.loss = inbound.packetsLost;
-                if (inbound.packetsReceived) this.stats.rx.total = inbound.packetsReceived;
-            }
-
-            if (stat.type === "outbound-rtp" && stat.kind === "audio") {
-                const outbound = stat as RTCOutboundRtpStreamStats;
-                if (outbound.bytesSent) this.stats.tx.total_bytes += outbound.bytesSent;
-            }
-
-            if (stat.type === "remote-inbound-rtp" && stat.kind === "audio") {
-                if (stat.packetsLost) this.stats.tx.loss = stat.packetsLost;
-                if (stat.packetsReceived) this.stats.tx.total = stat.packetsReceived;
-
-                if (stat.roundTripTime && stat.roundTripTimeMeasurements) {
-                    this.stats.rtt.avg += (stat.roundTripTime - this.stats.rtt.avg) / stat.roundTripTimeMeasurements;
-
-                    if (this.stats.rtt.min === 0 || this.stats.rtt.min > stat.roundTripTime)
-                        this.stats.rtt.min = stat.roundTripTime;
-
-                    if (this.stats.rtt.max < stat.roundTripTime) this.stats.rtt.max = stat.roundTripTime;
-                }
-            }
-        }
-
-        this.emit("statsChanged", this.stats);
+    private async tickStats(): Promise<void> {
+        await this.statsAdapter.refresh();
+        this.emit("statsChanged", this.statsAdapter.snapshot());
     }
 }

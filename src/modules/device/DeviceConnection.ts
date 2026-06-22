@@ -7,7 +7,7 @@ import { DeviceModel } from "@/modules/device/Device";
 import type { Contact, DeviceStatus } from "@/modules/device/Device";
 import { type DeviceSocket, DeviceWebSocketFactory } from "@/modules/device/WebSocket";
 import type { MediaPlan, MediaPlanRelay, MediaPlanWebRTC } from "@/modules/device/WebSocket";
-import type { IceConfig } from "@/modules/media/ICEDiagnostics";
+import type { TransportOptions } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
 import { WebsocketTransport } from "@/modules/media/WebSocket";
@@ -62,7 +62,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         private readonly mediaManager: MediaManager,
         token: string,
         platform?: string,
-        private readonly iceConfig?: IceConfig,
+        private readonly transportOptions?: TransportOptions,
     ) {
         super();
 
@@ -167,7 +167,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         let mediaPlan: MediaPlan;
         let preBuiltTransport: WebRTCTransport | undefined;
         if (this.device.callType === "OFFICIAL") {
-            preBuiltTransport = new WebRTCTransport(this.mediaManager, undefined, this.iceConfig);
+            preBuiltTransport = new WebRTCTransport(this.mediaManager, undefined, this.transportOptions);
             try {
                 const sdp = await preBuiltTransport.createOffer();
                 mediaPlan = { type: "webRTC", sdp };
@@ -189,10 +189,20 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
                 return resolve({ err: response.result });
             }
 
-            const { id, type, peer } = response.result;
-            const call = new Call(id, type, "OUTGOING", peer, this.device.token, "RINGING");
+            const { id, peer } = response.result;
+            // Trust device.callType (set by `device:init`) rather than the
+            // `call.start` response's `type` field — outgoing flows previously got
+            // OFFICIAL back for unofficial devices, which prevented the
+            // `call:stats` → `stats` projection from firing.
+            const call = new Call(id, this.device.callType, "OUTGOING", peer, this.device.token, "RINGING");
             this.router.register(call);
-            const outgoing = CallOutgoingProxy(call, this.wss, this.mediaManager, preBuiltTransport);
+            const outgoing = CallOutgoingProxy(
+                call,
+                this.wss,
+                this.mediaManager,
+                preBuiltTransport,
+                this.transportOptions,
+            );
             resolve({ call: outgoing });
         });
 
@@ -298,7 +308,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     ) {
         ackOffer();
 
-        const call = this.device.receiveOffer(offerProps.id, this.device.callType, offerProps.peer);
+        const call = this.device.receiveOffer(offerProps.id, offerProps.peer);
         const unregister = this.router.register(call);
 
         const offer = OfferProxy(call, {
@@ -327,7 +337,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     }
 
     private async acceptWebRTCOffer(call: Call, mediaPlan: MediaPlanWebRTC): Promise<CallActive> {
-        const webRTC = new WebRTCTransport(this.mediaManager, mediaPlan.sdp, this.iceConfig);
+        const webRTC = new WebRTCTransport(this.mediaManager, mediaPlan.sdp, this.transportOptions);
         await webRTC.start();
 
         const answer = await webRTC.answer;
@@ -343,7 +353,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     }
 
     private acceptRelayOffer(call: Call, mediaPlan: MediaPlanRelay): Promise<CallActive> {
-        const wsTransport = new WebsocketTransport(this.mediaManager, mediaPlan, call.deviceToken);
+        const wsTransport = new WebsocketTransport(this.mediaManager, mediaPlan, call.deviceToken, this.transportOptions);
         call.accept();
         const active = CallActiveProxy(call, wsTransport, this.mediaManager, {
             onEnd: (call) => {

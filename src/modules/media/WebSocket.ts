@@ -1,225 +1,96 @@
 import type { CallStats } from "@/modules/call/Stats";
-import type { Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
+import { WSAudioPipe, WSConnection, WSStatsAdapter } from "@/modules/media/composition";
+import {
+    DEFAULT_STATS_TICK_MS,
+    type Events,
+    type ITransport,
+    type TransportOptions,
+    type TransportStatus,
+} from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
-type AudioDataCallback = (data: ArrayBuffer) => void;
-
-// 1000 = Normal Closure (server intentionally ended the connection)
-// 1008 = Policy Violation (server rejected the connection, e.g. invalid token)
-const NO_RECONNECT_CODES = [1000, 1008];
-const RECONNECT_DELAY_MS = 1_000;
-const RECONNECT_TIMEOUT_MS = 30_000;
-
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
     public readonly kind = "ws" as const;
-    public status: TransportStatus = "connecting";
     public peerMuted = false;
-    public audioAnalyser: Promise<AnalyserNode>;
-    public stats: CallStats = {
-        rtt: { avg: 0, max: 0, min: 0 },
-        rx: { loss: 0, total: 0, total_bytes: 0 },
-        tx: { loss: 0, total: 0, total_bytes: 0 },
-    };
+    public audioAnalyserIn: Promise<AnalyserNode>;
+    public audioAnalyserOut: Promise<AnalyserNode>;
 
-    private ws?: WebSocket;
-    private stopped = false;
-    private reconnectDeadline: ReturnType<typeof setTimeout> | null = null;
-    private readonly audioIn: AudioInput;
-    private readonly audioOut: AudioOutput;
+    get status(): TransportStatus {
+        return this.connection.status;
+    }
+
+    get stats(): CallStats {
+        return this.statsAdapter.snapshot();
+    }
+
+    private readonly connection: WSConnection;
+    private readonly audioPipe: WSAudioPipe;
+    private readonly statsAdapter: WSStatsAdapter;
+    private readonly statsTickMs: number;
+
+    private statsTimer: ReturnType<typeof setInterval> | null = null;
 
     constructor(
-        private readonly mediaManager: MediaManager,
-        private readonly server: { host: string; port: string },
-        private readonly token: string,
+        mediaManager: MediaManager,
+        server: { host: string; port: string },
+        token: string,
+        options?: TransportOptions,
     ) {
         super();
 
-        const ctx = mediaManager.audioContext;
+        this.statsTickMs = options?.statsTickMs ?? DEFAULT_STATS_TICK_MS;
+        this.connection = new WSConnection(server, token);
 
-        this.audioIn = new AudioInput(ctx, (data) => {
-            if (this.ws?.readyState === WebSocket.OPEN) {
-                this.ws.send(data);
-            }
+        this.audioPipe = new WSAudioPipe(mediaManager, (data) => {
+            this.connection.send(data);
+            this.statsAdapter.noteSent(data.byteLength);
         });
-        this.audioOut = new AudioOutput(ctx);
-        this.audioAnalyser = this.audioOut.audioAnalyser;
+        this.audioAnalyserIn = this.audioPipe.audioAnalyserIn;
+        this.audioAnalyserOut = this.audioPipe.audioAnalyserOut;
+
+        this.statsAdapter = new WSStatsAdapter(mediaManager.audioContext, {
+            readTxLevel: () => this.audioPipe.readTxLevel(),
+            readRxLevel: () => this.audioPipe.readRxLevel(),
+        });
+
+        this.connection.on("statusChanged", (s) => this.emit("statusChanged", s));
+        this.connection.on("message", (data) => {
+            this.statsAdapter.noteReceived(data.byteLength);
+            this.audioPipe.playInbound(data);
+        });
     }
 
     async start(): Promise<void> {
-        await this.mediaManager.waitReady();
-        const stream = await this.mediaManager.startMedia();
-
-        this.audioIn.start(stream);
-        this.audioOut.start();
-
-        this.ws = this.connect();
+        await this.audioPipe.start();
+        await this.connection.start();
+        this.startStatsLoop();
     }
 
     async stop(): Promise<void> {
-        this.stopped = true;
-        this.clearReconnectDeadline();
-
-        this.ws?.close();
-        this.ws = undefined;
-
-        this.audioIn.stop();
-        this.audioOut.stop();
-
-        await this.mediaManager.stopMedia();
-
-        this.setStatus("disconnected");
+        this.stopStatsLoop();
+        await this.connection.stop();
+        await this.audioPipe.stop();
     }
 
-    private connect(): WebSocket {
-        const url = `wss://${this.server.host}:${this.server.port}?token=${this.token}`;
-
-        const ws = new WebSocket(url);
-        ws.binaryType = "arraybuffer";
-
-        this.setStatus("connecting");
-        this.bindSocketListeners(ws);
-
-        return ws;
+    private startStatsLoop(): void {
+        this.statsTimer = setInterval(() => void this.tickStats(), this.statsTickMs);
     }
 
-    private bindSocketListeners(socket: WebSocket): void {
-        socket.addEventListener("open", () => {
-            this.clearReconnectDeadline();
-            this.setStatus("connected");
-        });
-
-        socket.addEventListener("error", () => {
-            this.setStatus("disconnected");
-        });
-
-        socket.addEventListener("message", (event: MessageEvent) => {
-            if ((event.data as ArrayBuffer).byteLength === 4) {
-                this.ws?.send("pong");
-                return;
-            }
-            this.audioOut.sendAudioData(event.data as ArrayBuffer);
-        });
-
-        socket.addEventListener("close", (event: CloseEvent) => {
-            if (this.stopped || NO_RECONNECT_CODES.includes(event.code)) {
-                this.setStatus("disconnected");
-                return;
-            }
-
-            this.setStatus("connecting");
-
-            if (!this.reconnectDeadline) {
-                this.reconnectDeadline = setTimeout(() => {
-                    this.reconnectDeadline = null;
-                    this.setStatus("disconnected");
-                }, RECONNECT_TIMEOUT_MS);
-            }
-
-            setTimeout(() => {
-                if (this.stopped) return;
-                this.ws = this.connect();
-            }, RECONNECT_DELAY_MS);
-        });
-    }
-
-    private clearReconnectDeadline(): void {
-        if (this.reconnectDeadline) {
-            clearTimeout(this.reconnectDeadline);
-            this.reconnectDeadline = null;
+    private stopStatsLoop(): void {
+        if (this.statsTimer) {
+            clearInterval(this.statsTimer);
+            this.statsTimer = null;
         }
     }
 
-    private setStatus(status: TransportStatus): void {
-        this.status = status;
-        this.emit("statusChanged", status);
-    }
-}
-
-class AudioInput {
-    private source: MediaStreamAudioSourceNode | null = null;
-    private resampleNode: AudioWorkletNode | null = null;
-
-    constructor(
-        private readonly audioContext: AudioContext,
-        private readonly onAudioData: AudioDataCallback,
-    ) {}
-
-    start(stream: MediaStream): void {
-        this.resampleNode = new AudioWorkletNode(this.audioContext, "resample-processor", {
-            numberOfInputs: 1,
-            numberOfOutputs: 1,
-            channelCount: 1,
-        });
-
-        this.resampleNode.port.onmessage = (event) => {
-            this.onAudioData(event.data as ArrayBuffer);
-        };
-
-        this.source = this.audioContext.createMediaStreamSource(stream);
-        this.source.connect(this.resampleNode);
-
-        // ResampleProcessor only processes — it does not connect to destination.
-        // Output goes to the main thread via port.postMessage.
+    async getStats(): Promise<CallStats> {
+        await this.statsAdapter.refresh();
+        return this.statsAdapter.snapshot();
     }
 
-    stop(): void {
-        if (this.source && this.resampleNode) {
-            this.source.disconnect(this.resampleNode);
-        }
-        if (this.resampleNode) {
-            this.resampleNode.port.onmessage = null;
-            this.resampleNode.disconnect();
-            this.resampleNode = null;
-        }
-        this.source = null;
-    }
-}
-
-class AudioOutput {
-    private playbackNode: AudioWorkletNode | null = null;
-    private analyserNode: AnalyserNode | null = null;
-
-    public readonly audioAnalyser: Promise<AnalyserNode>;
-    private readonly analyserResolver: PromiseWithResolvers<AnalyserNode>;
-
-    constructor(private readonly audioContext: AudioContext) {
-        this.analyserResolver = Promise.withResolvers<AnalyserNode>();
-        this.audioAnalyser = this.analyserResolver.promise;
-    }
-
-    start(): void {
-        this.playbackNode = new AudioWorkletNode(this.audioContext, "audio-data-worklet-stream", {
-            numberOfInputs: 0,
-            numberOfOutputs: 1,
-            channelCount: 1,
-        });
-
-        this.analyserNode = this.audioContext.createAnalyser();
-        this.analyserNode.fftSize = 256;
-
-        this.playbackNode.connect(this.analyserNode);
-        this.analyserNode.connect(this.audioContext.destination);
-
-        this.analyserResolver.resolve(this.analyserNode);
-    }
-
-    /**
-     * Send a raw PCMU ArrayBuffer chunk to the output worklet.
-     * Transfers ownership to avoid a copy across the worklet boundary.
-     */
-    sendAudioData(data: ArrayBuffer): void {
-        if (!this.playbackNode) return;
-        // Clone before transfer — WebSocket event.data may be reused.
-        const copy = data.slice(0);
-        this.playbackNode.port.postMessage(copy, [copy]);
-    }
-
-    stop(): void {
-        this.playbackNode?.port.postMessage({ type: "clear" });
-        this.playbackNode?.disconnect();
-        this.playbackNode = null;
-        this.analyserNode?.disconnect();
-        this.analyserNode = null;
+    private async tickStats(): Promise<void> {
+        await this.statsAdapter.refresh();
+        this.emit("statsChanged", this.statsAdapter.snapshot());
     }
 }

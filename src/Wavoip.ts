@@ -3,6 +3,7 @@ import type { Offer } from "@/modules/call/Offer";
 import { type Device, DeviceConnection } from "@/modules/device/DeviceConnection";
 import { DeviceProxy } from "@/modules/device/DeviceProxy";
 import type { IceConfig } from "@/modules/media/ICEDiagnostics";
+import type { TransportOptions } from "@/modules/media/ITransport";
 import { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import { type Language, setLanguage } from "@/modules/shared/i18n";
@@ -13,7 +14,7 @@ type Events = {
 
 export class Wavoip extends EventEmitter<Events> {
     private readonly mediaManager: MediaManager;
-    private readonly iceConfig?: IceConfig;
+    private readonly transportOptions?: TransportOptions;
     private readonly platform?: string;
     private _devices: DeviceConnection[] = [];
     private _onOfferUnsub?: () => void;
@@ -23,17 +24,23 @@ export class Wavoip extends EventEmitter<Events> {
         platform?: string;
         language?: Language;
         iceConfig?: IceConfig;
+        /**
+         * Throttle for the deprecated `stats` / `serverStats` event tick (ms).
+         * Defaults to 200ms. Has no effect on `Call.getStats()` — that is a
+         * pull API and runs at the caller's chosen cadence.
+         */
+        statsTickMs?: number;
     }) {
         super();
 
         setLanguage(params.language ?? "pt-BR");
 
         this.mediaManager = new MediaManager();
-        this.iceConfig = params.iceConfig;
+        this.transportOptions = collectTransportOptions(params);
         this.platform = params.platform;
 
         for (const token of [...new Set(params.tokens)]) {
-            const device = new DeviceConnection(this.mediaManager, token, this.platform, this.iceConfig);
+            const device = new DeviceConnection(this.mediaManager, token, this.platform, this.transportOptions);
             this.bindDeviceEvents(device);
             this._devices.push(device);
         }
@@ -155,7 +162,7 @@ export class Wavoip extends EventEmitter<Events> {
         const added: DeviceConnection[] = [];
         for (const token of tokens) {
             if (this._devices.some((d) => d.token === token)) continue;
-            const device = new DeviceConnection(this.mediaManager, token, this.platform, this.iceConfig);
+            const device = new DeviceConnection(this.mediaManager, token, this.platform, this.transportOptions);
             this._devices.push(device);
             added.push(device);
             this.bindDeviceEvents(device);
@@ -210,4 +217,14 @@ export class Wavoip extends EventEmitter<Events> {
             this.emit("offer", offer);
         });
     }
+}
+
+function collectTransportOptions(params: {
+    iceConfig?: IceConfig;
+    statsTickMs?: number;
+}): TransportOptions | undefined {
+    const out: TransportOptions = {};
+    if (params.iceConfig) out.iceConfig = params.iceConfig;
+    if (params.statsTickMs !== undefined) out.statsTickMs = params.statsTickMs;
+    return Object.keys(out).length ? out : undefined;
 }
