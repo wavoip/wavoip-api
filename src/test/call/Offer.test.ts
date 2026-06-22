@@ -32,11 +32,27 @@ describe("Offer", () => {
             expect(offer.direction).toBe("INCOMING");
         });
 
-        it("device_token proxies to call.deviceToken", () => {
+        it("deviceToken proxies to call.deviceToken", () => {
             const call = makeCall();
-            
+
             const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
+            expect(offer.deviceToken).toBe("device-token");
+        });
+
+        it("device_token (deprecated) warns once and forwards", async () => {
+            const { _resetDeprecationWarnings } = await import("@/modules/shared/deprecation");
+            _resetDeprecationWarnings();
+            const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+            const call = makeCall();
+            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
+
             expect(offer.device_token).toBe("device-token");
+            expect(offer.device_token).toBe("device-token");
+
+            const matches = warn.mock.calls.filter((c) => String(c[0]).includes("Offer.device_token"));
+            expect(matches).toHaveLength(1);
+            warn.mockRestore();
         });
 
         it("status proxies to call.status", () => {

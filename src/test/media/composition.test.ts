@@ -72,14 +72,16 @@ describe("composition — IStatsAdapter contract", () => {
 });
 
 describe("composition — IAudioPipe contract", () => {
-    it("audioAnalyser is a Promise<AnalyserNode>", () => {
+    it("audioAnalyserIn and audioAnalyserOut are Promise<AnalyserNode>", () => {
         class Pipe extends EventEmitter<{ peerMuted: [muted: boolean] }> implements IAudioPipe {
             peerMuted = false;
-            audioAnalyser = Promise.resolve({} as AnalyserNode);
+            audioAnalyserIn = Promise.resolve({} as AnalyserNode);
+            audioAnalyserOut = Promise.resolve({} as AnalyserNode);
             start = async () => {};
             stop = async () => {};
         }
         const p = new Pipe();
-        expect(p.audioAnalyser).toBeInstanceOf(Promise);
+        expect(p.audioAnalyserIn).toBeInstanceOf(Promise);
+        expect(p.audioAnalyserOut).toBeInstanceOf(Promise);
     });
 });

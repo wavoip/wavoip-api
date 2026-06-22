@@ -17,7 +17,8 @@ function makeMockTransport(overrides: Partial<ITransport> = {}): ITransport {
     const t = new EventEmitter<TransportEvents>() as unknown as ITransport;
     t.status = "disconnected";
     t.peerMuted = false;
-    t.audioAnalyser = Promise.resolve({} as AnalyserNode);
+    t.audioAnalyserIn = Promise.resolve({} as AnalyserNode);
+    t.audioAnalyserOut = Promise.resolve({} as AnalyserNode);
     t.stats = {
         rtt: { min: 0, max: 0, avg: 0 },
         tx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0 },
@@ -40,9 +41,9 @@ function makeMockMediaManager() {
 
 describe("CallActive", () => {
     describe("getters", () => {
-        it("id, type, direction, device_token, status proxy to call", () => {
+        it("id, type, direction, deviceToken, status proxy to call", () => {
             const call = makeCall();
-            
+
             const transport = makeMockTransport();
             const mm = makeMockMediaManager();
             const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
@@ -50,7 +51,7 @@ describe("CallActive", () => {
             expect(active.id).toBe("call-1");
             expect(active.type).toBe("OFFICIAL");
             expect(active.direction).toBe("INCOMING");
-            expect(active.device_token).toBe("device-token");
+            expect(active.deviceToken).toBe("device-token");
             expect(active.status).toBe("ACTIVE");
         });
 
@@ -64,14 +65,14 @@ describe("CallActive", () => {
             expect(active.peer.muted).toBe(true);
         });
 
-        it("connection_status reads transport.status", () => {
+        it("connectionStatus reads transport.status", () => {
             const call = makeCall();
-            
+
             const transport = makeMockTransport({ status: "connected" } as Partial<ITransport>);
             const mm = makeMockMediaManager();
             const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
 
-            expect(active.connection_status).toBe("connected");
+            expect(active.connectionStatus).toBe("connected");
         });
 
         it("status reflects later mutations of call.status", () => {
@@ -85,15 +86,15 @@ describe("CallActive", () => {
             expect(active.status).toBe("ENDED");
         });
 
-        it("connection_status reflects later mutations of transport.status", () => {
+        it("connectionStatus reflects later mutations of transport.status", () => {
             const call = makeCall();
             const transport = makeMockTransport({ status: "connecting" } as Partial<ITransport>);
             const mm = makeMockMediaManager();
             const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
 
-            expect(active.connection_status).toBe("connecting");
+            expect(active.connectionStatus).toBe("connecting");
             transport.status = "connected";
-            expect(active.connection_status).toBe("connected");
+            expect(active.connectionStatus).toBe("connected");
         });
 
         it("peer.muted reflects later mutations of transport.peerMuted", () => {
@@ -107,17 +108,89 @@ describe("CallActive", () => {
             expect(active.peer.muted).toBe(true);
         });
 
-        it("audio_analyser reads transport.audioAnalyser", async () => {
+        it("audioAnalyserIn reads transport.audioAnalyserIn", async () => {
             const call = makeCall();
-            
+
             const mockAnalyser = {} as AnalyserNode;
             const transport = makeMockTransport({
-                audioAnalyser: Promise.resolve(mockAnalyser),
+                audioAnalyserIn: Promise.resolve(mockAnalyser),
+            } as Partial<ITransport>);
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
+
+            await expect(active.audioAnalyserIn).resolves.toBe(mockAnalyser);
+        });
+
+        it("audioAnalyserOut reads transport.audioAnalyserOut", async () => {
+            const call = makeCall();
+
+            const mockAnalyser = {} as AnalyserNode;
+            const transport = makeMockTransport({
+                audioAnalyserOut: Promise.resolve(mockAnalyser),
+            } as Partial<ITransport>);
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
+
+            await expect(active.audioAnalyserOut).resolves.toBe(mockAnalyser);
+        });
+    });
+
+    describe("deprecated snake-case getters", () => {
+        it("device_token warns once then forwards to call.deviceToken", async () => {
+            const { _resetDeprecationWarnings } = await import("@/modules/shared/deprecation");
+            _resetDeprecationWarnings();
+            const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+            const call = makeCall();
+            const transport = makeMockTransport();
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
+
+            expect(active.device_token).toBe("device-token");
+            expect(active.device_token).toBe("device-token");
+
+            const matches = warn.mock.calls.filter((c) => String(c[0]).includes("CallActive.device_token"));
+            expect(matches).toHaveLength(1);
+            warn.mockRestore();
+        });
+
+        it("connection_status warns once then reads transport.status", async () => {
+            const { _resetDeprecationWarnings } = await import("@/modules/shared/deprecation");
+            _resetDeprecationWarnings();
+            const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+            const call = makeCall();
+            const transport = makeMockTransport({ status: "connected" } as Partial<ITransport>);
+            const mm = makeMockMediaManager();
+            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
+
+            expect(active.connection_status).toBe("connected");
+            expect(active.connection_status).toBe("connected");
+
+            const matches = warn.mock.calls.filter((c) => String(c[0]).includes("CallActive.connection_status"));
+            expect(matches).toHaveLength(1);
+            warn.mockRestore();
+        });
+
+        it("audio_analyser warns once then forwards to transport.audioAnalyserIn", async () => {
+            const { _resetDeprecationWarnings } = await import("@/modules/shared/deprecation");
+            _resetDeprecationWarnings();
+            const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+            const call = makeCall();
+            const mockAnalyser = {} as AnalyserNode;
+            const transport = makeMockTransport({
+                audioAnalyserIn: Promise.resolve(mockAnalyser),
             } as Partial<ITransport>);
             const mm = makeMockMediaManager();
             const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
 
             await expect(active.audio_analyser).resolves.toBe(mockAnalyser);
+            await expect(active.audio_analyser).resolves.toBe(mockAnalyser);
+
+            const matches = warn.mock.calls.filter((c) => String(c[0]).includes("CallActive.audio_analyser"));
+            expect(matches).toHaveLength(1);
+            warn.mockRestore();
         });
     });
 

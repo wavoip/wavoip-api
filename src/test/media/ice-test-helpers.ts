@@ -116,6 +116,7 @@ export interface MockMediaManager {
     audioContext: {
         createMediaStreamSource: Mock;
         createAnalyser: Mock;
+        createGain: Mock;
         destination: object;
     };
     _analyser: { fftSize: number; getByteTimeDomainData: Mock; connect: Mock };
@@ -128,11 +129,13 @@ export function makeMockMediaManager(): MockMediaManager {
         fftSize: 256,
         getByteTimeDomainData: vi.fn((arr: Uint8Array) => arr.fill(128)),
         connect: vi.fn(),
+        disconnect: vi.fn(),
     };
-    const source = { connect: vi.fn() };
+    const source = { connect: vi.fn(), disconnect: vi.fn() };
     const audioContext = {
         createMediaStreamSource: vi.fn().mockReturnValue(source),
         createAnalyser: vi.fn().mockReturnValue(analyser),
+        createGain: vi.fn().mockReturnValue({ gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() }),
         destination: {},
     };
     const mockTrack = new MockMediaStreamTrack();

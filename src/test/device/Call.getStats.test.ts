@@ -16,7 +16,8 @@ function makeMockTransport(): IRTCTransport {
     (t as unknown as { kind: string }).kind = "webrtc";
     t.status = "disconnected";
     t.peerMuted = false;
-    t.audioAnalyser = Promise.resolve({} as AnalyserNode);
+    t.audioAnalyserIn = Promise.resolve({} as AnalyserNode);
+    t.audioAnalyserOut = Promise.resolve({} as AnalyserNode);
     t.stats = {
         rtt: { min: 0, max: 0, avg: 0 },
         tx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0 },

@@ -85,11 +85,13 @@ function makeMockMediaManager() {
         fftSize: 256,
         getByteTimeDomainData: vi.fn((arr: Uint8Array) => arr.fill(128)), // silence = 128, avg deviation = 0
         connect: vi.fn(),
+        disconnect: vi.fn(),
     };
-    const source = { connect: vi.fn() };
+    const source = { connect: vi.fn(), disconnect: vi.fn() };
     const audioContext = {
         createMediaStreamSource: vi.fn().mockReturnValue(source),
         createAnalyser: vi.fn().mockReturnValue(analyser),
+        createGain: vi.fn().mockReturnValue({ gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() }),
         destination: {},
         outputLatency: 0,
     };
@@ -272,23 +274,33 @@ describe("WebRTCTransport", () => {
     });
 
     describe("ontrack event", () => {
-        it("resolves audioAnalyser promise after ontrack fires", async () => {
+        it("resolves audioAnalyserIn promise after ontrack fires", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
             const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
-            await expect(transport.audioAnalyser).resolves.toBeDefined();
+            await expect(transport.audioAnalyserIn).resolves.toBeDefined();
         });
 
-        it("creates analyser node and connects audio graph", async () => {
+        it("resolves audioAnalyserOut promise once mic stream is wired", async () => {
             vi.useFakeTimers();
             const mm = makeMockMediaManager();
             const transport = new WebRTCTransport(mm as never, "offer-sdp");
             await startTransport(transport);
 
-            expect(mm.audioContext.createMediaStreamSource).toHaveBeenCalledOnce();
-            expect(mm.audioContext.createAnalyser).toHaveBeenCalledOnce();
+            await expect(transport.audioAnalyserOut).resolves.toBeDefined();
+        });
+
+        it("creates analyser nodes (rx + tx) and connects audio graph", async () => {
+            vi.useFakeTimers();
+            const mm = makeMockMediaManager();
+            const transport = new WebRTCTransport(mm as never, "offer-sdp");
+            await startTransport(transport);
+
+            // 2x: rx (handleRemoteTrack) + tx (wireTxAnalyser).
+            expect(mm.audioContext.createMediaStreamSource).toHaveBeenCalledTimes(2);
+            expect(mm.audioContext.createAnalyser).toHaveBeenCalledTimes(2);
         });
     });
 
