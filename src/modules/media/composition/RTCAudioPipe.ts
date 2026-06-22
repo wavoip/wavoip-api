@@ -19,9 +19,14 @@ import type { IAudioPipe, PipeEvents } from "./AudioPipe";
  */
 export class RTCAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe {
     peerMuted = false;
-    readonly audioAnalyser: Promise<AnalyserNode>;
+    readonly audioAnalyserIn: Promise<AnalyserNode>;
+    readonly audioAnalyserOut: Promise<AnalyserNode>;
 
-    private readonly analyserResolver: PromiseWithResolvers<AnalyserNode>;
+    private readonly analyserInResolver: PromiseWithResolvers<AnalyserNode>;
+    private readonly analyserOutResolver: PromiseWithResolvers<AnalyserNode>;
+    private txSource: MediaStreamAudioSourceNode | null = null;
+    private txAnalyser: AnalyserNode | null = null;
+    private txSilentGain: GainNode | null = null;
     private started = false;
     private stopped = false;
 
@@ -31,8 +36,10 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe
     ) {
         super();
 
-        this.analyserResolver = Promise.withResolvers<AnalyserNode>();
-        this.audioAnalyser = this.analyserResolver.promise;
+        this.analyserInResolver = Promise.withResolvers<AnalyserNode>();
+        this.audioAnalyserIn = this.analyserInResolver.promise;
+        this.analyserOutResolver = Promise.withResolvers<AnalyserNode>();
+        this.audioAnalyserOut = this.analyserOutResolver.promise;
 
         this.pc.ontrack = (event) => this.handleRemoteTrack(event);
     }
@@ -45,12 +52,35 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe
             track.enabled = !this.mediaManager.muted;
             this.pc.addTrack(track, micStream);
         }
+        this.wireTxAnalyser(micStream);
     }
 
     async stop(): Promise<void> {
         if (this.stopped) return;
         this.stopped = true;
+        if (this.txSource && this.txAnalyser) this.txSource.disconnect(this.txAnalyser);
+        this.txAnalyser?.disconnect();
+        this.txSilentGain?.disconnect();
+        this.txSource = null;
+        this.txAnalyser = null;
+        this.txSilentGain = null;
         await this.mediaManager.stopMedia();
+    }
+
+    private wireTxAnalyser(micStream: MediaStream): void {
+        // Mirror WSAudioPipe.AudioInput: mic stream → analyser → silent gain → destination.
+        // Mic feeds RTCPeerConnection directly (not the AudioContext graph), so the
+        // analyser needs its own source + destination anchor to receive samples.
+        const ctx = this.mediaManager.audioContext;
+        this.txSource = ctx.createMediaStreamSource(micStream);
+        this.txAnalyser = ctx.createAnalyser();
+        this.txAnalyser.fftSize = 256;
+        this.txSilentGain = ctx.createGain();
+        this.txSilentGain.gain.value = 0;
+        this.txSource.connect(this.txAnalyser);
+        this.txAnalyser.connect(this.txSilentGain);
+        this.txSilentGain.connect(ctx.destination);
+        this.analyserOutResolver.resolve(this.txAnalyser);
     }
 
     private handleRemoteTrack(event: RTCTrackEvent): void {
@@ -84,6 +114,6 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe
         source.connect(analyser);
         analyser.connect(ctx.destination);
 
-        this.analyserResolver.resolve(analyser);
+        this.analyserInResolver.resolve(analyser);
     }
 }
