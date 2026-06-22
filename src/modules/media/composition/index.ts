@@ -7,6 +7,7 @@ export type {
     WSConnectionEvents,
 } from "./Connection";
 export { isRTCConnection, isWSConnection } from "./Connection";
+export { RTCConnection } from "./RTCConnection";
 
 export type { IAudioPipe, PipeEvents } from "./AudioPipe";
 
