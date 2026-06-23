@@ -47,6 +47,8 @@ export type ServerEvents = {
         contact: Contact | null,
         qrCode: string | null,
         restricted: boolean,
+        // Optional: older instance versions omit this arg. Treat undefined as null.
+        restrictedUntil?: string | null,
     ) => void;
     "device:building": () => void;
     "device:open": (contact: Contact) => void;
@@ -54,7 +56,8 @@ export type ServerEvents = {
     "device:close": () => void;
     "device:restarting": () => void;
     "device:hibernating": () => void;
-    "device:restriction:changed": (restricted: boolean) => void;
+    // Optional restrictedUntil: older instance versions omit this arg. Treat undefined as null.
+    "device:restriction:changed": (restricted: boolean, restrictedUntil?: string | null) => void;
 
     "call:offer": (call: { id: string; peer: CallPeer; offer: MediaPlan }, ackOffer: () => void) => void;
     "call:ringing": (callId: string) => void;

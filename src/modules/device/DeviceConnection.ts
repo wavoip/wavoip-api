@@ -4,7 +4,7 @@ import { type Offer, OfferProxy } from "@/modules/call/Offer";
 import { Call } from "@/modules/device/Call";
 import { CallRouter } from "@/modules/device/CallRouter";
 import { DeviceModel } from "@/modules/device/Device";
-import type { Contact, DeviceStatus } from "@/modules/device/Device";
+import type { ConnectionStatus, Contact, DeviceStatus } from "@/modules/device/Device";
 import { type DeviceSocket, DeviceWebSocketFactory } from "@/modules/device/WebSocket";
 import type { MediaPlan, MediaPlanRelay, MediaPlanWebRTC } from "@/modules/device/WebSocket";
 import type { TransportOptions } from "@/modules/media/ITransport";
@@ -18,9 +18,10 @@ import axios from "axios";
 
 export type DeviceEvents = {
     statusChanged: [status: DeviceStatus];
+    connectionStatusChanged: [status: ConnectionStatus];
     qrCodeChanged: [qrCode?: string];
     contactChanged: [contact?: Contact];
-    restrictedChanged: [restricted: boolean];
+    restrictedChanged: [restricted: boolean, restrictedUntil: Date | null];
 };
 
 type Events = DeviceEvents & {
@@ -32,7 +33,9 @@ export interface Device {
     qrCode?: string;
     contact?: Contact;
     status: DeviceStatus;
+    connectionStatus: ConnectionStatus;
     restricted: boolean;
+    restrictedUntil: Date | null;
     on<T extends keyof DeviceEvents>(event: T, callback: (...args: DeviceEvents[T]) => void): Unsubscribe;
     /** @deprecated Use `on("statusChanged", callback)` instead. */
     onStatus(cb: (status: DeviceStatus) => void): Unsubscribe;
@@ -73,20 +76,26 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         this.router.start();
         this.wss.on("disconnect", this.onDisconnect.bind(this));
 
-        this.wss.on("device:init", (status, callType, contact, qrCode, restricted) => {
+        this.wss.on("device:init", (status, callType, contact, qrCode, restricted, restrictedUntil) => {
             this.device.status = status;
             this.device.callType = callType;
             this.device.contact = contact ?? undefined;
             this.device.qrCode = qrCode ?? undefined;
             this.device.restricted = restricted;
+            this.device.restrictedUntil = restrictedUntil ? new Date(restrictedUntil) : null;
+            if (this.device.connectionStatus !== "connected") {
+                this.device.connectionStatus = "connected";
+                this.emit("connectionStatusChanged", this.device.connectionStatus);
+            }
             this.emit("statusChanged", this.device.status);
             this.emit("contactChanged", this.device.contact);
             this.emit("qrCodeChanged", this.device.qrCode);
-            this.emit("restrictedChanged", this.device.restricted);
+            this.emit("restrictedChanged", this.device.restricted, this.device.restrictedUntil);
         });
-        this.wss.on("device:restriction:changed", (restricted) => {
+        this.wss.on("device:restriction:changed", (restricted, restrictedUntil) => {
             this.device.restricted = restricted;
-            this.emit("restrictedChanged", this.device.restricted);
+            this.device.restrictedUntil = restrictedUntil ? new Date(restrictedUntil) : null;
+            this.emit("restrictedChanged", this.device.restricted, this.device.restrictedUntil);
         });
         this.wss.on("device:building", () => {
             this.device.status = "BUILDING";
@@ -105,6 +114,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             this.device.contact = undefined;
             this.device.qrCode = qrcode ?? undefined;
             this.device.restricted = false;
+            this.device.restrictedUntil = null;
             this.emit("statusChanged", this.device.status);
             this.emit("contactChanged", this.device.contact);
             this.emit("qrCodeChanged", this.device.qrCode);
@@ -114,6 +124,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             this.device.contact = undefined;
             this.device.qrCode = undefined;
             this.device.restricted = false;
+            this.device.restrictedUntil = null;
             this.emit("statusChanged", this.device.status);
             this.emit("contactChanged", this.device.contact);
             this.emit("qrCodeChanged", this.device.qrCode);
@@ -148,8 +159,16 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         return this.device.status;
     }
 
+    get connectionStatus(): ConnectionStatus {
+        return this.device.connectionStatus;
+    }
+
     get restricted(): boolean {
         return this.device.restricted;
+    }
+
+    get restrictedUntil(): Date | null {
+        return this.device.restrictedUntil;
     }
 
     get socket(): DeviceSocket {
@@ -272,7 +291,10 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     }
 
     private onDisconnect() {
-        this.device.status = "disconnected";
+        if (this.device.connectionStatus !== "disconnected") {
+            this.device.connectionStatus = "disconnected";
+            this.emit("connectionStatusChanged", this.device.connectionStatus);
+        }
         if (this.stopped) return;
         if (this.wss.active) return;
         this.reconnect();
@@ -281,12 +303,18 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     private reconnect(attempt = 1) {
         if (attempt === 3 || this.wss.connected || this.stopped) return;
 
+        if (this.device.connectionStatus !== "reconnecting") {
+            this.device.connectionStatus = "reconnecting";
+            this.emit("connectionStatusChanged", this.device.connectionStatus);
+        }
+
         setTimeout(async () => {
             if (this.stopped) return;
             const infos = await this.getInfos();
             if (this.stopped) return;
             if (!infos) return this.reconnect(attempt + 1);
             this.device.status = infos.status;
+            this.emit("statusChanged", this.device.status);
             this.wss.connect();
         }, attempt * 1000);
     }

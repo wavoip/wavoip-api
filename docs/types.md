@@ -172,7 +172,6 @@ Use `runStunProbe(servers, timeoutMs?)` para testar a alcançabilidade de servid
 ```typescript
 type DeviceStatus =
     | "UP"                        // (legado) Dispositivo em execução
-    | "disconnected"              // WebSocket não conectado
     | "close"                     // Conectado, sem WhatsApp vinculado
     | "connecting"                // QR code pronto, aguardando leitura
     | "open"                      // Vinculado e pronto para chamadas
@@ -181,6 +180,17 @@ type DeviceStatus =
     | "BUILDING"                  // Inicializando
     | "WAITING_PAYMENT"           // Pagamento da conta necessário
     | "EXTERNAL_INTEGRATION_ERROR"// Falha na integração externa
+```
+
+### `ConnectionStatus`
+
+Estado do WebSocket entre SDK e backend. Independente do `DeviceStatus` (nível de conta).
+
+```typescript
+type ConnectionStatus =
+    | "connected"     // WebSocket aberto e recebendo eventos
+    | "disconnected"  // WebSocket fechado; sem tentativa de reconexão em andamento
+    | "reconnecting"  // Tentando reabrir o WebSocket após queda
 ```
 
 ### `Contact`
@@ -256,10 +266,11 @@ type CallActiveEvents = {
 
 ```typescript
 type DeviceEvents = {
-    statusChanged:     [status: DeviceStatus]
-    qrCodeChanged:     [qrCode?: string]
-    contactChanged:    [contact?: Contact]
-    restrictedChanged: [restricted: boolean]
+    statusChanged:           [status: DeviceStatus]
+    connectionStatusChanged: [status: ConnectionStatus]
+    qrCodeChanged:           [qrCode?: string]
+    contactChanged:          [contact?: Contact]
+    restrictedChanged:       [restricted: boolean, restrictedUntil: Date | null]
 }
 ```
 
