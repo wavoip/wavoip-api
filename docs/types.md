@@ -237,7 +237,7 @@ type CallOutgoingEvents = {
 
 ```typescript
 type CallActiveEvents = {
-    error:             [err: string]
+    error:             [err: CallFailReason]
     peerMute:          []
     peerUnmute:        []
     ended:             []
@@ -262,6 +262,34 @@ type DeviceEvents = {
     restrictedChanged: [restricted: boolean]
 }
 ```
+
+### `CallFailReason`
+
+Motivo de falha emitido no evento `error` de [`CallActive`](calls/active.md). É uma união aberta: os literais conhecidos abaixo dão autocomplete, mas qualquer string vinda do servidor é aceita — assim novos motivos podem surgir sem quebrar consumidores tipados.
+
+```typescript
+type CallFailReason =
+    | "AUDIO_TIMEOUT"        // @deprecated — use "PEER_RX_TIMEOUT"
+    | "CORRUPTED_KEYS"
+    | "CONNECTION_TIMEOUT"
+    | "PEER_TX_TIMEOUT"
+    | "PEER_RX_TIMEOUT"
+    | "ACCOUNT_RESTRICTED"
+    | "NO_CALL_PERMISSION"
+    | "INTERNAL_ERROR"
+    | (string & {})
+```
+
+| Motivo                | Significado                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------ |
+| `AUDIO_TIMEOUT`       | **Obsoleto.** Substituído por `PEER_RX_TIMEOUT`. Mantido para retrocompatibilidade.                    |
+| `CORRUPTED_KEYS`      | Não foi possível estabelecer a chamada com segurança.                                                  |
+| `CONNECTION_TIMEOUT`  | A chamada perdeu contato com o servidor.                                                               |
+| `PEER_TX_TIMEOUT`     | O contato parou de enviar áudio.                                                                       |
+| `PEER_RX_TIMEOUT`     | O usuário parou de enviar áudio. Substitui `AUDIO_TIMEOUT`.                                            |
+| `ACCOUNT_RESTRICTED`  | A conta do WhatsApp está restrita e não pode realizar chamadas.                                        |
+| `NO_CALL_PERMISSION`  | A conta não tem permissão para realizar chamadas.                                                      |
+| `INTERNAL_ERROR`      | Algo deu errado do lado do servidor.                                                                   |
 
 ---
 

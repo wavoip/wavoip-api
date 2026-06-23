@@ -87,7 +87,7 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 | ~~`serverStats`~~ **(deprecated)** | `ServerCallStats`   | `call:stats` bruto enviado pelo servidor (RTT servidor↔cliente e servidor↔WhatsApp). **Use [`getStats()`](#getstats) no lugar** — os mesmos campos já estão mesclados ali para chamadas `unofficial`. Emite um aviso `console.warn` único na primeira assinatura. |
 | `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE (duração, candidatos por tipo, STUN/TURN alcançados, par selecionado). Replay em listeners tardios. |
 | `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado (`STUN_UNREACHABLE`, `ICE_GATHERING_TIMEOUT`, `ICE_CONNECTION_FAILED`, `NO_HOST_CANDIDATES`, `SYMMETRIC_NAT_SUSPECTED`). Todos os problemas observados são re-emitidos para listeners tardios. |
-| `error`             | `string`            | Ocorreu um erro no nível de transporte.                                                                                |
+| `error`             | `CallFailReason`    | Servidor sinalizou falha da chamada. Veja [`CallFailReason`](../types.md#callfailreason) para a lista de motivos.      |
 | `status`            | `CallStatus`        | Status da chamada mudou.                                                                                               |
 
 ```typescript
