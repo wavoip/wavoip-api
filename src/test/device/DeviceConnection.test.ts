@@ -134,6 +134,55 @@ describe("DeviceConnection — manual disconnect", () => {
     });
 });
 
+describe("DeviceConnection — connectionStatusChanged on socket disconnect/reconnect", () => {
+    it("emits connectionStatusChanged('disconnected') when the socket fires 'disconnect'", () => {
+        const { dc, socket } = makeDeviceConnection();
+        socket.receive("device:init", "open", "UNOFFICIAL", { phone: "5511" }, null, false);
+        const cb = vi.fn();
+        dc.on("connectionStatusChanged", cb);
+
+        socket.receive("disconnect");
+
+        expect(cb.mock.calls[0]?.[0]).toBe("disconnected");
+    });
+
+    it("emits connectionStatusChanged('reconnecting') after starting reconnect attempts", async () => {
+        vi.useFakeTimers();
+        const { dc, socket } = makeDeviceConnection();
+        socket.receive("device:init", "open", "UNOFFICIAL", { phone: "5511" }, null, false);
+        const cb = vi.fn();
+        dc.on("connectionStatusChanged", cb);
+
+        socket.receive("disconnect");
+        await vi.advanceTimersByTimeAsync(0);
+
+        const calls = cb.mock.calls.map((c) => c[0]);
+        expect(calls).toContain("disconnected");
+        expect(calls).toContain("reconnecting");
+        vi.useRealTimers();
+    });
+
+    it("emits connectionStatusChanged('connected') on device:init", () => {
+        const { dc, socket } = makeDeviceConnection();
+        const cb = vi.fn();
+        dc.on("connectionStatusChanged", cb);
+
+        socket.receive("device:init", "UP", "UNOFFICIAL", null, null, false);
+
+        expect(cb).toHaveBeenCalledWith("connected");
+        expect(dc.connectionStatus).toBe("connected");
+    });
+
+    it("does not mutate device.status on socket disconnect", () => {
+        const { dc, socket } = makeDeviceConnection();
+        socket.receive("device:init", "open", "UNOFFICIAL", { phone: "5511" }, null, false);
+
+        socket.receive("disconnect");
+
+        expect(dc.status).toBe("open");
+    });
+});
+
 describe("DeviceConnection — calls map cleanup", () => {
     describe("official incoming call", () => {
         it("adds call to map when offer arrives", () => {

@@ -13,14 +13,15 @@ Os dispositivos são retornados por `wavoip.getDevices()`, `wavoip.addDevices()`
 
 ## Propriedades
 
-| Propriedade        | Tipo                  | Descrição                                                                                  |
-| ------------------ | --------------------- | ------------------------------------------------------------------------------------------ |
-| `token`            | `string`              | Token único do dispositivo (somente leitura).                                              |
-| `status`           | `DeviceStatus`        | Estado atual de conexão/pareamento.                                                        |
-| `qrCode`           | `string \| undefined` | String do QR code quando o dispositivo está em `connecting`.                               |
-| `contact`          | `Contact \| undefined`| Número WhatsApp vinculado quando o dispositivo está `open`.                                |
-| `restricted`       | `boolean`             | `true` quando a conta WhatsApp está restrita e impedida de iniciar chamadas.               |
-| `restrictedUntil`  | `Date \| null`        | Data em que a restrição expira. `null` quando não há restrição ativa ou data informada.    |
+| Propriedade        | Tipo                   | Descrição                                                                                  |
+| ------------------ | ---------------------- | ------------------------------------------------------------------------------------------ |
+| `token`            | `string`               | Token único do dispositivo (somente leitura).                                              |
+| `status`           | `DeviceStatus`         | Estado da conta WhatsApp.                                                                  |
+| `connectionStatus` | `ConnectionStatus`     | Estado do WebSocket entre SDK e backend (`connected` / `disconnected` / `reconnecting`).   |
+| `qrCode`           | `string \| undefined`  | String do QR code quando o dispositivo está em `connecting`.                               |
+| `contact`          | `Contact \| undefined` | Número WhatsApp vinculado quando o dispositivo está `open`.                                |
+| `restricted`       | `boolean`              | `true` quando a conta WhatsApp está restrita e impedida de iniciar chamadas.               |
+| `restrictedUntil`  | `Date \| null`         | Data em que a restrição expira. `null` quando não há restrição ativa ou data informada.    |
 
 ---
 
@@ -28,7 +29,6 @@ Os dispositivos são retornados por `wavoip.getDevices()`, `wavoip.addDevices()`
 
 | Status                       | Significado                                                                  |
 | ---------------------------- | ---------------------------------------------------------------------------- |
-| `disconnected`               | WebSocket não está conectado. Reconexão automática em andamento.             |
 | `close`                      | Conectado, mas sem número WhatsApp vinculado. Pode entrar em hibernação.     |
 | `connecting`                 | QR code pronto — aguardando leitura pelo WhatsApp.                           |
 | `open`                       | Vinculado e pronto para realizar/receber chamadas.                           |
@@ -74,6 +74,18 @@ Emitido quando o contato WhatsApp vinculado muda — no pareamento, logout ou re
 ```typescript
 device.on("contactChanged", (contact?: Contact) => {
     if (contact) console.log("Vinculado a:", contact.phone)
+})
+```
+
+### `connectionStatusChanged`
+
+Emitido quando o estado do WebSocket entre SDK e backend muda. Use este evento para refletir queda/restauro de conexão na UI, independentemente do `statusChanged` (que descreve o estado da conta WhatsApp).
+
+```typescript
+device.on("connectionStatusChanged", (status: ConnectionStatus) => {
+    if (status === "disconnected") showOfflineBanner()
+    if (status === "reconnecting") showReconnectingSpinner()
+    if (status === "connected") hideBanners()
 })
 ```
 

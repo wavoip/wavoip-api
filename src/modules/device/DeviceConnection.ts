@@ -4,7 +4,7 @@ import { type Offer, OfferProxy } from "@/modules/call/Offer";
 import { Call } from "@/modules/device/Call";
 import { CallRouter } from "@/modules/device/CallRouter";
 import { DeviceModel } from "@/modules/device/Device";
-import type { Contact, DeviceStatus } from "@/modules/device/Device";
+import type { ConnectionStatus, Contact, DeviceStatus } from "@/modules/device/Device";
 import { type DeviceSocket, DeviceWebSocketFactory } from "@/modules/device/WebSocket";
 import type { MediaPlan, MediaPlanRelay, MediaPlanWebRTC } from "@/modules/device/WebSocket";
 import type { TransportOptions } from "@/modules/media/ITransport";
@@ -18,6 +18,7 @@ import axios from "axios";
 
 export type DeviceEvents = {
     statusChanged: [status: DeviceStatus];
+    connectionStatusChanged: [status: ConnectionStatus];
     qrCodeChanged: [qrCode?: string];
     contactChanged: [contact?: Contact];
     restrictedChanged: [restricted: boolean, restrictedUntil: Date | null];
@@ -32,6 +33,7 @@ export interface Device {
     qrCode?: string;
     contact?: Contact;
     status: DeviceStatus;
+    connectionStatus: ConnectionStatus;
     restricted: boolean;
     restrictedUntil: Date | null;
     on<T extends keyof DeviceEvents>(event: T, callback: (...args: DeviceEvents[T]) => void): Unsubscribe;
@@ -81,6 +83,10 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             this.device.qrCode = qrCode ?? undefined;
             this.device.restricted = restricted;
             this.device.restrictedUntil = restrictedUntil ? new Date(restrictedUntil) : null;
+            if (this.device.connectionStatus !== "connected") {
+                this.device.connectionStatus = "connected";
+                this.emit("connectionStatusChanged", this.device.connectionStatus);
+            }
             this.emit("statusChanged", this.device.status);
             this.emit("contactChanged", this.device.contact);
             this.emit("qrCodeChanged", this.device.qrCode);
@@ -151,6 +157,10 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
     get status(): DeviceStatus {
         return this.device.status;
+    }
+
+    get connectionStatus(): ConnectionStatus {
+        return this.device.connectionStatus;
     }
 
     get restricted(): boolean {
@@ -281,7 +291,10 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     }
 
     private onDisconnect() {
-        this.device.status = "disconnected";
+        if (this.device.connectionStatus !== "disconnected") {
+            this.device.connectionStatus = "disconnected";
+            this.emit("connectionStatusChanged", this.device.connectionStatus);
+        }
         if (this.stopped) return;
         if (this.wss.active) return;
         this.reconnect();
@@ -290,12 +303,18 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     private reconnect(attempt = 1) {
         if (attempt === 3 || this.wss.connected || this.stopped) return;
 
+        if (this.device.connectionStatus !== "reconnecting") {
+            this.device.connectionStatus = "reconnecting";
+            this.emit("connectionStatusChanged", this.device.connectionStatus);
+        }
+
         setTimeout(async () => {
             if (this.stopped) return;
             const infos = await this.getInfos();
             if (this.stopped) return;
             if (!infos) return this.reconnect(attempt + 1);
             this.device.status = infos.status;
+            this.emit("statusChanged", this.device.status);
             this.wss.connect();
         }, attempt * 1000);
     }
