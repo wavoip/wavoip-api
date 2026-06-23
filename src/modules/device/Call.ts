@@ -1,4 +1,5 @@
 import { type CallStats, type ServerCallStats, makeEmptyCallStats } from "@/modules/call/Stats";
+import type { CallFailReason } from "@/modules/device/CallFailReason";
 import type { MediaPlan } from "@/modules/device/WebSocket";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import { type ITransport, type TransportStatus, isRTCTransport } from "@/modules/media/ITransport";
@@ -13,7 +14,7 @@ export type CallEvents = {
     answered: [mediaPlan: MediaPlan];
     rejected: [];
     unanswered: [];
-    failed: [error: string];
+    failed: [error: CallFailReason];
     connectionStatus: [status: TransportStatus];
     peerMuted: [muted: boolean];
     stats: [stats: CallStats];

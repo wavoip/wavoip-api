@@ -213,6 +213,26 @@ describe("CallRouter", () => {
             expect(cb).toHaveBeenCalledWith("boom");
             expect(router.has(call.id)).toBe(false);
         });
+
+        it.each([
+            "AUDIO_TIMEOUT",
+            "PEER_TX_TIMEOUT",
+            "PEER_RX_TIMEOUT",
+            "CONNECTION_TIMEOUT",
+            "INTERNAL_ERROR",
+        ])("call:failed forwards canonical reason %s", (reason) => {
+            const socket = makeMockSocket();
+            const router = new CallRouter(socket as unknown as DeviceSocket);
+            router.start();
+            const call = makeCall();
+            router.register(call);
+            const cb = vi.fn();
+            call.on("failed", cb);
+
+            emitSocket(socket, "call:failed", call.id, reason);
+
+            expect(cb).toHaveBeenCalledWith(reason);
+        });
     });
 
     describe("register / unregister", () => {

@@ -1,6 +1,7 @@
 import type { CallPeer } from "@/modules/call/Peer";
 import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
+import type { CallFailReason } from "@/modules/device/CallFailReason";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
@@ -9,7 +10,7 @@ import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
 
 export type CallActiveEvents = {
-    error: [err: string];
+    error: [err: CallFailReason];
     peerMute: [];
     peerUnmute: [];
     ended: [];
@@ -51,7 +52,7 @@ export interface CallActive {
     getStats(): Promise<CallStats>;
     on<T extends keyof CallActiveEvents>(event: T, callback: (...args: CallActiveEvents[T]) => void): Unsubscribe;
     /** @deprecated Use `on("error", callback)` instead. */
-    onError(callback: (err: string) => void): void;
+    onError(callback: (err: CallFailReason) => void): void;
     /** @deprecated Use `on("peerMute", callback)` instead. */
     onPeerMute(callback: () => void): void;
     /** @deprecated Use `on("peerUnmute", callback)` instead. */
@@ -173,7 +174,7 @@ export function CallActiveProxy(
         },
 
         /** @deprecated Use `on("error", callback)` instead. */
-        onError(callback: (err: string) => void): void {
+        onError(callback: (err: CallFailReason) => void): void {
             warnDeprecated("CallActive.onError", 'use `active.on("error", cb)` instead.');
             onErrorUnsub?.();
             onErrorUnsub = emitter.on("error", callback);

@@ -1,6 +1,7 @@
 import type { CallPeer } from "@/modules/call/Peer";
 import type { ServerCallStats } from "@/modules/call/Stats";
 import type { CallType } from "@/modules/device/Call";
+import type { CallFailReason } from "@/modules/device/CallFailReason";
 import type { Contact, DeviceStatus } from "@/modules/device/Device";
 import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";
@@ -62,7 +63,7 @@ export type ServerEvents = {
     "call:rejected": (callId: string) => void;
     "call:ended": (callId: string) => void;
     "call:unanswered": (callId: string) => void;
-    "call:failed": (callId: string, error: string) => void;
+    "call:failed": (callId: string, error: CallFailReason) => void;
     "call:stats": (callId: string, stats: ServerCallStats) => void;
     "call:peer:muted": (callId: string, muted: boolean) => void;
 };

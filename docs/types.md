@@ -237,7 +237,7 @@ type CallOutgoingEvents = {
 
 ```typescript
 type CallActiveEvents = {
-    error:             [err: string]
+    error:             [err: CallFailReason]
     peerMute:          []
     peerUnmute:        []
     ended:             []
@@ -262,6 +262,34 @@ type DeviceEvents = {
     restrictedChanged: [restricted: boolean]
 }
 ```
+
+### `CallFailReason`
+
+Motivo de falha emitido no evento `error` de [`CallActive`](calls/active.md). É uma união aberta: os literais conhecidos abaixo dão autocomplete, mas qualquer string vinda do servidor é aceita — assim novos motivos podem surgir sem quebrar consumidores tipados.
+
+```typescript
+type CallFailReason =
+    | "AUDIO_TIMEOUT"        // @deprecated — use "PEER_RX_TIMEOUT"
+    | "CORRUPTED_KEYS"
+    | "CONNECTION_TIMEOUT"
+    | "PEER_TX_TIMEOUT"
+    | "PEER_RX_TIMEOUT"
+    | "ACCOUNT_RESTRICTED"
+    | "NO_CALL_PERMISSION"
+    | "INTERNAL_ERROR"
+    | (string & {})
+```
+
+| Motivo                | Significado                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------ |
+| `AUDIO_TIMEOUT`       | **Obsoleto.** Substituído por `PEER_RX_TIMEOUT`. Mantido para retrocompatibilidade com servidores antigos. |
+| `CORRUPTED_KEYS`      | Falha de integração ao decodificar o ACK de oferta.                                                    |
+| `CONNECTION_TIMEOUT`  | Timeout de ping entre cliente e servidor.                                                              |
+| `PEER_TX_TIMEOUT`     | Servidor parou de receber áudio do peer (silêncio TX no lado remoto).                                  |
+| `PEER_RX_TIMEOUT`     | Servidor parou de receber áudio do usuário (silêncio RX no lado local). Substitui `AUDIO_TIMEOUT`.     |
+| `ACCOUNT_RESTRICTED`  | Conta bloqueada pelo WhatsApp (ack-error 463).                                                         |
+| `NO_CALL_PERMISSION`  | Integração não tem permissão para iniciar a chamada.                                                   |
+| `INTERNAL_ERROR`      | Erro interno genérico do servidor.                                                                     |
 
 ---
 
