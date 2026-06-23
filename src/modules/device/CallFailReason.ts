@@ -17,28 +17,21 @@
 export type CallFailReason =
     /**
      * @deprecated Use {@link CallFailReason} `"PEER_RX_TIMEOUT"` instead.
-     * Kept for backward compatibility while older server builds still emit
-     * the legacy `client:audio-timeout` cause.
+     * Kept for backward compatibility.
      */
     | "AUDIO_TIMEOUT"
-    /** Integration failure decoding the offer ACK. */
+    /** The call could not be established securely. */
     | "CORRUPTED_KEYS"
-    /** Ping timeout between client and server. */
+    /** The call lost contact with the server. */
     | "CONNECTION_TIMEOUT"
-    /**
-     * Server stopped receiving audio from the peer (peer-side TX silence).
-     * Typically the WhatsApp leg dropped or the peer muted unexpectedly.
-     */
+    /** The contact stopped sending audio. */
     | "PEER_TX_TIMEOUT"
-    /**
-     * Server stopped receiving audio from the user (user-side RX silence).
-     * Supersedes the legacy `"AUDIO_TIMEOUT"` reason.
-     */
+    /** The user stopped sending audio. Supersedes `"AUDIO_TIMEOUT"`. */
     | "PEER_RX_TIMEOUT"
-    /** WhatsApp returned ack-error 463 — account is restricted. */
+    /** The WhatsApp account is restricted and cannot place calls. */
     | "ACCOUNT_RESTRICTED"
-    /** Integration forbade the call (missing permission). */
+    /** The account is not allowed to place calls. */
     | "NO_CALL_PERMISSION"
-    /** Catch-all server-side internal error. */
+    /** Something went wrong on the server side. */
     | "INTERNAL_ERROR"
     | (string & {});

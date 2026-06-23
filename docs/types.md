@@ -282,14 +282,14 @@ type CallFailReason =
 
 | Motivo                | Significado                                                                                            |
 | --------------------- | ------------------------------------------------------------------------------------------------------ |
-| `AUDIO_TIMEOUT`       | **Obsoleto.** Substituído por `PEER_RX_TIMEOUT`. Mantido para retrocompatibilidade com servidores antigos. |
-| `CORRUPTED_KEYS`      | Falha de integração ao decodificar o ACK de oferta.                                                    |
-| `CONNECTION_TIMEOUT`  | Timeout de ping entre cliente e servidor.                                                              |
-| `PEER_TX_TIMEOUT`     | Servidor parou de receber áudio do peer (silêncio TX no lado remoto).                                  |
-| `PEER_RX_TIMEOUT`     | Servidor parou de receber áudio do usuário (silêncio RX no lado local). Substitui `AUDIO_TIMEOUT`.     |
-| `ACCOUNT_RESTRICTED`  | Conta bloqueada pelo WhatsApp (ack-error 463).                                                         |
-| `NO_CALL_PERMISSION`  | Integração não tem permissão para iniciar a chamada.                                                   |
-| `INTERNAL_ERROR`      | Erro interno genérico do servidor.                                                                     |
+| `AUDIO_TIMEOUT`       | **Obsoleto.** Substituído por `PEER_RX_TIMEOUT`. Mantido para retrocompatibilidade.                    |
+| `CORRUPTED_KEYS`      | Não foi possível estabelecer a chamada com segurança.                                                  |
+| `CONNECTION_TIMEOUT`  | A chamada perdeu contato com o servidor.                                                               |
+| `PEER_TX_TIMEOUT`     | O contato parou de enviar áudio.                                                                       |
+| `PEER_RX_TIMEOUT`     | O usuário parou de enviar áudio. Substitui `AUDIO_TIMEOUT`.                                            |
+| `ACCOUNT_RESTRICTED`  | A conta do WhatsApp está restrita e não pode realizar chamadas.                                        |
+| `NO_CALL_PERMISSION`  | A conta não tem permissão para realizar chamadas.                                                      |
+| `INTERNAL_ERROR`      | Algo deu errado do lado do servidor.                                                                   |
 
 ---
 
