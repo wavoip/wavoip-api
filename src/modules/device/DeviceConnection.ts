@@ -20,7 +20,7 @@ export type DeviceEvents = {
     statusChanged: [status: DeviceStatus];
     qrCodeChanged: [qrCode?: string];
     contactChanged: [contact?: Contact];
-    restrictedChanged: [restricted: boolean];
+    restrictedChanged: [restricted: boolean, restrictedUntil: Date | null];
 };
 
 type Events = DeviceEvents & {
@@ -33,6 +33,7 @@ export interface Device {
     contact?: Contact;
     status: DeviceStatus;
     restricted: boolean;
+    restrictedUntil: Date | null;
     on<T extends keyof DeviceEvents>(event: T, callback: (...args: DeviceEvents[T]) => void): Unsubscribe;
     /** @deprecated Use `on("statusChanged", callback)` instead. */
     onStatus(cb: (status: DeviceStatus) => void): Unsubscribe;
@@ -73,20 +74,22 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         this.router.start();
         this.wss.on("disconnect", this.onDisconnect.bind(this));
 
-        this.wss.on("device:init", (status, callType, contact, qrCode, restricted) => {
+        this.wss.on("device:init", (status, callType, contact, qrCode, restricted, restrictedUntil) => {
             this.device.status = status;
             this.device.callType = callType;
             this.device.contact = contact ?? undefined;
             this.device.qrCode = qrCode ?? undefined;
             this.device.restricted = restricted;
+            this.device.restrictedUntil = restrictedUntil ? new Date(restrictedUntil) : null;
             this.emit("statusChanged", this.device.status);
             this.emit("contactChanged", this.device.contact);
             this.emit("qrCodeChanged", this.device.qrCode);
-            this.emit("restrictedChanged", this.device.restricted);
+            this.emit("restrictedChanged", this.device.restricted, this.device.restrictedUntil);
         });
-        this.wss.on("device:restriction:changed", (restricted) => {
+        this.wss.on("device:restriction:changed", (restricted, restrictedUntil) => {
             this.device.restricted = restricted;
-            this.emit("restrictedChanged", this.device.restricted);
+            this.device.restrictedUntil = restrictedUntil ? new Date(restrictedUntil) : null;
+            this.emit("restrictedChanged", this.device.restricted, this.device.restrictedUntil);
         });
         this.wss.on("device:building", () => {
             this.device.status = "BUILDING";
@@ -105,6 +108,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             this.device.contact = undefined;
             this.device.qrCode = qrcode ?? undefined;
             this.device.restricted = false;
+            this.device.restrictedUntil = null;
             this.emit("statusChanged", this.device.status);
             this.emit("contactChanged", this.device.contact);
             this.emit("qrCodeChanged", this.device.qrCode);
@@ -114,6 +118,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             this.device.contact = undefined;
             this.device.qrCode = undefined;
             this.device.restricted = false;
+            this.device.restrictedUntil = null;
             this.emit("statusChanged", this.device.status);
             this.emit("contactChanged", this.device.contact);
             this.emit("qrCodeChanged", this.device.qrCode);
@@ -150,6 +155,10 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
     get restricted(): boolean {
         return this.device.restricted;
+    }
+
+    get restrictedUntil(): Date | null {
+        return this.device.restrictedUntil;
     }
 
     get socket(): DeviceSocket {

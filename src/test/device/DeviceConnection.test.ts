@@ -335,7 +335,30 @@ describe("DeviceConnection — calls map cleanup", () => {
             socket.receive("device:init", "UP", "UNOFFICIAL", null, null, true);
 
             expect(dc.restricted).toBe(true);
-            expect(cb).toHaveBeenCalledWith(true);
+            expect(dc.restrictedUntil).toBe(null);
+            expect(cb).toHaveBeenCalledWith(true, null);
+        });
+
+        it("device:init parses restrictedUntil ISO string into Date", () => {
+            const { dc, socket } = makeDeviceConnection();
+            const cb = vi.fn();
+            dc.on("restrictedChanged", cb);
+            const iso = "2030-01-15T12:34:56.000Z";
+
+            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, true, iso);
+
+            expect(dc.restrictedUntil).toBeInstanceOf(Date);
+            expect(dc.restrictedUntil?.toISOString()).toBe(iso);
+            expect(cb).toHaveBeenCalledWith(true, expect.any(Date));
+        });
+
+        it("device:init from older instance (no restrictedUntil arg) keeps restrictedUntil null", () => {
+            const { dc, socket } = makeDeviceConnection();
+
+            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, true);
+
+            expect(dc.restricted).toBe(true);
+            expect(dc.restrictedUntil).toBe(null);
         });
 
         it("device:restriction:changed updates state and fires restrictedChanged", () => {
@@ -347,11 +370,26 @@ describe("DeviceConnection — calls map cleanup", () => {
 
             socket.receive("device:restriction:changed", true);
             expect(dc.restricted).toBe(true);
-            expect(cb).toHaveBeenLastCalledWith(true);
+            expect(cb).toHaveBeenLastCalledWith(true, null);
 
             socket.receive("device:restriction:changed", false);
             expect(dc.restricted).toBe(false);
-            expect(cb).toHaveBeenLastCalledWith(false);
+            expect(cb).toHaveBeenLastCalledWith(false, null);
+        });
+
+        it("device:restriction:changed parses restrictedUntil ISO string into Date", () => {
+            const { dc, socket } = makeDeviceConnection();
+            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, false);
+
+            const cb = vi.fn();
+            dc.on("restrictedChanged", cb);
+            const iso = "2030-01-15T12:34:56.000Z";
+
+            socket.receive("device:restriction:changed", true, iso);
+
+            expect(dc.restricted).toBe(true);
+            expect(dc.restrictedUntil?.toISOString()).toBe(iso);
+            expect(cb).toHaveBeenLastCalledWith(true, expect.any(Date));
         });
 
         it("startCall returns error when device is restricted", async () => {

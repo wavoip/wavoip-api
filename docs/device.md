@@ -13,12 +13,14 @@ Os dispositivos são retornados por `wavoip.getDevices()`, `wavoip.addDevices()`
 
 ## Propriedades
 
-| Propriedade | Tipo                  | Descrição                                                    |
-| ----------- | --------------------- | ------------------------------------------------------------ |
-| `token`     | `string`              | Token único do dispositivo (somente leitura).                |
-| `status`    | `DeviceStatus`        | Estado atual de conexão/pareamento.                          |
-| `qrCode`    | `string \| undefined` | String do QR code quando o dispositivo está em `connecting`. |
-| `contact`   | `Contact \| undefined`| Número WhatsApp vinculado quando o dispositivo está `open`.  |
+| Propriedade        | Tipo                  | Descrição                                                                                  |
+| ------------------ | --------------------- | ------------------------------------------------------------------------------------------ |
+| `token`            | `string`              | Token único do dispositivo (somente leitura).                                              |
+| `status`           | `DeviceStatus`        | Estado atual de conexão/pareamento.                                                        |
+| `qrCode`           | `string \| undefined` | String do QR code quando o dispositivo está em `connecting`.                               |
+| `contact`          | `Contact \| undefined`| Número WhatsApp vinculado quando o dispositivo está `open`.                                |
+| `restricted`       | `boolean`             | `true` quando a conta WhatsApp está restrita e impedida de iniciar chamadas.               |
+| `restrictedUntil`  | `Date \| null`        | Data em que a restrição expira. `null` quando não há restrição ativa ou data informada.    |
 
 ---
 
@@ -72,6 +74,16 @@ Emitido quando o contato WhatsApp vinculado muda — no pareamento, logout ou re
 ```typescript
 device.on("contactChanged", (contact?: Contact) => {
     if (contact) console.log("Vinculado a:", contact.phone)
+})
+```
+
+### `restrictedChanged`
+
+Emitido quando o estado de restrição da conta muda. O segundo argumento é a data em que a restrição expira, quando informada pelo servidor — pode ser `null` em instâncias mais antigas que não enviam essa data.
+
+```typescript
+device.on("restrictedChanged", (restricted: boolean, restrictedUntil: Date | null) => {
+    if (restricted && restrictedUntil) console.log("Restrito até:", restrictedUntil)
 })
 ```
 

@@ -259,7 +259,7 @@ type DeviceEvents = {
     statusChanged:     [status: DeviceStatus]
     qrCodeChanged:     [qrCode?: string]
     contactChanged:    [contact?: Contact]
-    restrictedChanged: [restricted: boolean]
+    restrictedChanged: [restricted: boolean, restrictedUntil: Date | null]
 }
 ```
 

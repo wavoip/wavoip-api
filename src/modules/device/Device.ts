@@ -22,6 +22,7 @@ export class DeviceModel {
     public status: DeviceStatus = "disconnected";
     public callType: CallType = "OFFICIAL";
     public restricted = false;
+    public restrictedUntil: Date | null = null;
 
     constructor(public readonly token: string) {}
 

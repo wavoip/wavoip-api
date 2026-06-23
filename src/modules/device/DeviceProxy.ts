@@ -11,6 +11,7 @@ export function DeviceProxy(conn: DeviceConnection): Device {
         contact: conn.contact,
         status: conn.status,
         restricted: conn.restricted,
+        restrictedUntil: conn.restrictedUntil,
 
         on<T extends keyof DeviceEvents>(event: T, callback: (...args: DeviceEvents[T]) => void): Unsubscribe {
             return conn.on(event, callback);
