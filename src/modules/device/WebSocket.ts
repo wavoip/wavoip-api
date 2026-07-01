@@ -49,6 +49,8 @@ export type ServerEvents = {
         restricted: boolean,
         // Optional: older instance versions omit this arg. Treat undefined as null.
         restrictedUntil?: string | null,
+        // Optional: older instance versions omit this arg. Treat undefined as 0.
+        activeCalls?: number,
     ) => void;
     "device:building": () => void;
     "device:open": (contact: Contact) => void;
@@ -58,6 +60,7 @@ export type ServerEvents = {
     "device:hibernating": () => void;
     // Optional restrictedUntil: older instance versions omit this arg. Treat undefined as null.
     "device:restriction:changed": (restricted: boolean, restrictedUntil?: string | null) => void;
+    "device:calls": (count: number) => void;
 
     "call:offer": (call: { id: string; peer: CallPeer; offer: MediaPlan }, ackOffer: () => void) => void;
     "call:ringing": (callId: string) => void;

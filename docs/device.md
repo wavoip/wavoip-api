@@ -22,6 +22,7 @@ Os dispositivos são retornados por `wavoip.getDevices()`, `wavoip.addDevices()`
 | `contact`          | `Contact \| undefined` | Número WhatsApp vinculado quando o dispositivo está `open`.                                |
 | `restricted`       | `boolean`              | `true` quando a conta WhatsApp está restrita e impedida de iniciar chamadas.               |
 | `restrictedUntil`  | `Date \| null`         | Data em que a restrição expira. `null` quando não há restrição ativa ou data informada.    |
+| `activeCalls`      | `number`               | Quantidade de chamadas ativas no momento (apenas `ACTIVE`; ofertas não contam).            |
 
 ---
 
@@ -98,6 +99,22 @@ device.on("restrictedChanged", (restricted: boolean, restrictedUntil: Date | nul
     if (restricted && restrictedUntil) console.log("Restrito até:", restrictedUntil)
 })
 ```
+
+### `activeCallsChanged`
+
+Emitido quando o número de chamadas ativas do dispositivo muda. Somente chamadas em `ACTIVE` (aceitas / conversando) são contadas — ofertas em `RINGING` ou `CALLING` não entram nesse contador nem consomem canais do `num_channels`.
+
+Use-o, por exemplo, para exibir `ativas / total` no card do dispositivo, ou para bloquear ações que dependem de o dispositivo estar ocioso.
+
+```typescript
+device.on("activeCallsChanged", (count: number) => {
+    console.log("Chamadas ativas:", count)
+})
+```
+
+{% hint style="info" %}
+Instâncias mais antigas do backend não enviam este evento. Nesse caso `device.activeCalls` permanece em `0` e nenhum `activeCallsChanged` é disparado.
+{% endhint %}
 
 ---
 

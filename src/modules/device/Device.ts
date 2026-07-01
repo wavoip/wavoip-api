@@ -30,6 +30,7 @@ export class DeviceModel {
     public callType: CallType = "OFFICIAL";
     public restricted = false;
     public restrictedUntil: Date | null = null;
+    public activeCalls = 0;
 
     constructor(public readonly token: string) {}
 
