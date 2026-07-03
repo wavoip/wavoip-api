@@ -7,8 +7,8 @@ import type { ITransport, TransportOptions } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
 import { WebsocketTransport } from "@/modules/media/WebSocket";
-import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
+import { warnDeprecated } from "@/modules/shared/deprecation";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
 
 export type CallOutgoingEvents = {
@@ -88,8 +88,12 @@ export function CallOutgoingProxy(
             await transport.start();
 
             if (mediaPlan.type === "webRTC") {
+                // Outgoing unofficial call whose FreeSWITCH WebRTC bridge offered late
+                // (see UnofficialWebRTCBridge on the instance side): this call is
+                // already ACTIVE, so complete the bridge via call.media_answer, not
+                // call.accept (whose domain transition requires OFFER state).
                 const answer = await (transport as WebRTCTransport).answer;
-                wss.emit("call.accept", call.id, { type: "webRTC", sdp: answer.sdp as string }, () => {});
+                wss.emit("call.media_answer", call.id, answer.sdp as string, () => {});
             }
         }
 

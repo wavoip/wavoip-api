@@ -84,6 +84,11 @@ export type ClientEvents = {
     ) => void;
     "call.cancel": (callId: string, callback: (response: WssResponse) => void) => void;
     "call.accept": (callId: string, answer: MediaPlan, callback: (response: WssResponse) => void) => void;
+    // Media-plane completion for an outgoing unofficial call's FreeSWITCH WebRTC
+    // bridge — distinct from call.accept because by the time this fires the call
+    // is already ACTIVE (the far end already answered), which call.accept's
+    // domain transition on the instance does not allow.
+    "call.media_answer": (callId: string, answerSdp: string, callback: (response: WssResponse) => void) => void;
     "call.reject": (callId: string, callback: (response: WssResponse) => void) => void;
     "call.end": (callId: string, callback: (response: WssResponse) => void) => void;
     "call.mute": (callId: string, mute: boolean, callback: (response: WssResponse) => void) => void;
