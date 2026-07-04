@@ -68,6 +68,10 @@ export type ServerEvents = {
     "call:accepted": (callId: string) => void;
     "call:rejected": (callId: string) => void;
     "call:ended": (callId: string) => void;
+    // Media-leg flap during an ACTIVE call (WhatsApp socket dropped/recovered).
+    // Non-terminal: the call keeps running, so these do not remove it from routing.
+    "call:disconnected": (callId: string) => void;
+    "call:connected": (callId: string) => void;
     "call:unanswered": (callId: string) => void;
     "call:failed": (callId: string, error: CallFailReason) => void;
     "call:stats": (callId: string, stats: ServerCallStats) => void;

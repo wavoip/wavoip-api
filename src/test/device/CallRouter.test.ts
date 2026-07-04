@@ -235,6 +235,53 @@ describe("CallRouter", () => {
         });
     });
 
+    describe("media reconnect (non-terminal)", () => {
+        it("call:disconnected emits status DISCONNECTED and keeps the Call registered", () => {
+            const socket = makeMockSocket();
+            const router = new CallRouter(socket as unknown as DeviceSocket);
+            router.start();
+            const call = makeCall();
+            router.register(call);
+            const statusCb = vi.fn();
+            call.on("status", statusCb);
+
+            emitSocket(socket, "call:disconnected", call.id);
+
+            expect(statusCb).toHaveBeenCalledWith("DISCONNECTED");
+            expect(router.has(call.id)).toBe(true);
+        });
+
+        it("call:connected emits status ACTIVE and keeps the Call registered", () => {
+            const socket = makeMockSocket();
+            const router = new CallRouter(socket as unknown as DeviceSocket);
+            router.start();
+            const call = makeCall();
+            router.register(call);
+            const statusCb = vi.fn();
+            call.on("status", statusCb);
+
+            emitSocket(socket, "call:disconnected", call.id);
+            emitSocket(socket, "call:connected", call.id);
+
+            expect(statusCb).toHaveBeenNthCalledWith(1, "DISCONNECTED");
+            expect(statusCb).toHaveBeenNthCalledWith(2, "ACTIVE");
+            expect(router.has(call.id)).toBe(true);
+        });
+
+        it("a terminal call:ended after a disconnect still removes the Call", () => {
+            const socket = makeMockSocket();
+            const router = new CallRouter(socket as unknown as DeviceSocket);
+            router.start();
+            const call = makeCall();
+            router.register(call);
+
+            emitSocket(socket, "call:disconnected", call.id);
+            emitSocket(socket, "call:ended", call.id);
+
+            expect(router.has(call.id)).toBe(false);
+        });
+    });
+
     describe("register / unregister", () => {
         it("returned Unsubscribe removes the Call from routing", () => {
             const socket = makeMockSocket();
