@@ -441,14 +441,20 @@ describe("DeviceConnection — calls map cleanup", () => {
             expect(cb).toHaveBeenLastCalledWith(true, expect.any(Date));
         });
 
-        it("startCall returns error when device is restricted", async () => {
+        it("startCall proceeds when device is restricted (backend owns the gate)", async () => {
             const { dc, socket } = makeDeviceConnection();
             socket.receive("device:init", "UP", "UNOFFICIAL", null, null, true);
+            socket.emit.mockImplementation((event: string, ...args: unknown[]) => {
+                if (event === "call.start") {
+                    const callback = args[args.length - 1] as (r: unknown) => void;
+                    callback({ type: "success", result: { id: "call-restricted", type: "UNOFFICIAL", peer } });
+                }
+            });
 
             const result = await dc.startCall("5511999999999");
 
-            expect(result.err).toBeDefined();
-            expect(callsMap(dc).size).toBe(0);
+            expect(result.err).toBeUndefined();
+            expect(callsMap(dc).has("call-restricted")).toBe(true);
         });
     });
 });
