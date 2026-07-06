@@ -52,10 +52,6 @@ export class DeviceModel {
             return { err: t("Device is restarting") };
         }
 
-        if (this.restricted) {
-            return { err: t("Device is restricted") };
-        }
-
         return {};
     }
 }

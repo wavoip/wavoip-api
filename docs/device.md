@@ -20,7 +20,7 @@ Os dispositivos são retornados por `wavoip.getDevices()`, `wavoip.addDevices()`
 | `connectionStatus` | `ConnectionStatus`     | Estado do WebSocket entre SDK e backend (`connected` / `disconnected` / `reconnecting`).   |
 | `qrCode`           | `string \| undefined`  | String do QR code quando o dispositivo está em `connecting`.                               |
 | `contact`          | `Contact \| undefined` | Número WhatsApp vinculado quando o dispositivo está `open`.                                |
-| `restricted`       | `boolean`              | `true` quando a conta WhatsApp está restrita e impedida de iniciar chamadas.               |
+| `restricted`       | `boolean`              | `true` quando a conta WhatsApp está restrita. Sinal informativo para a UI; o SDK não bloqueia a chamada — o backend decide (uma conta restrita ainda pode ligar para contatos conhecidos). |
 | `restrictedUntil`  | `Date \| null`         | Data em que a restrição expira. `null` quando não há restrição ativa ou data informada.    |
 | `activeCalls`      | `number`               | Quantidade de chamadas ativas no momento (apenas `ACTIVE`; ofertas não contam).            |
 
