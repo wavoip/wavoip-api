@@ -88,7 +88,7 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 | `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE (duração, candidatos por tipo, STUN/TURN alcançados, par selecionado). Replay em listeners tardios. |
 | `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado (`STUN_UNREACHABLE`, `ICE_GATHERING_TIMEOUT`, `ICE_CONNECTION_FAILED`, `NO_HOST_CANDIDATES`, `SYMMETRIC_NAT_SUSPECTED`). Todos os problemas observados são re-emitidos para listeners tardios. |
 | `error`             | `CallFailReason`    | Servidor sinalizou falha da chamada. Veja [`CallFailReason`](../types.md#callfailreason) para a lista de motivos.      |
-| `status`            | `CallStatus`        | Status da chamada mudou.                                                                                               |
+| `status`            | `CallStatus`        | Status da chamada mudou. Durante uma chamada ativa pode emitir `"DISCONNECTED"` quando a perna de mídia do WhatsApp cai e `"ACTIVE"` quando ela se restabelece — é **recuperável** (não terminal), diferente do `connectionStatus` `"disconnected"` do transporte local (esse indica chamada perdida). Use para exibir um indicador de "reconectando". |
 
 ```typescript
 call.on("ended", () => {
@@ -105,6 +105,12 @@ call.on("peerUnmute", () => {
 
 call.on("connectionStatus", (status) => {
     console.log("Transporte:", status)
+})
+
+call.on("status", (status) => {
+    // Perna de mídia do WhatsApp: recuperável, não encerra a chamada.
+    if (status === "DISCONNECTED") showReconnectingBanner()
+    if (status === "ACTIVE")       hideReconnectingBanner()
 })
 
 call.on("error", (err) => {

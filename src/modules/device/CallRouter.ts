@@ -89,6 +89,17 @@ export class CallRouter {
             call.emit("status", "FAILED");
             this.calls.delete(id);
         });
+        // Media-leg drop/recover for an ACTIVE call. Surfaced as the existing
+        // `status` event ("DISCONNECTED"/"ACTIVE") so consumers can show a
+        // reconnecting indicator. Non-terminal: unlike call:ended/rejected/failed,
+        // the call is NOT removed from `this.calls` — a later call:connected must
+        // still route, and a subsequent terminal event still deletes it.
+        bind("call:disconnected", (id) => {
+            this.calls.get(id)?.emit("status", "DISCONNECTED");
+        });
+        bind("call:connected", (id) => {
+            this.calls.get(id)?.emit("status", "ACTIVE");
+        });
         bind("call:stats", (id, stats) => {
             this.calls.get(id)?.applyServerStats(stats);
         });
