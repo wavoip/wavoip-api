@@ -132,6 +132,19 @@ describe("DeviceConnection — manual disconnect", () => {
         expect(socket.connect).not.toHaveBeenCalled();
         vi.useRealTimers();
     });
+
+    it("closes the socket even while still connecting", () => {
+        // Socket.io reports `disconnected: true` until the handshake completes.
+        // disconnect() must still close it, or the in-flight connection survives
+        // as an orphaned live socket (leaving the device page mid-connect).
+        const { dc, socket } = makeDeviceConnection();
+        socket.connected = false;
+        socket.disconnected = true;
+
+        dc.disconnect();
+
+        expect(socket.disconnect).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe("DeviceConnection — connectionStatusChanged on socket disconnect/reconnect", () => {
