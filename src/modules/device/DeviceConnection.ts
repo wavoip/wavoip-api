@@ -290,7 +290,10 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
     disconnect() {
         this.stopped = true;
-        if (this.wss.disconnected) return;
+        // Always close, even mid-handshake. socket.io reports `disconnected` while
+        // still connecting, so guarding on it would skip the close and leave the
+        // in-flight connection to complete as an orphaned live socket. `disconnect()`
+        // is idempotent and aborts a pending connection.
         this.wss.disconnect();
     }
 
