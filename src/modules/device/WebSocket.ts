@@ -1,4 +1,4 @@
-import type { CallPeer } from "@/modules/call/Peer";
+import type { WireCallPeer } from "@/modules/call/Peer";
 import type { ServerCallStats } from "@/modules/call/Stats";
 import type { CallType } from "@/modules/device/Call";
 import type { CallFailReason } from "@/modules/device/CallFailReason";
@@ -62,7 +62,7 @@ export type ServerEvents = {
     "device:restriction:changed": (restricted: boolean, restrictedUntil?: string | null) => void;
     "device:calls": (count: number) => void;
 
-    "call:offer": (call: { id: string; peer: CallPeer; offer: MediaPlan }, ackOffer: () => void) => void;
+    "call:offer": (call: { id: string; peer: WireCallPeer; offer: MediaPlan }, ackOffer: () => void) => void;
     "call:ringing": (callId: string) => void;
     "call:answered": (callId: string, mediaPlan: MediaPlan) => void;
     "call:accepted": (callId: string) => void;
@@ -81,10 +81,12 @@ export type ServerEvents = {
 export type ClientEvents = {
     "device.pairing_code": (phone: string, callback: (response: WssResponse<string>) => void) => void;
 
+    // The dial target: an E.164 number (formatting symbols allowed) or a username. The
+    // device classifies it — see DeviceConnection.startCall.
     "call.start": (
-        phone: string,
+        target: string,
         offer: MediaPlan,
-        callback: (response: WssResponse<{ id: string; peer: CallPeer }>) => void,
+        callback: (response: WssResponse<{ id: string; peer: WireCallPeer }>) => void,
     ) => void;
     "call.cancel": (callId: string, callback: (response: WssResponse) => void) => void;
     "call.accept": (callId: string, answer: MediaPlan, callback: (response: WssResponse) => void) => void;

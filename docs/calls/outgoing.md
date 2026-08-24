@@ -34,11 +34,36 @@ call.on("unanswered", () => console.log("Sem resposta"))
 
 ---
 
+## Chamando por username
+
+Além do número, `to` aceita o **username** do WhatsApp. É texto simples, **sem `@`**:
+
+```typescript
+const { call, err } = await wavoip.startCall({
+    to: "john.doe",
+})
+```
+
+Quem classifica o destino é o dispositivo: tudo que sobra só com dígitos (depois de remover
+`+`, espaços, `-` e parênteses) é número, e o resto é username. Por isso `+55 (11) 99999-9999`
+continua sendo número, e `john.doe_1` continua username com a pontuação intacta.
+
+Quando a chamada sai por username, `call.peer.username` traz o username discado e
+`call.peer.phone` traz o número que o WhatsApp resolveu a partir dele. Numa chamada por
+número, `call.peer.username` é `null`.
+
+{% hint style="warning" %}
+Username só funciona em dispositivos não-oficiais. Em dispositivo WABA a chamada é recusada
+com `USERNAME_NOT_SUPPORTED_WABA`.
+{% endhint %}
+
+---
+
 ## Parâmetros de `startCall`
 
 | Parâmetro    | Tipo       | Obrigatório | Descrição                                                          |
 | ------------ | ---------- | ----------- | ------------------------------------------------------------------ |
-| `to`         | `string`   | Sim         | Número de telefone de destino (formato E.164 recomendado).         |
+| `to`         | `string`   | Sim         | Destino: número de telefone (E.164 recomendado) ou username.       |
 | `fromTokens` | `string[]` | Não         | Restringe quais dispositivos tentar. Padrão: todos os dispositivos.|
 
 ### Valor de retorno

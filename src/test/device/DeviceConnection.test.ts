@@ -358,6 +358,62 @@ describe("DeviceConnection — calls map cleanup", () => {
             expect(mediaPlan.sdp).toBe("v=0\r\nfake-offer-sdp");
         });
 
+        // The library does not classify the target — it is one opaque string on the wire and
+        // the device decides what it is. This guards that it goes out untouched.
+        it("sends a username through call.start verbatim", async () => {
+            const { dc, socket } = setupStartCall("call-out-1");
+
+            await dc.startCall("john.doe_1");
+
+            const callStartEmit = socket.emit.mock.calls.find((c: unknown[]) => c[0] === "call.start");
+            const [, target] = callStartEmit as [string, string, { type: string }];
+            expect(target).toBe("john.doe_1");
+        });
+
+        it("keeps the username the device reports on the outgoing call's peer", async () => {
+            const { dc, socket } = makeDeviceConnection();
+            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, false);
+            socket.emit.mockImplementation((event: string, ...args: unknown[]) => {
+                if (event === "call.start") {
+                    const callback = args[args.length - 1] as (r: unknown) => void;
+                    callback({
+                        type: "success",
+                        result: { id: "call-out-1", type: "UNOFFICIAL", peer: { ...peer, username: "john.doe_1" } },
+                    });
+                }
+            });
+
+            const { call } = await dc.startCall("john.doe_1");
+
+            expect(call?.peer.username).toBe("john.doe_1");
+            expect(call?.peer.phone).toBe("5511999999999");
+        });
+
+        // An older device sends no username field at all; that is not the same as
+        // saying the call went out by one. The peer this library hands out always carries the
+        // field, so a reader never has to tell absent from null.
+        it("normalizes a missing username to null", async () => {
+            const { dc, socket } = makeDeviceConnection();
+            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, false);
+            socket.emit.mockImplementation((event: string, ...args: unknown[]) => {
+                if (event === "call.start") {
+                    const callback = args[args.length - 1] as (r: unknown) => void;
+                    callback({
+                        type: "success",
+                        result: {
+                            id: "call-out-1",
+                            type: "UNOFFICIAL",
+                            peer: { phone: "5511999999999", displayName: "Test", profilePicture: null },
+                        },
+                    });
+                }
+            });
+
+            const { call } = await dc.startCall("5511999999999");
+
+            expect(call?.peer.username).toBeNull();
+        });
+
         it("sends none mediaplan in call.start when device callType is unofficial", async () => {
             const { dc, socket } = setupStartCall("call-out-1", "UNOFFICIAL");
 

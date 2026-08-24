@@ -1,4 +1,5 @@
 import { type CallActive, CallActiveProxy } from "@/modules/call/CallActive";
+import { toPeer, type WireCallPeer } from "@/modules/call/Peer";
 import { type CallOutgoing, CallOutgoingProxy } from "@/modules/call/CallOutgoing";
 import { type Offer, OfferProxy } from "@/modules/call/Offer";
 import { Call } from "@/modules/device/Call";
@@ -191,6 +192,17 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         return this.mediaManager;
     }
 
+    /**
+     * Starts an outgoing call to `to`.
+     *
+     * `to` is either an E.164 number — formatting symbols are fine, the device strips them —
+     * or a WhatsApp username in plain text, with no leading `@`. Classification happens on
+     * the device, which is the only side that can resolve either through USync; sending it as
+     * one opaque string is what keeps the two from being told apart wrongly here.
+     *
+     * @example device.startCall("+55 11 99999-9999")
+     * @example device.startCall("john.doe")
+     */
     async startCall(to: string): Promise<{ call: CallOutgoing; err?: undefined } | { call?: undefined; err: string }> {
         const { err } = this.device.canCall();
         if (err) return { err };
@@ -221,11 +233,12 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             }
 
             const { id, peer } = response.result;
+            const callPeer = toPeer(peer);
             // Trust device.callType (set by `device:init`) rather than the
             // `call.start` response's `type` field — outgoing flows previously got
             // OFFICIAL back for unofficial devices, which prevented the
             // `call:stats` → `stats` projection from firing.
-            const call = new Call(id, this.device.callType, "OUTGOING", peer, this.device.token, "RINGING");
+            const call = new Call(id, this.device.callType, "OUTGOING", callPeer, this.device.token, "RINGING");
             this.router.register(call);
             const outgoing = CallOutgoingProxy(
                 call,
@@ -344,14 +357,14 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     private onOffer(
         offerProps: {
             id: string;
-            peer: { phone: string; displayName: string | null; profilePicture: string | null };
+            peer: WireCallPeer;
             offer: MediaPlan;
         },
         ackOffer: () => void,
     ) {
         ackOffer();
 
-        const call = this.device.receiveOffer(offerProps.id, offerProps.peer);
+        const call = this.device.receiveOffer(offerProps.id, toPeer(offerProps.peer));
         const unregister = this.router.register(call);
 
         const offer = OfferProxy(call, {

@@ -80,6 +80,11 @@ export class Wavoip extends EventEmitter<Events> {
      *
      * Tries each device in sequence until one successfully initiates a call.
      * If all devices fail, returns a detailed error report listing reasons per device.
+     *
+     * `to` accepts an E.164 number or a WhatsApp username (plain text, no leading `@`) —
+     * see {@link DeviceConnection.startCall}.
+     *
+     * @example wavoip.startCall({ to: "john.doe" })
      */
     async startCall(params: {
         fromTokens?: string[];

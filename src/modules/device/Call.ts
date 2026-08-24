@@ -223,6 +223,16 @@ export type Peer = {
     phone: string;
     displayName: string | null;
     profilePicture: string | null;
+    /**
+     * The username this peer was reached by, or `null` when the call went out by number.
+     * The device resolves a username to a real contact, so `phone` is populated either way —
+     * this is what tells a UI which identity was actually dialled.
+     *
+     * Optional on the TYPE only, so that code written before this field existed — anything
+     * constructing a peer, such as a test double — still compiles. Every peer this library
+     * hands out has it set: `toPeer` fills the absence with `null` at the wire boundary.
+     */
+    username?: string | null;
 };
 
 export type CallDirection = "INCOMING" | "OUTGOING";
