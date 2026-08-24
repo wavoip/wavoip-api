@@ -48,9 +48,16 @@ Quem classifica o destino é o dispositivo: tudo que sobra só com dígitos (dep
 `+`, espaços, `-` e parênteses) é número, e o resto é username. Por isso `+55 (11) 99999-9999`
 continua sendo número, e `john.doe_1` continua username com a pontuação intacta.
 
-Quando a chamada sai por username, `call.peer.username` traz o username discado e
-`call.peer.phone` traz o número que o WhatsApp resolveu a partir dele. Numa chamada por
-número, `call.peer.username` é `null`.
+Quando a chamada sai por username, `call.peer.username` traz o username discado. Numa chamada
+por número, `call.peer.username` é `null`.
+
+{% hint style="warning" %}
+**`call.peer.phone` pode vir vazio numa chamada por username.** Um username pode resolver para
+um contato sem número de telefone associado — esconder o número é justamente para o que o
+username serve. Nesse caso `phone` é `""` e o `username` é a única identidade que o peer tem.
+Qualquer tela que mostra o peer precisa usar `username` como fallback em vez de assumir que
+existe número.
+{% endhint %}
 
 {% hint style="warning" %}
 Username só funciona em dispositivos não-oficiais. Em dispositivo WABA a chamada é recusada

@@ -225,8 +225,11 @@ export type Peer = {
     profilePicture: string | null;
     /**
      * The username this peer was reached by, or `null` when the call went out by number.
-     * The device resolves a username to a real contact, so `phone` is populated either way —
-     * this is what tells a UI which identity was actually dialled.
+     *
+     * On a username call this can be the ONLY identity the peer has: a username may resolve to
+     * a contact that carries no phone number — keeping the number private is what a username is
+     * for — and `phone` comes back as an empty string there. A UI that shows the peer has to
+     * fall back to this rather than assume a number is present.
      *
      * Optional on the TYPE only, so that code written before this field existed — anything
      * constructing a peer, such as a test double — still compiles. Every peer this library

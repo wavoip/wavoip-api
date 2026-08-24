@@ -70,6 +70,7 @@ type CallPeer = {
     profilePicture: string | null  // URL da foto de perfil
     muted: boolean              // Se o par está silenciado no momento
     username: string | null     // Username discado, ou null se a chamada saiu por número
+                                // Numa chamada por username, `phone` pode ser "" (sem número)
 }
 ```
 
