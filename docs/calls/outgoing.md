@@ -155,6 +155,15 @@ trate como chamada possivelmente viva, e continue ouvindo `peerAccept` e `ended`
 Em qualquer outra recusa (id desconhecido, erro interno) a chamada já morreu no
 servidor e o microfone é liberado.
 
+{% hint style="info" %}
+**Instâncias antigas.** Um dispositivo só recebe a versão nova da instância quando
+reinicia, então esta SDK convive com instâncias antigas por tempo indeterminado. Contra
+elas, `cancel()` funciona — o evento no fio é o mesmo de sempre —, mas o desfecho não é
+informado: o fim chega como `ENDED`, não `CANCELLED`, e a recusa por corrida com o
+atendimento pode voltar como sucesso. Trate `ENDED` como o desfecho padrão e não dependa
+de `CANCELLED` para encerrar a interface.
+{% endhint %}
+
 ---
 
 ### `end()`

@@ -428,6 +428,8 @@ describe("CallRouter", () => {
             expect(statusCb).toHaveBeenCalledWith("ENDED");
         });
 
+        // Instances update only when their device restarts, so a freshly published SDK
+        // talks to old instances for as long as those devices stay up.
         it("falls back to ENDED when an older instance omits the outcome", () => {
             const { endedCb, statusCb } = endedWith();
 
