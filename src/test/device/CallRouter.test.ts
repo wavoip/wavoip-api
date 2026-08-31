@@ -366,4 +366,48 @@ describe("CallRouter", () => {
             expect(received).toBe(stats);
         });
     });
+
+    // `CANCELLED` arrives through the same `call:ended` as always, with one
+    // extra optional argument. A separate `call:canceled` event would have been worse:
+    // the proxies (Offer, CallOutgoing, CallActive) tear down on `ended`, and an offer
+    // whose caller gives up also produces CANCELLED — the client would ring forever.
+    describe("call:ended outcome", () => {
+        function endedWith(outcome?: { status: string; reason?: string }) {
+            const socket = makeMockSocket();
+            const router = new CallRouter(socket as unknown as DeviceSocket);
+            router.start();
+            const call = makeCall();
+            router.register(call);
+            const endedCb = vi.fn();
+            const statusCb = vi.fn();
+            call.on("ended", endedCb);
+            call.on("status", statusCb);
+
+            emitSocket(socket, "call:ended", call.id, outcome);
+
+            return { endedCb, statusCb, socket, call };
+        }
+
+        it("still emits 'ended' when the ending was a cancellation", () => {
+            const { endedCb, statusCb } = endedWith({ status: "CANCELLED", reason: "client:canceled" });
+
+            expect(endedCb).toHaveBeenCalledOnce();
+            expect(statusCb).toHaveBeenCalledWith("CANCELLED");
+        });
+
+        it("falls back to ENDED when an older instance omits the outcome", () => {
+            const { endedCb, statusCb } = endedWith();
+
+            expect(endedCb).toHaveBeenCalledOnce();
+            expect(statusCb).toHaveBeenCalledWith("ENDED");
+        });
+
+        it("unregisters the call so a repeated terminal is inert", () => {
+            const { socket, call, endedCb } = endedWith({ status: "CANCELLED" });
+
+            emitSocket(socket, "call:ended", call.id);
+
+            expect(endedCb).toHaveBeenCalledOnce();
+        });
+    });
 });

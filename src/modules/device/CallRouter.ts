@@ -49,11 +49,16 @@ export class CallRouter {
             call.emit("ringing");
             call.emit("status", "RINGING");
         });
-        bind("call:ended", (id) => {
+        // `ended` stays the terminal event every proxy (Offer, CallOutgoing,
+        // CallActive) tears itself down on. What changes is `status`, which now says
+        // *which* ending it was: a newer instance sends CANCELLED when someone gave
+        // up before the answer. An older instance sends no `outcome` and behaviour is
+        // unchanged.
+        bind("call:ended", (id, outcome) => {
             const call = this.calls.get(id);
             if (!call) return;
             call.emit("ended");
-            call.emit("status", "ENDED");
+            call.emit("status", outcome?.status ?? "ENDED");
             this.calls.delete(id);
         });
         bind("call:accepted", (id) => {

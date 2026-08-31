@@ -187,6 +187,9 @@ export type CallStatus =
     | "CALLING"
     | "NOT_ANSWERED"
     | "ACTIVE"
+    // Someone gave up before the answer — us or the other side. This used to arrive
+    // as "ENDED", indistinguishable from a normal hangup. See `CallEndOutcome`.
+    | "CANCELLED"
     | "ENDED"
     | "REJECTED"
     | "FAILED"
@@ -197,7 +200,7 @@ type TransitionName = "accept" | "reject" | "cancel" | "end" | "timeout" | "fail
 const TRANSITIONS: Record<TransitionName, { allow: (s: CallStatus) => boolean; to: CallStatus }> = {
     accept:  { allow: (s) => s === "RINGING" || s === "CALLING", to: "ACTIVE" },
     reject:  { allow: (s) => s === "ACTIVE", to: "REJECTED" },
-    cancel:  { allow: (s) => s !== "ACTIVE", to: "ENDED" },
+    cancel:  { allow: (s) => s !== "ACTIVE", to: "CANCELLED" },
     end:     { allow: (s) => s === "ACTIVE", to: "ENDED" },
     timeout: { allow: (s) => s === "RINGING" || s === "CALLING", to: "NOT_ANSWERED" },
     fail:    { allow: (s) => s === "ACTIVE", to: "FAILED" },

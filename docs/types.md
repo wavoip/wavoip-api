@@ -36,11 +36,17 @@ type CallStatus =
     | "RINGING"       // Chamada realizada tocando no destinatário
     | "ACTIVE"        // Chamada conectada com áudio fluindo
     | "ENDED"         // Chamada encerrada normalmente
+    | "CANCELLED"     // Alguém desistiu antes do atendimento (você ou o destinatário)
     | "REJECTED"      // Chamada foi rejeitada
     | "NOT_ANSWERED"  // Sem resposta antes do tempo limite
     | "FAILED"        // Falha no nível de transporte durante a chamada
     | "DISCONNECTED"  // Conexão perdida
 ```
+
+{% hint style="info" %}
+`CANCELLED` chega pelo mesmo evento `ended` dos demais desfechos — não há um evento
+próprio. Instâncias antigas não informam o desfecho e reportam `ENDED`.
+{% endhint %}
 
 ### `CallType`
 

@@ -11,6 +11,13 @@ import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
 
+/**
+ * Ceiling for the `call.cancel` ack. A dropped socket buffers the emit and the
+ * callback never runs; with no ceiling the Promise stays pending forever and the UI
+ * locks on "cancelling".
+ */
+const ACK_TIMEOUT_MS = 10_000;
+
 export type CallOutgoingEvents = {
     peerAccept: [call: CallActive];
     peerReject: [];
@@ -41,6 +48,9 @@ export interface CallOutgoing {
     onEnd(callback: () => void): void;
     mute(): Promise<{ err: string | null }>;
     unmute(): Promise<{ err: string | null }>;
+    /** Gives up the call before the peer answers. */
+    cancel(): Promise<{ err: string | null }>;
+    /** @deprecated Use `cancel()` instead. */
     end(): Promise<{ err: string | null }>;
     /** @deprecated Use `on("status", callback)` instead. */
     onStatus(cb: (status: CallStatus) => void): void;
@@ -152,14 +162,35 @@ export function CallOutgoingProxy(
             });
         },
 
-        end(): Promise<{ err: string | null }> {
+        /**
+         * Gives up the call before the peer answers. The name matches the
+         * `call.cancel` that has always gone over the wire.
+         *
+         * Only transitions and releases the media **once the server confirms**: this
+         * used to happen unconditionally inside the ack, so racing the answer
+         * (`IS_NOT_OFFER`) destroyed the microphone and the `RTCPeerConnection` while
+         * the call lived on, mute. And with no ack timeout the Promise never resolved
+         * on a dropped socket.
+         *
+         * @example await outgoing.cancel()
+         */
+        cancel(): Promise<{ err: string | null }> {
             return new Promise((resolve) => {
-                wss.emit("call.cancel", call.id, async (res) => {
+                wss.timeout(ACK_TIMEOUT_MS).emit("call.cancel", call.id, async (timeoutErr, res) => {
+                    if (timeoutErr) return resolve({ err: "ACK_TIMEOUT" });
+                    if (res.type === "error") return resolve({ err: res.result });
+
                     call.cancel();
                     await dispose();
-                    resolve(res.type === "error" ? { err: res.result } : { err: null });
+                    resolve({ err: null });
                 });
             });
+        },
+
+        /** @deprecated Use `cancel()` instead — same behaviour, name that matches the wire. */
+        end(): Promise<{ err: string | null }> {
+            warnDeprecated("CallOutgoing.end", "use `outgoing.cancel()` instead.");
+            return proxy.cancel();
         },
 
         on<T extends keyof CallOutgoingEvents>(

@@ -79,10 +79,16 @@ Assine com `offer.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 | `acceptedElsewhere`  | —                   | Outro cliente (aba/dispositivo) aceitou a chamada.                                                              |
 | `rejectedElsewhere`  | —                   | Outro cliente rejeitou a chamada.                                                                               |
 | `unanswered`         | —                   | Oferta expirou sem resposta.                                                                                    |
-| `ended`              | —                   | Chamada encerrada antes de ser atendida.                                                                        |
+| `ended`              | —                   | Chamada encerrada antes de ser atendida — inclusive quando **o chamador desistiu**. É este evento que desfaz a oferta. |
 | `status`             | `CallStatus`        | Status da chamada mudou.                                                                                        |
 | `iceDiagnostics`     | `IceDiagnostics`    | Diagnóstico da coleta ICE relativa à oferta (quando houver gathering antes do `accept`).                        |
 | `connectivityIssue`  | `ConnectivityIssue` | Problema de conectividade detectado durante a oferta. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
+
+{% hint style="info" %}
+Quando o chamador desiste antes de você atender, o `status` que acompanha o `ended` vem
+como `CANCELLED`. Sempre pare o toque e limpe a interface no `ended` — ele é o único
+evento terminal da oferta, qualquer que tenha sido o desfecho.
+{% endhint %}
 
 ```typescript
 offer.on("acceptedElsewhere", () => {

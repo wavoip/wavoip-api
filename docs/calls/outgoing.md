@@ -76,10 +76,30 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 | `peerAccept`        | `CallActive`        | Destinatário atendeu — um `CallActive` é fornecido.                                                             |
 | `peerReject`        | —                   | Destinatário recusou a chamada.                                                                                 |
 | `unanswered`        | —                   | Chamada expirou sem resposta.                                                                                   |
-| `ended`             | —                   | Chamada encerrada (ex: destinatário desligou antes de atender).                                                 |
+| `ended`             | —                   | Chamada encerrada — inclusive por cancelamento. Consulte `status` para saber qual fim foi (ver abaixo).           |
 | `status`            | `CallStatus`        | Status da chamada mudou.                                                                                        |
 | `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE realizada antes do par atender.                                                       |
 | `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado durante a chamada. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
+
+#### Cancelada ou encerrada?
+
+`ended` é o único evento terminal, e é ele que desfaz a chamada. Para saber **qual**
+fim foi, olhe o `status` que vem junto:
+
+```typescript
+let outcome: CallStatus = "ENDED"
+call.on("status", (s) => { outcome = s })
+call.on("ended", () => {
+    // "CANCELLED" quando alguém desistiu antes do atendimento
+    showEndScreen(outcome)
+})
+```
+
+{% hint style="info" %}
+`CANCELLED` **não** quer dizer "você cancelou": quer dizer que alguém desistiu antes do
+atendimento — pode ter sido o destinatário. Uma instância antiga não informa o desfecho
+e tudo continua chegando como `ENDED`.
+{% endhint %}
 
 ```typescript
 call.on("peerAccept", (active) => {
@@ -106,9 +126,30 @@ await call.unmute()
 
 ---
 
+### `cancel()`
+
+Desiste da chamada antes de o destinatário atender — é o equivalente ao CANCEL do SIP.
+
+```typescript
+const { err } = await call.cancel()
+if (err) console.error("Não foi possível cancelar:", err)
+```
+
+Só encerra a chamada e libera o microfone **quando o servidor confirma**. Se o
+destinatário atender no exato instante do clique, o servidor recusa com `IS_NOT_OFFER`
+e a chamada continua viva e com áudio — cabe à sua interface reabilitar o botão.
+
+Se o ack não chegar em 10s (socket caído, por exemplo), resolve com
+`err: "ACK_TIMEOUT"` em vez de ficar pendente para sempre.
+
+---
+
 ### `end()`
 
-Encerra a chamada realizada.
+{% hint style="warning" %}
+**Depreciado.** Use `cancel()` — mesmo comportamento, nome que corresponde ao que
+sempre foi enviado no fio. O acesso emite um `console.warn` único.
+{% endhint %}
 
 ```typescript
 await call.end()

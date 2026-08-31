@@ -1,6 +1,6 @@
 import type { CallPeer } from "@/modules/call/Peer";
 import type { ServerCallStats } from "@/modules/call/Stats";
-import type { CallType } from "@/modules/device/Call";
+import type { CallStatus, CallType } from "@/modules/device/Call";
 import type { CallFailReason } from "@/modules/device/CallFailReason";
 import type { Contact, DeviceStatus } from "@/modules/device/Device";
 import { io } from "socket.io-client";
@@ -40,6 +40,12 @@ export type MediaPlanWebRTC = { type: "webRTC"; sdp: string };
 export type MediaPlanNull = { type: "none" };
 export type MediaPlan = MediaPlanRelay | MediaPlanWebRTC | MediaPlanNull;
 
+/** Which ending closed the call, and why. Rides along `call:ended`. */
+export type CallEndOutcome = {
+    status: CallStatus;
+    reason?: string;
+};
+
 export type ServerEvents = {
     "device:init": (
         status: DeviceStatus,
@@ -67,7 +73,10 @@ export type ServerEvents = {
     "call:answered": (callId: string, mediaPlan: MediaPlan) => void;
     "call:accepted": (callId: string) => void;
     "call:rejected": (callId: string) => void;
-    "call:ended": (callId: string) => void;
+    // Optional: older instance versions omit this arg. Treat undefined as an ordinary
+    // hangup. `outcome.status` distinguishes CANCELLED / *_ELSEWHERE from ENDED, which
+    // all arrive through this one event.
+    "call:ended": (callId: string, outcome?: CallEndOutcome) => void;
     // Media-leg flap during an ACTIVE call (WhatsApp socket dropped/recovered).
     // Non-terminal: the call keeps running, so these do not remove it from routing.
     "call:disconnected": (callId: string) => void;
