@@ -16,7 +16,7 @@ function makeCall() {
  * `"timeout"` for the ack that never arrives. `timeout(ms).emit(...)` receives the
  * callback in socket.io's `(err, res)` shape.
  */
-function makeMockSocket(ack: "success" | "error" | "timeout" = "success") {
+function makeMockSocket(ack: "success" | "error" | "timeout" = "success", errorCode = "IS_NOT_OFFER") {
     const socket = new EventEmitter<Record<string, unknown[]>>() as unknown as DeviceSocket & {
         emit: ReturnType<typeof vi.fn>;
         timeout: ReturnType<typeof vi.fn>;
@@ -25,7 +25,7 @@ function makeMockSocket(ack: "success" | "error" | "timeout" = "success") {
         const cb = args[args.length - 1];
         if (typeof cb !== "function") return;
         if (ack === "timeout") return withError ? (cb as (e: unknown) => void)(new Error("operation has timed out")) : undefined;
-        const res = ack === "error" ? { type: "error", result: "IS_NOT_OFFER" } : { type: "success" };
+        const res = ack === "error" ? { type: "error", result: errorCode } : { type: "success" };
         withError ? (cb as (e: unknown, r: unknown) => void)(null, res) : (cb as (r: unknown) => void)(res);
     };
     socket.emit = vi.fn((_event: string, ...args: unknown[]) => {
@@ -261,21 +261,6 @@ describe("CallOutgoing", () => {
             expect(cb).toHaveBeenCalledOnce();
         });
 
-        it("forwards 'canceled-ish' terminal to ended consumer event", () => {
-            const call = makeCall();
-
-            const socket = makeMockSocket();
-            const mm = makeMockMediaManager();
-
-            const outgoing = CallOutgoingProxy(call, socket, mm as never);
-            const cb = vi.fn();
-            outgoing.on("ended", cb);
-
-            call.emit("ended");
-
-            expect(cb).toHaveBeenCalledOnce();
-        });
-
         it("forwards 'rejected' to peerReject consumer event", () => {
             const call = makeCall();
             
@@ -327,6 +312,28 @@ describe("CallOutgoing", () => {
 
         // With no ack timeout the Promise never resolved: a dropped socket left the
         // cancel button stuck forever.
+        it("releases the media when the refusal means the call is already dead", async () => {
+            const call = makeCall();
+            const socket = makeMockSocket("error", "CALL_NOT_FOUND");
+            const mm = makeMockMediaManager();
+            const preBuilt = makeMockPreBuiltTransport();
+
+            const outgoing = CallOutgoingProxy(call, socket, mm as never, preBuilt);
+            const result = await outgoing.cancel();
+
+            expect(result.err).toBe("CALL_NOT_FOUND");
+            expect(preBuilt.stop).toHaveBeenCalledOnce();
+        });
+
+        it("bounds the ack with the timeout ceiling", async () => {
+            const call = makeCall();
+            const socket = makeMockSocket();
+
+            await CallOutgoingProxy(call, socket, makeMockMediaManager() as never).cancel();
+
+            expect(socket.timeout).toHaveBeenCalledWith(10_000);
+        });
+
         it("resolves with an error instead of hanging when the ack never arrives", async () => {
             const call = makeCall();
             const socket = makeMockSocket("timeout");

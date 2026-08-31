@@ -195,6 +195,30 @@ export type CallStatus =
     | "FAILED"
     | "DISCONNECTED";
 
+const CALL_STATUSES: readonly CallStatus[] = [
+    "RINGING",
+    "CALLING",
+    "NOT_ANSWERED",
+    "ACTIVE",
+    "CANCELLED",
+    "ENDED",
+    "REJECTED",
+    "FAILED",
+    "DISCONNECTED",
+];
+
+/**
+ * Narrows a status that came off the wire. The server owns a wider vocabulary than
+ * this union, and `CallStatus` does not exist at runtime — without this, an unknown
+ * value would be handed to consumers typed as something it is not, and every
+ * exhaustive `switch` downstream would fall through.
+ *
+ * @example toCallStatus(outcome?.status) // "CANCELLED", or "ENDED" for anything unknown
+ */
+export function toCallStatus(status: string | undefined): CallStatus {
+    return CALL_STATUSES.find((known) => known === status) ?? "ENDED";
+}
+
 type TransitionName = "accept" | "reject" | "cancel" | "end" | "timeout" | "fail";
 
 const TRANSITIONS: Record<TransitionName, { allow: (s: CallStatus) => boolean; to: CallStatus }> = {

@@ -95,6 +95,9 @@ call.on("ended", () => {
 })
 ```
 
+O `status` do desfecho é sempre emitido **antes** do `ended`, justamente para que o
+handler acima já o veja.
+
 {% hint style="info" %}
 `CANCELLED` **não** quer dizer "você cancelou": quer dizer que alguém desistiu antes do
 atendimento — pode ter sido o destinatário. Uma instância antiga não informa o desfecho
@@ -139,8 +142,18 @@ Só encerra a chamada e libera o microfone **quando o servidor confirma**. Se o
 destinatário atender no exato instante do clique, o servidor recusa com `IS_NOT_OFFER`
 e a chamada continua viva e com áudio — cabe à sua interface reabilitar o botão.
 
-Se o ack não chegar em 10s (socket caído, por exemplo), resolve com
-`err: "ACK_TIMEOUT"` em vez de ficar pendente para sempre.
+Se o ack não chegar em 10s, resolve com `err: "ACK_TIMEOUT"` em vez de ficar pendente
+para sempre.
+
+{% hint style="warning" %}
+`ACK_TIMEOUT` significa **"não sabemos"**, não "não cancelou". O pacote é descartado
+quando o prazo estoura, então o servidor pode nunca tê-lo recebido e o destinatário
+pode continuar tocando — e atender. Por isso o áudio **não** é liberado nesse caminho:
+trate como chamada possivelmente viva, e continue ouvindo `peerAccept` e `ended`.
+{% endhint %}
+
+Em qualquer outra recusa (id desconhecido, erro interno) a chamada já morreu no
+servidor e o microfone é liberado.
 
 ---
 

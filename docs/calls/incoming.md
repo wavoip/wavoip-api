@@ -85,9 +85,17 @@ Assine com `offer.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 | `connectivityIssue`  | `ConnectivityIssue` | Problema de conectividade detectado durante a oferta. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
 
 {% hint style="info" %}
-Quando o chamador desiste antes de você atender, o `status` que acompanha o `ended` vem
-como `CANCELLED`. Sempre pare o toque e limpe a interface no `ended` — ele é o único
-evento terminal da oferta, qualquer que tenha sido o desfecho.
+Quando o chamador desiste antes de você atender, o `status` chega como `CANCELLED`
+**imediatamente antes** do `ended`. Guarde-o se quiser distinguir os desfechos:
+
+```typescript
+let outcome: CallStatus = "ENDED"
+offer.on("status", (s) => { outcome = s })
+offer.on("ended", () => hideIncomingCall(outcome))
+```
+
+Sempre pare o toque e limpe a interface no `ended` — ele é o único evento terminal da
+oferta, qualquer que tenha sido o desfecho, e nada é emitido depois dele.
 {% endhint %}
 
 ```typescript

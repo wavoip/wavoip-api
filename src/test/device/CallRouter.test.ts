@@ -395,6 +395,39 @@ describe("CallRouter", () => {
             expect(statusCb).toHaveBeenCalledWith("CANCELLED");
         });
 
+        // Order matters: the proxies tear themselves down on `ended`, and `Offer`'s
+        // teardown drops its subscriptions — `status` included. Emitting `ended` first
+        // meant the outcome landed after the teardown, so an offer consumer could
+        // never be told it was CANCELLED.
+        it("settles the status before the terminal event, so a torn-down proxy still sees it", () => {
+            const socket = makeMockSocket();
+            const router = new CallRouter(socket as unknown as DeviceSocket);
+            router.start();
+            const call = makeCall();
+            router.register(call);
+            const order: string[] = [];
+            call.on("status", (s) => order.push(`status:${s}`));
+            call.on("ended", () => order.push("ended"));
+
+            emitSocket(socket, "call:ended", call.id, { status: "CANCELLED" });
+
+            expect(order).toEqual(["status:CANCELLED", "ended"]);
+        });
+
+        it("narrows an unknown status off the wire to ENDED", () => {
+            const socket = makeMockSocket();
+            const router = new CallRouter(socket as unknown as DeviceSocket);
+            router.start();
+            const call = makeCall();
+            router.register(call);
+            const statusCb = vi.fn();
+            call.on("status", statusCb);
+
+            emitSocket(socket, "call:ended", call.id, { status: "SOMETHING_NEW" });
+
+            expect(statusCb).toHaveBeenCalledWith("ENDED");
+        });
+
         it("falls back to ENDED when an older instance omits the outcome", () => {
             const { endedCb, statusCb } = endedWith();
 

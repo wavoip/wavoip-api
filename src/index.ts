@@ -1,4 +1,5 @@
 export type { CallDirection, CallStatus, CallType } from "@/modules/device/Call";
+export type { CallEndOutcome } from "@/modules/device/WebSocket";
 export type { CallFailReason } from "@/modules/device/CallFailReason";
 export type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 export type { CallActive, CallActiveEvents } from "@/modules/call/CallActive";

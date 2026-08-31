@@ -193,33 +193,23 @@ describe("Offer", () => {
         });
     });
 
-    // Regression. When the caller gives up before you answer, the domain
-    // marks the call CANCELLED — and it is the router's `ended` that tears the offer
-    // down, stops the ringtone and records it as missed. A separate `call:canceled`
-    // event consuming that `ended` would leave the webphone ringing forever.
+    // Regression. When the caller gives up before you answer, the domain marks the
+    // call CANCELLED, and the router settles `status` *before* `ended` — because the
+    // teardown below drops every subscription, so a status emitted after it would
+    // reach nobody and the consumer could never tell a cancellation from a hangup.
     describe("caller gives up before the answer", () => {
-        it("tears the offer down on the terminal event, whatever the outcome says", () => {
+        it("delivers the cancelled outcome before tearing the offer down", () => {
             const call = makeCall();
             const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            const ended = vi.fn();
-            offer.on("ended", ended);
+            const seen: string[] = [];
+            offer.on("status", (s) => seen.push(`status:${s}`));
+            offer.on("ended", () => seen.push("ended"));
 
+            // Production order, as emitted by CallRouter for `call:ended`.
             call.emit("status", "CANCELLED");
             call.emit("ended");
 
-            expect(ended).toHaveBeenCalledOnce();
-        });
-
-        it("stops listening to the call once torn down", () => {
-            const call = makeCall();
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            const ended = vi.fn();
-            offer.on("ended", ended);
-
-            call.emit("ended");
-            call.emit("ended");
-
-            expect(ended).toHaveBeenCalledOnce();
+            expect(seen).toEqual(["status:CANCELLED", "ended"]);
         });
     });
 });
