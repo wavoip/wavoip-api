@@ -366,4 +366,83 @@ describe("CallRouter", () => {
             expect(received).toBe(stats);
         });
     });
+
+    // `CANCELLED` arrives through the same `call:ended` as always, with one
+    // extra optional argument. A separate `call:canceled` event would have been worse:
+    // the proxies (Offer, CallOutgoing, CallActive) tear down on `ended`, and an offer
+    // whose caller gives up also produces CANCELLED — the client would ring forever.
+    describe("call:ended outcome", () => {
+        function endedWith(outcome?: { status: string; reason?: string }) {
+            const socket = makeMockSocket();
+            const router = new CallRouter(socket as unknown as DeviceSocket);
+            router.start();
+            const call = makeCall();
+            router.register(call);
+            const endedCb = vi.fn();
+            const statusCb = vi.fn();
+            call.on("ended", endedCb);
+            call.on("status", statusCb);
+
+            emitSocket(socket, "call:ended", call.id, outcome);
+
+            return { endedCb, statusCb, socket, call };
+        }
+
+        it("still emits 'ended' when the ending was a cancellation", () => {
+            const { endedCb, statusCb } = endedWith({ status: "CANCELLED", reason: "client:canceled" });
+
+            expect(endedCb).toHaveBeenCalledOnce();
+            expect(statusCb).toHaveBeenCalledWith("CANCELLED");
+        });
+
+        // Order matters: the proxies tear themselves down on `ended`, and `Offer`'s
+        // teardown drops its subscriptions — `status` included. Emitting `ended` first
+        // meant the outcome landed after the teardown, so an offer consumer could
+        // never be told it was CANCELLED.
+        it("settles the status before the terminal event, so a torn-down proxy still sees it", () => {
+            const socket = makeMockSocket();
+            const router = new CallRouter(socket as unknown as DeviceSocket);
+            router.start();
+            const call = makeCall();
+            router.register(call);
+            const order: string[] = [];
+            call.on("status", (s) => order.push(`status:${s}`));
+            call.on("ended", () => order.push("ended"));
+
+            emitSocket(socket, "call:ended", call.id, { status: "CANCELLED" });
+
+            expect(order).toEqual(["status:CANCELLED", "ended"]);
+        });
+
+        it("narrows an unknown status off the wire to ENDED", () => {
+            const socket = makeMockSocket();
+            const router = new CallRouter(socket as unknown as DeviceSocket);
+            router.start();
+            const call = makeCall();
+            router.register(call);
+            const statusCb = vi.fn();
+            call.on("status", statusCb);
+
+            emitSocket(socket, "call:ended", call.id, { status: "SOMETHING_NEW" });
+
+            expect(statusCb).toHaveBeenCalledWith("ENDED");
+        });
+
+        // Instances update only when their device restarts, so a freshly published SDK
+        // talks to old instances for as long as those devices stay up.
+        it("falls back to ENDED when an older instance omits the outcome", () => {
+            const { endedCb, statusCb } = endedWith();
+
+            expect(endedCb).toHaveBeenCalledOnce();
+            expect(statusCb).toHaveBeenCalledWith("ENDED");
+        });
+
+        it("unregisters the call so a repeated terminal is inert", () => {
+            const { socket, call, endedCb } = endedWith({ status: "CANCELLED" });
+
+            emitSocket(socket, "call:ended", call.id);
+
+            expect(endedCb).toHaveBeenCalledOnce();
+        });
+    });
 });

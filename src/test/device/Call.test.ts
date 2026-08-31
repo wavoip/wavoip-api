@@ -77,6 +77,22 @@ describe("Call", () => {
         );
     });
 
+    describe("cancel()", () => {
+        it.each(["CALLING", "RINGING"] as const)("transitions %s → CANCELLED and returns true", (status) => {
+            const call = makeCall(status);
+            expect(call.cancel()).toBe(true);
+            expect(call.status).toBe("CANCELLED");
+        });
+
+        // The one status that must refuse: a connected call is ended, never cancelled.
+        // The server enforces the same rule with IS_NOT_OFFER.
+        it("returns false when the call is already ACTIVE", () => {
+            const call = makeCall("ACTIVE");
+            expect(call.cancel()).toBe(false);
+            expect(call.status).toBe("ACTIVE");
+        });
+    });
+
     describe("timeout()", () => {
         it("transitions CALLING → NOT_ANSWERED and returns true", () => {
             const call = makeCall("CALLING");

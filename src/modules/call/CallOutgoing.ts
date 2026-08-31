@@ -11,6 +11,19 @@ import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
 
+/**
+ * Ceiling for the `call.cancel` ack. A dropped socket buffers the emit and the
+ * callback never runs; with no ceiling the Promise stays pending forever and the UI
+ * locks on "cancelling".
+ */
+const ACK_TIMEOUT_MS = 10_000;
+
+/**
+ * The one refusal that means the call is still up: the peer answered between the
+ * click and the ack. Everything else is a dead call, and the media goes with it.
+ */
+const CALL_ALREADY_ANSWERED = "IS_NOT_OFFER";
+
 export type CallOutgoingEvents = {
     peerAccept: [call: CallActive];
     peerReject: [];
@@ -41,6 +54,9 @@ export interface CallOutgoing {
     onEnd(callback: () => void): void;
     mute(): Promise<{ err: string | null }>;
     unmute(): Promise<{ err: string | null }>;
+    /** Gives up the call before the peer answers. */
+    cancel(): Promise<{ err: string | null }>;
+    /** @deprecated Use `cancel()` instead. */
     end(): Promise<{ err: string | null }>;
     /** @deprecated Use `on("status", callback)` instead. */
     onStatus(cb: (status: CallStatus) => void): void;
@@ -152,14 +168,48 @@ export function CallOutgoingProxy(
             });
         },
 
-        end(): Promise<{ err: string | null }> {
+        /**
+         * Gives up the call before the peer answers. The name matches the
+         * `call.cancel` that has always gone over the wire.
+         *
+         * The media is released on every outcome **except the one where the call is
+         * still alive**: `IS_NOT_OFFER` means the peer answered in the same instant,
+         * and tearing the transport down there left a connected call mute — which is
+         * what the unconditional teardown this replaces used to do. Any other refusal
+         * (unknown id after an instance restart, internal error) leaves nothing to
+         * keep alive, so the microphone is freed rather than leaked.
+         *
+         * `ACK_TIMEOUT` is the honest "we do not know" answer: socket.io drops the
+         * buffered packet when the timer fires, so the server may never have seen the
+         * cancel and the peer may still be ringing. The transport is kept precisely
+         * because the call can still be answered.
+         *
+         * @example await outgoing.cancel()
+         */
+        cancel(): Promise<{ err: string | null }> {
             return new Promise((resolve) => {
-                wss.emit("call.cancel", call.id, async (res) => {
-                    call.cancel();
+                wss.timeout(ACK_TIMEOUT_MS).emit("call.cancel", call.id, async (timeoutErr, res) => {
+                    if (timeoutErr) return resolve({ err: "ACK_TIMEOUT" });
+                    if (res.type === "error") {
+                        if (res.result !== CALL_ALREADY_ANSWERED) await dispose();
+                        return resolve({ err: res.result });
+                    }
+
+                    // Defence in depth: the server already refuses a cancel on an
+                    // ACTIVE call with IS_NOT_OFFER, so a local transition that will
+                    // not apply means the two disagree — do not tear the media down
+                    // on the strength of an ack we cannot honour.
+                    if (!call.cancel()) return resolve({ err: "IS_NOT_OFFER" });
                     await dispose();
-                    resolve(res.type === "error" ? { err: res.result } : { err: null });
+                    resolve({ err: null });
                 });
             });
+        },
+
+        /** @deprecated Use `cancel()` instead — same behaviour, name that matches the wire. */
+        end(): Promise<{ err: string | null }> {
+            warnDeprecated("CallOutgoing.end", "use `outgoing.cancel()` instead.");
+            return proxy.cancel();
         },
 
         on<T extends keyof CallOutgoingEvents>(

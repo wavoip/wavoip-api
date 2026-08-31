@@ -192,4 +192,24 @@ describe("Offer", () => {
             expect(cb).toHaveBeenCalledWith("ACTIVE");
         });
     });
+
+    // Regression. When the caller gives up before you answer, the domain marks the
+    // call CANCELLED, and the router settles `status` *before* `ended` — because the
+    // teardown below drops every subscription, so a status emitted after it would
+    // reach nobody and the consumer could never tell a cancellation from a hangup.
+    describe("caller gives up before the answer", () => {
+        it("delivers the cancelled outcome before tearing the offer down", () => {
+            const call = makeCall();
+            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
+            const seen: string[] = [];
+            offer.on("status", (s) => seen.push(`status:${s}`));
+            offer.on("ended", () => seen.push("ended"));
+
+            // Production order, as emitted by CallRouter for `call:ended`.
+            call.emit("status", "CANCELLED");
+            call.emit("ended");
+
+            expect(seen).toEqual(["status:CANCELLED", "ended"]);
+        });
+    });
 });

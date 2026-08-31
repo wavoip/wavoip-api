@@ -1,4 +1,4 @@
-import type { Call } from "@/modules/device/Call";
+import { type Call, toCallStatus } from "@/modules/device/Call";
 import type { DeviceSocket, ServerEvents } from "@/modules/device/WebSocket";
 import type { Unsubscribe } from "@/modules/shared/EventEmitter";
 
@@ -49,11 +49,21 @@ export class CallRouter {
             call.emit("ringing");
             call.emit("status", "RINGING");
         });
-        bind("call:ended", (id) => {
+        // `ended` stays the terminal event every proxy (Offer, CallOutgoing,
+        // CallActive) tears itself down on. What changes is `status`, which now says
+        // *which* ending it was: a newer instance sends CANCELLED when someone gave
+        // up before the answer. An older instance sends no `outcome` and behaviour is
+        // unchanged.
+        bind("call:ended", (id, outcome) => {
             const call = this.calls.get(id);
             if (!call) return;
+            // `status` first, `ended` second — the reverse of the other handlers, and
+            // deliberately so. Every proxy tears itself down on `ended`, and `Offer`'s
+            // teardown drops its subscriptions: a status emitted afterwards reaches
+            // nobody, so an offer whose caller gave up could never be told it was
+            // CANCELLED. Settle the outcome, then announce the end.
+            call.emit("status", toCallStatus(outcome?.status));
             call.emit("ended");
-            call.emit("status", "ENDED");
             this.calls.delete(id);
         });
         bind("call:accepted", (id) => {
