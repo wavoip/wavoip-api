@@ -9,6 +9,12 @@ on:
     # ficaria sem portão até alguém empurrar mais um commit.
     types: [opened, synchronize, reopened, ready_for_review]
 
+concurrency:
+  # Só a última revisão do diff importa: um push novo cancela o run do anterior, que ninguém
+  # ia ler mesmo.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     # Rascunho não gasta minuto de runner.
