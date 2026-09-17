@@ -12,8 +12,24 @@ jobs:
       contents: read
       id-token: write
     steps:
+      # `fetch-depth: 0` porque o passo seguinte precisa do histórico para responder se o commit
+      # publicado está na main — num checkout raso `merge-base` não tem base comum para comparar.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Publicar é da main, e só. Uma release pode ser criada a partir de uma tag cortada de
+      # qualquer branch, e o `workflow_dispatch` aqui do lado deixa escolher qualquer ref — sem
+      # esta trava, publicar no npm código que nunca entrou na main é um comando de uma linha.
+      # Uma versão publicada não volta atrás: o npm não deixa republicar o mesmo número.
+      - name: Refuse a ref that is not on main
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error title=Ref fora da main::${GITHUB_REF_NAME} aponta para ${GITHUB_SHA}, que não está na main. Nada foi publicado."
+            exit 1
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

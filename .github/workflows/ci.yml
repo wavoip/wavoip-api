@@ -3,9 +3,22 @@ name: CI
 on:
   pull_request:
     branches: [main]
+    # `ready_for_review` não faz parte do padrão do evento (opened/synchronize/reopened), e
+    # declarar a lista SUBSTITUI esse padrão em vez de somar a ele — por isso os três estão
+    # repetidos aqui. Sem `ready_for_review`, um PR que sai de rascunho não dispararia nada e
+    # ficaria sem portão até alguém empurrar mais um commit.
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  # Só a última revisão do diff importa: um push novo cancela o run do anterior, que ninguém
+  # ia ler mesmo.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
+    # Rascunho não gasta minuto de runner.
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
