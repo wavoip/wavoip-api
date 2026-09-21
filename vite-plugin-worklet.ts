@@ -11,10 +11,9 @@ export function workletPlugin(): Plugin {
             if (!id.includes("?worklet")) return;
             const cleanId = id.replace("?worklet", "");
 
-            // Bare node-module specifiers (e.g. "@scope/pkg/dist/foo.js?worklet")
-            // delegate to the bundler's resolver so we follow exports + node_modules.
-            // Local paths take the cheap path.resolve route to preserve the existing
-            // relative-import behaviour for `src/modules/worklets/*.ts?worklet`.
+            // Especificador de pacote ("@scope/pkg/dist/foo.js?worklet") vai para o resolver
+            // do bundler, que segue `exports` e node_modules; caminho local fica no
+            // path.resolve.
             const isRelative = cleanId.startsWith("./") || cleanId.startsWith("../") || path.isAbsolute(cleanId);
             if (isRelative) {
                 const resolved = importer ? path.resolve(path.dirname(importer), cleanId) : path.resolve(cleanId);

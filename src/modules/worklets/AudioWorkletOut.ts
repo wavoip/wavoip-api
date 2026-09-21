@@ -5,13 +5,12 @@ const JITTER_DROP_BYTES = 10_000;
 class AudioDataWorkletStream extends AudioWorkletProcessor {
     private src: { full: (input: Float32Array) => Float32Array } | null = null;
 
-    // Incoming raw bytes (Int16 PCM at 16kHz)
+    // Int16 PCM a 16kHz — não é µ-law/PCMU.
     private chunks: Uint8Array[] = [];
     private totalBytes = 0;
     private current: Uint8Array | null = null;
     private currentOffset = 0;
 
-    // Resampled Float32 samples at native rate, ready for process()
     private outBuffer = new Float32Array(0);
     private outOffset = 0;
 
@@ -46,7 +45,7 @@ class AudioDataWorkletStream extends AudioWorkletProcessor {
         this.chunks.push(chunk);
         this.totalBytes += chunk.length;
 
-        // Jitter: if too far behind, skip ahead
+        // Atrasou demais: descarta o mais velho para a latência não crescer.
         while (this.remainingBytes() > JITTER_MAX_BYTES) {
             this.skip(JITTER_DROP_BYTES);
         }
@@ -55,15 +54,14 @@ class AudioDataWorkletStream extends AudioWorkletProcessor {
     }
 
     /**
-     * Read all available Int16 PCM bytes, decode to Float32,
-     * resample 16kHz → native, and append to outBuffer.
+     * O resample é feito aqui, no worklet, e não com um segundo AudioContext a 16kHz: o
+     * AudioContext é um só, do MediaManager, para entrada e saída.
      */
     private drainAndResample(): void {
         if (!this.src) return;
 
-        // Read all available bytes as Int16 pairs
         const available = this.remainingBytes();
-        const sampleCount = available >> 1; // 2 bytes per Int16 sample
+        const sampleCount = available >> 1;
         if (sampleCount === 0) return;
 
         const raw = new Uint8Array(sampleCount * 2);
@@ -73,7 +71,6 @@ class AudioDataWorkletStream extends AudioWorkletProcessor {
             raw[i] = byte;
         }
 
-        // Int16 PCM → Float32
         const int16 = new Uint16Array(raw.buffer);
         const decoded = new Float32Array(int16.length);
         for (let i = 0; i < int16.length; i++) {
@@ -81,11 +78,9 @@ class AudioDataWorkletStream extends AudioWorkletProcessor {
             decoded[i] = val >= 0x8000 ? -(0x10000 - val) / 0x8000 : val / 0x7fff;
         }
 
-        // Resample 16kHz → native rate
         const resampled = this.src.full(decoded);
         if (!resampled || resampled.length === 0) return;
 
-        // Append to output buffer (preserving unconsumed tail)
         const remaining = this.outBuffer.length - this.outOffset;
         const newOut = new Float32Array(remaining + resampled.length);
         if (remaining > 0) {
@@ -113,7 +108,6 @@ class AudioDataWorkletStream extends AudioWorkletProcessor {
             this.outOffset = this.outBuffer.length;
         }
 
-        // Reclaim when fully consumed
         if (this.outOffset >= this.outBuffer.length) {
             this.outBuffer = new Float32Array(0);
             this.outOffset = 0;

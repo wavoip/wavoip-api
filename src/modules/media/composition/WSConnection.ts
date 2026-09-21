@@ -2,31 +2,16 @@ import type { TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { IWSConnection, WSConnectionEvents } from "./Connection";
 
-// 1000 = Normal Closure (server intentionally ended the connection)
-// 1008 = Policy Violation (server rejected the connection, e.g. invalid token)
+// 1000 = o servidor encerrou de propósito; 1008 = o servidor recusou (ex.: token
+// inválido). Reconectar entraria em loop ou desfaria um fim intencional.
 const NO_RECONNECT_CODES = [1000, 1008];
 const RECONNECT_DELAY_MS = 1_000;
 const RECONNECT_TIMEOUT_MS = 30_000;
 
-// Server keepalive: 4-byte ping message expects a "pong" string reply. Handled
-// inside the connection so consumers only see audio frames on `message`.
+// Keepalive do servidor: um ping de 4 bytes espera "pong" de volta. Tratado aqui para
+// `message` só entregar frames de áudio.
 const PING_BYTE_LENGTH = 4;
 
-/**
- * WebSocket connection role — owns the socket lifecycle (open / close /
- * automatic reconnect) and the server keepalive ping. Knows nothing about
- * audio or stats: binary frames flow through `send()` and `message` events;
- * higher layers slot in mic encoding (`AudioInput`), speaker playback
- * (`AudioOutput`), and counters (`WSStatsAdapter`).
- *
- * Reconnect policy:
- *   - Skip codes {1000, 1008}: normal closure and policy violations (e.g.
- *     invalid token) — reconnecting would loop or override an intentional end.
- *   - On any other close, schedule a `setTimeout` to retry after 1s.
- *   - A 30s deadline timer arms on the first unexpected close; if no successful
- *     `open` lands within that window, status transitions to `disconnected`.
- *   - The `stopped` flag (set by `stop()`) short-circuits any pending retry.
- */
 export class WSConnection extends EventEmitter<WSConnectionEvents> implements IWSConnection {
     readonly kind = "ws" as const;
     status: TransportStatus = "connecting";

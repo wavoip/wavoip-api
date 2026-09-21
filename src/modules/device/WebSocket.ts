@@ -59,9 +59,8 @@ export type ServerEvents = {
         contact: Contact | null,
         qrCode: string | null,
         restricted: boolean,
-        // Optional: older instance versions omit this arg. Treat undefined as null.
+        // Opcionais: versões antigas da instance não mandam.
         restrictedUntil?: string | null,
-        // Optional: older instance versions omit this arg. Treat undefined as 0.
         activeCalls?: number,
     ) => void;
     "device:building": () => void;
@@ -70,7 +69,7 @@ export type ServerEvents = {
     "device:close": () => void;
     "device:restarting": () => void;
     "device:hibernating": () => void;
-    // Optional restrictedUntil: older instance versions omit this arg. Treat undefined as null.
+    // restrictedUntil opcional: versões antigas da instance não mandam.
     "device:restriction:changed": (restricted: boolean, restrictedUntil?: string | null) => void;
     "device:calls": (count: number) => void;
 
@@ -79,12 +78,11 @@ export type ServerEvents = {
     "call:answered": (callId: string, mediaPlan: MediaPlan) => void;
     "call:accepted": (callId: string) => void;
     "call:rejected": (callId: string) => void;
-    // Optional: older instance versions omit this arg. Treat undefined as an ordinary
-    // hangup. Several distinct endings reach the client through this one event;
-    // `outcome.status` is what tells a CANCELLED apart from a plain ENDED.
+    // `outcome` opcional: versão antiga da instance não manda, e vale como desligamento
+    // comum. Vários fins diferentes chegam por este evento; é o `outcome.status` que separa
+    // CANCELLED de ENDED.
     "call:ended": (callId: string, outcome?: CallEndOutcome) => void;
-    // Media-leg flap during an ACTIVE call (WhatsApp socket dropped/recovered).
-    // Non-terminal: the call keeps running, so these do not remove it from routing.
+    // Queda e volta do socket do WhatsApp durante uma chamada ACTIVE. Não terminais.
     "call:disconnected": (callId: string) => void;
     "call:connected": (callId: string) => void;
     "call:unanswered": (callId: string) => void;

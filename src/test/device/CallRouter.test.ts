@@ -20,7 +20,7 @@ function emitSocket(socket: ReturnType<typeof makeMockSocket>, event: string, ..
 }
 
 function getListenerCount(socket: ReturnType<typeof makeMockSocket>, event: string): number {
-    // Reach into EventEmitter internals — same hack used by the WS mock.
+    // Mexe no interior do EventEmitter, como o mock do WS.
     const ee = socket as unknown as { listeners: Map<string, unknown[]> };
     return ee.listeners.get(event)?.length ?? 0;
 }
@@ -367,10 +367,9 @@ describe("CallRouter", () => {
         });
     });
 
-    // `CANCELLED` arrives through the same `call:ended` as always, with one
-    // extra optional argument. A separate `call:canceled` event would have been worse:
-    // the proxies (Offer, CallOutgoing, CallActive) tear down on `ended`, and an offer
-    // whose caller gives up also produces CANCELLED — the client would ring forever.
+    // CANCELLED chega pelo mesmo `call:ended`, com um argumento opcional a mais, e não por
+    // um `call:canceled` à parte: os proxies se desmontam no `ended`, e uma oferta cujo
+    // chamador desistiu ficaria tocando para sempre.
     describe("call:ended outcome", () => {
         function endedWith(outcome?: { status: string; reason?: string }) {
             const socket = makeMockSocket();
@@ -395,10 +394,6 @@ describe("CallRouter", () => {
             expect(statusCb).toHaveBeenCalledWith("CANCELLED");
         });
 
-        // Order matters: the proxies tear themselves down on `ended`, and `Offer`'s
-        // teardown drops its subscriptions — `status` included. Emitting `ended` first
-        // meant the outcome landed after the teardown, so an offer consumer could
-        // never be told it was CANCELLED.
         it("settles the status before the terminal event, so a torn-down proxy still sees it", () => {
             const socket = makeMockSocket();
             const router = new CallRouter(socket as unknown as DeviceSocket);
@@ -428,8 +423,8 @@ describe("CallRouter", () => {
             expect(statusCb).toHaveBeenCalledWith("ENDED");
         });
 
-        // Instances update only when their device restarts, so a freshly published SDK
-        // talks to old instances for as long as those devices stay up.
+        // A instance só atualiza quando o device reinicia, então um SDK recém-publicado fala
+        // com instance antiga enquanto o device ficar de pé.
         it("falls back to ENDED when an older instance omits the outcome", () => {
             const { endedCb, statusCb } = endedWith();
 

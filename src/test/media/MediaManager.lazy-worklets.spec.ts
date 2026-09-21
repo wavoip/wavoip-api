@@ -1,12 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Worklet `?worklet` imports evaluate the AudioWorkletProcessor module body at
-// import time, which throws under happy-dom. Mock them to plain URL strings.
+// Os imports `?worklet` avaliam o corpo do AudioWorkletProcessor no import, o que lança no
+// happy-dom.
 vi.mock("../../modules/worklets/AudioWorkletMic.ts?worklet", () => ({ default: "mic-worklet.js" }));
 vi.mock("../../modules/worklets/AudioWorkletOut.ts?worklet", () => ({ default: "out-worklet.js" }));
-
-// AudioContext + addModule are stubbed at the global level so MediaManager's
-// constructor doesn't hit the real Web Audio API under happy-dom.
 
 const addModule = vi.fn().mockResolvedValue(undefined);
 const suspend = vi.fn().mockResolvedValue(undefined);

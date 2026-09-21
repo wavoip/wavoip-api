@@ -2,19 +2,8 @@ import { type CallStats, makeEmptyCallStats } from "@/modules/call/Stats";
 import type { IStatsAdapter } from "@/modules/media/composition/StatsAdapter";
 
 /**
- * WebRTC stats adapter — absorbs `pc.getStats()` reports into a single
- * `CallStats` cache. Extracted from the prior monolithic `WebRTCTransport.getStats`
- * so transport classes own only connection lifecycle; stats absorption lives
- * in a focused per-role module.
- *
- * Source mapping (all measured on the local peer; no server input):
- *   inbound-rtp/audio       → rx.{total_bytes, total, loss, audio_level, jitter_ms}
- *   outbound-rtp/audio      → tx.total_bytes  (bitrate derived in `updateBitrateSample`)
- *   media-source/audio      → tx.audio_level  (mic level pre-encode)
- *   remote-inbound-rtp/audio → tx.{loss, total} and rolling-mean rtt
- *
- * `audio_context.output_latency_ms` reads the `AudioContext.outputLatency`
- * directly each refresh, since `pc.getStats` doesn't expose it.
+ * Tudo medido no peer local, sem nada do servidor. A latência de saída vem do
+ * `AudioContext.outputLatency` porque o `pc.getStats` não a expõe.
  */
 export class RTCStatsAdapter implements IStatsAdapter {
     private cache: CallStats = makeEmptyCallStats();

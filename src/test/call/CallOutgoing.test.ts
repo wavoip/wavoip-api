@@ -12,9 +12,8 @@ function makeCall() {
 }
 
 /**
- * `ack` drives what the server answers: `"success"` (default), an error, or
- * `"timeout"` for the ack that never arrives. `timeout(ms).emit(...)` receives the
- * callback in socket.io's `(err, res)` shape.
+ * `"timeout"` é o ack que nunca chega. `timeout(ms).emit(...)` recebe o callback no
+ * formato `(err, res)` do socket.io.
  */
 function makeMockSocket(ack: "success" | "error" | "timeout" = "success", errorCode = "IS_NOT_OFFER") {
     const socket = new EventEmitter<Record<string, unknown[]>>() as unknown as DeviceSocket & {
@@ -277,10 +276,6 @@ describe("CallOutgoing", () => {
         });
     });
 
-    // `end()` transitioned the call and destroyed the media inside the ack
-    // callback without looking at the response. Racing "answered at the very instant
-    // of the cancel", the server refuses with IS_NOT_OFFER but the microphone and the
-    // RTCPeerConnection were already gone — the call lived on, mute.
     describe("cancel()", () => {
         it("does not tear down the media when the server refuses the cancellation", async () => {
             const call = makeCall();
@@ -310,8 +305,6 @@ describe("CallOutgoing", () => {
             expect(call.status).toBe("CANCELLED");
         });
 
-        // With no ack timeout the Promise never resolved: a dropped socket left the
-        // cancel button stuck forever.
         it("releases the media when the refusal means the call is already dead", async () => {
             const call = makeCall();
             const socket = makeMockSocket("error", "CALL_NOT_FOUND");

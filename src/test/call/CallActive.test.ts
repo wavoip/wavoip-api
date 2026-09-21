@@ -9,7 +9,7 @@ const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null
 
 function makeCall() {
     const call = Call.CreateOffer("call-1", "OFFICIAL", peer, "device-token");
-    call.accept(); // move to ACTIVE
+    call.accept();
     return call;
 }
 

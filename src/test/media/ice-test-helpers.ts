@@ -15,9 +15,8 @@ export class MockMediaStreamTrack {
 }
 
 /**
- * Configurable mock RTCPeerConnection.
- * Tests drive gathering completion + ICE state transitions manually via the
- * `_*` helpers; unlike a real PC, nothing auto-completes.
+ * Diferente de um PC de verdade, nada completa sozinho: o teste conduz o fim da coleta e
+ * as transições de ICE pelos helpers `_*`.
  */
 export class MockRTCPeerConnection {
     _config: RTCConfiguration;

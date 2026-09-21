@@ -3,19 +3,8 @@ import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { IAudioPipe, PipeEvents } from "./AudioPipe";
 
 /**
- * WebRTC audio pipe role — owns mic acquisition + sender attachment on one
- * side, and the remote-track analyser + peer-mute detection on the other.
- * Knows nothing about SDP, ICE, or stats absorption; it only needs an
- * already-constructed RTCPeerConnection to add senders onto and listen for
- * the inbound `track` event.
- *
- * `ontrack` fires once when the remote stream lands (after SDP negotiation
- * completes). The muted `<audio>` element is a Chromium workaround
- * (issues.chromium.org/issues/40094084): without an HTMLAudioElement holding
- * the MediaStream, the remote track's analyser/destination chain doesn't run.
- *
- * `stop()` is idempotent — both the transport's explicit teardown path and
- * the autonomous `pc.connectionState === "closed"` path call it.
+ * `stop()` é idempotente porque dois caminhos o chamam: o desmonte explícito do
+ * transporte e o `pc.connectionState === "closed"`.
  */
 export class RTCAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe {
     peerMuted = false;
@@ -68,9 +57,8 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe
     }
 
     private wireTxAnalyser(micStream: MediaStream): void {
-        // Mirror WSAudioPipe.AudioInput: mic stream → analyser → silent gain → destination.
-        // Mic feeds RTCPeerConnection directly (not the AudioContext graph), so the
-        // analyser needs its own source + destination anchor to receive samples.
+        // O microfone alimenta o RTCPeerConnection direto, fora do grafo do AudioContext;
+        // o analyser precisa de fonte própria e de âncora no destination (ver WSAudioPipe).
         const ctx = this.mediaManager.audioContext;
         this.txSource = ctx.createMediaStreamSource(micStream);
         this.txAnalyser = ctx.createAnalyser();
@@ -86,8 +74,9 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe
     private handleRemoteTrack(event: RTCTrackEvent): void {
         const remoteStream = event.streams[0];
 
-        // Chromium workaround: anchor the MediaStream in a muted <audio> element
-        // so the analyser/destination chain actually receives audio frames.
+        // Bug do Chromium (issues.chromium.org/issues/40094084): sem um HTMLAudioElement
+        // segurando o MediaStream, a cadeia analyser/destination da track remota não recebe
+        // áudio. O elemento fica mudo.
         const audio = new Audio();
         audio.muted = true;
         audio.srcObject = remoteStream;

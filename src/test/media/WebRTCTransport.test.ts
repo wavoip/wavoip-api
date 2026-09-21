@@ -1,10 +1,6 @@
 import { WebRTCTransport } from "@/modules/media/WebRTC";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// ---------------------------------------------------------------------------
-// Mock RTCPeerConnection
-// ---------------------------------------------------------------------------
-
 class MockMediaStreamTrack {
     private listeners = new Map<string, Set<() => void>>();
 
@@ -35,13 +31,12 @@ class MockRTCPeerConnection {
     createAnswer = vi.fn().mockResolvedValue({ type: "answer", sdp: "mock-answer-sdp" });
     createOffer = vi.fn().mockResolvedValue({ type: "offer", sdp: "mock-offer-sdp" });
     setLocalDescription = vi.fn().mockImplementation(async () => {
-        // Yield a microtask so answerPromise.resolve() fires before we trigger ontrack
+        // Cede uma microtask para o answerPromise.resolve() rodar antes do ontrack.
         await Promise.resolve();
         const mockRemoteTrack = new MockMediaStreamTrack();
         const mockStream = { id: "stream-1", getAudioTracks: () => [mockRemoteTrack] } as unknown as MediaStream;
         mockPcInstance._remoteTrack = mockRemoteTrack;
         mockPcInstance.simulateTrack(mockStream);
-        // Simulate ICE gathering completing
         mockPcInstance.iceGatheringState = "complete";
         mockPcInstance.dispatchEvent("icegatheringstatechange");
     });
@@ -76,14 +71,10 @@ class MockRTCPeerConnection {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Mock MediaManager
-// ---------------------------------------------------------------------------
-
 function makeMockMediaManager() {
     const analyser = {
         fftSize: 256,
-        getByteTimeDomainData: vi.fn((arr: Uint8Array) => arr.fill(128)), // silence = 128, avg deviation = 0
+        getByteTimeDomainData: vi.fn((arr: Uint8Array) => arr.fill(128)), // silêncio = 128, desvio médio = 0
         connect: vi.fn(),
         disconnect: vi.fn(),
     };
@@ -113,17 +104,9 @@ function makeMockMediaManager() {
     };
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 async function startTransport(transport: WebRTCTransport) {
     await transport.start();
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe("WebRTCTransport", () => {
     beforeEach(() => {
@@ -404,7 +387,7 @@ describe("WebRTCTransport", () => {
             const cb = vi.fn();
             transport.on("peerMuted", cb);
 
-            // Fire mute again — already muted, should not re-emit
+            // Já está mudo: não pode emitir de novo.
             mockPcInstance._remoteTrack?.dispatchEvent("mute");
 
             expect(cb).not.toHaveBeenCalled();
@@ -431,19 +414,19 @@ describe("WebRTCTransport", () => {
             mockPcInstance?.getStats?.mockResolvedValue(statsMap);
 
             const transport = new WebRTCTransport(mm as never, "offer-sdp");
-            // Override getStats before start so the initial call in start() uses updated mock
-            // The mock is set up on the instance after construction, so we need to re-assign:
+            // O mock nasce na instância durante a construção, então é trocado aqui, antes do
+            // start(), para a primeira chamada já usar o statsMap.
             const origGetStats = mockPcInstance.getStats;
             mockPcInstance.getStats = vi.fn().mockResolvedValue(statsMap);
 
             await startTransport(transport);
-            origGetStats; // silence unused warning
+            origGetStats;
 
             const cb = vi.fn();
             transport.on("statsChanged", cb);
 
-            // Advance past the 5s stats interval
-            await vi.advanceTimersByTimeAsync(5_000); // flush async getStats
+            // Bem além do intervalo de stats (200ms por padrão).
+            await vi.advanceTimersByTimeAsync(5_000);
 
             expect(cb).toHaveBeenCalled();
             const emittedStats = cb.mock.calls[0][0];

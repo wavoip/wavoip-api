@@ -100,7 +100,7 @@ describe("Call.getStats — pull-based stats API", () => {
     it("call.on('stats', cb) emits warn-once deprecation", () => {
         const call = makeCall();
         call.on("stats", () => {});
-        call.on("stats", () => {}); // second listener still allowed, no second warn
+        call.on("stats", () => {}); // o segundo listener entra, sem segundo aviso
 
         const warnCalls = warnSpy.mock.calls.filter((c: unknown[]) =>
             String(c[0]).includes("Call.stats event"),

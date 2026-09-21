@@ -87,7 +87,6 @@ export function CallActiveProxy(
         return Promise.resolve(transport.stop()).catch(() => {});
     };
 
-    // Pure 1:1 relays — kept type-checked via the typed mapping.
     forwardEvents(call, emitter, {
         stats: "stats",
         serverStats: "serverStats",
@@ -95,7 +94,6 @@ export function CallActiveProxy(
         status: "status",
     });
 
-    // Side-effecting subscribers (dispose, rename, buffered replay) stay inline.
     call.on("failed", (err) => {
         emitter.emit("error", err);
         void dispose();
@@ -173,49 +171,42 @@ export function CallActiveProxy(
             return unsub;
         },
 
-        /** @deprecated Use `on("error", callback)` instead. */
         onError(callback: (err: CallFailReason) => void): void {
             warnDeprecated("CallActive.onError", 'use `active.on("error", cb)` instead.');
             onErrorUnsub?.();
             onErrorUnsub = emitter.on("error", callback);
         },
 
-        /** @deprecated Use `on("peerMute", callback)` instead. */
         onPeerMute(callback: () => void): void {
             warnDeprecated("CallActive.onPeerMute", 'use `active.on("peerMute", cb)` instead.');
             onPeerMuteUnsub?.();
             onPeerMuteUnsub = emitter.on("peerMute", callback);
         },
 
-        /** @deprecated Use `on("peerUnmute", callback)` instead. */
         onPeerUnmute(callback: () => void): void {
             warnDeprecated("CallActive.onPeerUnmute", 'use `active.on("peerUnmute", cb)` instead.');
             onPeerUnmuteUnsub?.();
             onPeerUnmuteUnsub = emitter.on("peerUnmute", callback);
         },
 
-        /** @deprecated Use `on("ended", callback)` instead. */
         onEnd(callback: () => void): void {
             warnDeprecated("CallActive.onEnd", 'use `active.on("ended", cb)` instead.');
             onEndUnsub?.();
             onEndUnsub = emitter.on("ended", callback);
         },
 
-        /** @deprecated Use `on("stats", callback)` instead. */
         onStats(callback: (stats: CallStats) => void): void {
             warnDeprecated("CallActive.onStats", 'use `active.on("stats", cb)` instead.');
             onStatsUnsub?.();
             onStatsUnsub = emitter.on("stats", callback);
         },
 
-        /** @deprecated Use `on("connectionStatus", callback)` instead. */
         onConnectionStatus(callback: (status: TransportStatus) => void): void {
             warnDeprecated("CallActive.onConnectionStatus", 'use `active.on("connectionStatus", cb)` instead.');
             onConnectionStatusUnsub?.();
             onConnectionStatusUnsub = emitter.on("connectionStatus", callback);
         },
 
-        /** @deprecated Use `on("status", callback)` instead. */
         onStatus(cb: (status: CallStatus) => void): void {
             warnDeprecated("CallActive.onStatus", 'use `active.on("status", cb)` instead.');
             onStatusUnsub?.();
@@ -223,13 +214,12 @@ export function CallActiveProxy(
         },
     } as CallActive;
 
-    // Live getters — Call.status, transport.status and transport.peerMuted change over the
-    // lifetime of the proxy. Snapshotting would freeze them at construction time.
+    // Getters vivos: call.status, transport.status e transport.peerMuted mudam ao longo da
+    // vida do proxy, e uma cópia os congelaria no valor da construção.
     Object.defineProperties(proxy, {
         status: { get: () => call.status, enumerable: true },
         connectionStatus: { get: () => transport.status, enumerable: true },
         peer: { get: () => ({ ...call.peer, muted: transport.peerMuted }), enumerable: true },
-        // Deprecated snake-case aliases — warn-once on access.
         device_token: {
             get: () => {
                 warnDeprecated("CallActive.device_token", "use `active.deviceToken` instead.");

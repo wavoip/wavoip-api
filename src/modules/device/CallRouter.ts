@@ -2,29 +2,17 @@ import { type Call, toCallStatus } from "@/modules/device/Call";
 import type { DeviceSocket, ServerEvents } from "@/modules/device/WebSocket";
 import type { Unsubscribe } from "@/modules/shared/EventEmitter";
 
-// socket.io's typed Socket exposes a FallbackToUntypedListener that the
-// compiler can't unify with our local generic E. Cast once via `unknown` to
-// a narrowly-typed shape so the rest of `bind` stays fully typed.
+// O Socket tipado do socket.io expõe um FallbackToUntypedListener que o compilador não
+// unifica com o genérico E daqui. Um cast só, via `unknown`, e o resto do `bind` fica
+// tipado.
 type SocketLike = {
     on<E extends keyof ServerEvents>(event: E, handler: ServerEvents[E]): unknown;
     off<E extends keyof ServerEvents>(event: E, handler: ServerEvents[E]): unknown;
 };
 
 /**
- * Central dispatch for per-call socket events. Subscribes to each `call:*`
- * event once on the shared device socket and routes payloads to the matching
- * Call by id. Auto-unregisters Calls when terminal events arrive so abandoned
- * Calls do not leak.
- *
- * Replaces the per-Call `wireSocket` pattern that left N × 9 filtered
- * listeners on the shared socket.
- *
- * @example
- *   const router = new CallRouter(socket);
- *   router.start();
- *   const unregister = router.register(call);
- *   // ...later, on call disposal:
- *   unregister();
+ * Um listener por evento `call:*` no socket compartilhado, e não um por chamada: o
+ * `wireSocket` por Call deixava N × 9 listeners filtrados no socket.
  */
 export class CallRouter {
     private readonly calls = new Map<string, Call>();
@@ -49,19 +37,14 @@ export class CallRouter {
             call.emit("ringing");
             call.emit("status", "RINGING");
         });
-        // `ended` stays the terminal event every proxy (Offer, CallOutgoing,
-        // CallActive) tears itself down on. What changes is `status`, which now says
-        // *which* ending it was: a newer instance sends CANCELLED when someone gave
-        // up before the answer. An older instance sends no `outcome` and behaviour is
-        // unchanged.
+        // Instance antiga não manda `outcome`, e o status cai em ENDED.
         bind("call:ended", (id, outcome) => {
             const call = this.calls.get(id);
             if (!call) return;
-            // `status` first, `ended` second — the reverse of the other handlers, and
-            // deliberately so. Every proxy tears itself down on `ended`, and `Offer`'s
-            // teardown drops its subscriptions: a status emitted afterwards reaches
-            // nobody, so an offer whose caller gave up could never be told it was
-            // CANCELLED. Settle the outcome, then announce the end.
+            // `status` antes de `ended`, o inverso dos outros handlers, de propósito: todo
+            // proxy se desmonta no `ended`, e o do `Offer` solta as inscrições. Um status
+            // emitido depois não chega a ninguém, e uma oferta cujo chamador desistiu nunca
+            // saberia que foi CANCELLED.
             call.emit("status", toCallStatus(outcome?.status));
             call.emit("ended");
             this.calls.delete(id);
@@ -99,11 +82,8 @@ export class CallRouter {
             call.emit("status", "FAILED");
             this.calls.delete(id);
         });
-        // Media-leg drop/recover for an ACTIVE call. Surfaced as the existing
-        // `status` event ("DISCONNECTED"/"ACTIVE") so consumers can show a
-        // reconnecting indicator. Non-terminal: unlike call:ended/rejected/failed,
-        // the call is NOT removed from `this.calls` — a later call:connected must
-        // still route, and a subsequent terminal event still deletes it.
+        // Queda e volta da perna de mídia não são terminais: a chamada fica em `this.calls`
+        // para o call:connected seguinte ainda ser roteado.
         bind("call:disconnected", (id) => {
             this.calls.get(id)?.emit("status", "DISCONNECTED");
         });
@@ -119,10 +99,8 @@ export class CallRouter {
     }
 
     /**
-     * Add a Call to dispatch routing. Returns an Unsubscribe that removes the
-     * Call from the routing table. The router additionally auto-removes Calls
-     * when their terminal `call:*` event fires, so callers only need to invoke
-     * the returned Unsubscribe when disposing a Call mid-flight.
+     * Os eventos terminais já tiram a chamada da tabela; o Unsubscribe devolvido só é
+     * necessário para descartar uma chamada no meio do caminho.
      */
     register(call: Call): Unsubscribe {
         this.calls.set(call.id, call);

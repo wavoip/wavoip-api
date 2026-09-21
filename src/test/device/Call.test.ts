@@ -84,8 +84,8 @@ describe("Call", () => {
             expect(call.status).toBe("CANCELLED");
         });
 
-        // The one status that must refuse: a connected call is ended, never cancelled.
-        // The server enforces the same rule with IS_NOT_OFFER.
+        // Chamada conectada se encerra, nunca se cancela. O servidor aplica a mesma regra com
+        // IS_NOT_OFFER.
         it("returns false when the call is already ACTIVE", () => {
             const call = makeCall("ACTIVE");
             expect(call.cancel()).toBe(false);

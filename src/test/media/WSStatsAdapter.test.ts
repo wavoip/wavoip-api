@@ -40,9 +40,9 @@ describe("WSStatsAdapter", () => {
         const s = adapter.snapshot();
         expect(s.rx.total_bytes).toBe(480);
         expect(s.rx.total).toBe(3);
-        // First arrival: lastRxArrivalTs == 0, skip jitter update.
-        // Second arrival: |40 - 20| / 16 = 1.25
-        // Third arrival:  prev = 1.25; |20 - 20| = 0; 1.25 + (0 - 1.25)/16 ≈ 1.17
+        // 1ª chegada: sem anterior, não mexe no jitter.
+        // 2ª: |40 - 20| / 16 = 1.25
+        // 3ª: 1.25 + (|20 - 20| - 1.25) / 16 ≈ 1.17
         expect(s.rx.jitter_ms).toBeGreaterThan(1);
         expect(s.rx.jitter_ms).toBeLessThan(2);
         spy.mockRestore();
