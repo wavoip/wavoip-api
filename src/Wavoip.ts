@@ -53,9 +53,10 @@ export class Wavoip extends EventEmitter<Events> {
     }
 
     /**
-     * Switch the locale used by `canCall()` error messages and any other
-     * library-emitted strings. Affects every Wavoip instance — locale state is
-     * module-global within the `wavoip-api` a18n namespace.
+     * Switch the locale of the library-emitted strings, such as the per-device
+     * reasons `startCall()` reports when a device cannot place a call. Affects
+     * every Wavoip instance — locale state is module-global within the
+     * `wavoip-api` a18n namespace.
      *
      * @example
      * wavoip.setLanguage("es")
