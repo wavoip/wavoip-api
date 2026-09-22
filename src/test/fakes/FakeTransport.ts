@@ -1,4 +1,5 @@
-import { type CallStats, makeEmptyCallStats } from "@/modules/call/Stats";
+import type { CallStats } from "@/modules/call/Stats";
+import { Stats } from "@/domain/call/stats";
 import type { Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
@@ -9,7 +10,7 @@ export class FakeTransport extends EventEmitter<Events> implements ITransport {
     peerMuted = false;
     audioAnalyserIn: Promise<AnalyserNode> = Promise.resolve({} as AnalyserNode);
     audioAnalyserOut: Promise<AnalyserNode> = Promise.resolve({} as AnalyserNode);
-    stats: CallStats = makeEmptyCallStats();
+    stats: CallStats = Stats.empty();
     stopCount = 0;
 
     async start(): Promise<void> {}

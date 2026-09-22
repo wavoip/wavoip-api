@@ -25,6 +25,9 @@ documentação sem ler o código. Isso muda as regras de idioma e de comentário
   Prefira nomes com menos de 5 ocorrências no grep do código.
 - Tipos: explícitos. Nada de `any`, `Dict` ou função sem tipo.
 - Sem duplicação. Extraia a lógica compartilhada para uma função ou módulo.
+- Nada de função ou constante exportada solta: agrupe num objeto de nome claro e exporte
+  só ele (`Stats.mergeUnofficial(...)`, `Status.narrow(...)`). Quem lê a chamada vê de onde
+  a funcionalidade vem. Tipo e interface seguem exportados direto.
 - Retorno cedo em vez de `if` aninhado. No máximo 2 níveis de indentação.
 - Mensagem de exceção inclui o valor ofensor e a forma esperada.
 
@@ -127,3 +130,8 @@ pnpm lint
 pnpm test
 pnpm build
 ```
+
+O `pnpm lint` também roda `tsc -p tsconfig.core.json`: compila o `src/domain/` sem DOM e sem
+`@types/node` (que declara `WebSocket` e `performance` globais). O domínio é a parte que roda
+igual no navegador, no React Native e no desktop — regra pura, sem I/O e sem timer. O que
+depende de plataforma fica atrás de uma porta, injetada por quem orquestra (DEV-526).

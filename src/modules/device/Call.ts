@@ -1,4 +1,6 @@
-import { type CallStats, type ServerCallStats, makeEmptyCallStats } from "@/modules/call/Stats";
+import { type TransitionName, Status } from "@/domain/call/status";
+import { type CallStats, type ServerCallStats, Stats } from "@/domain/call/stats";
+import type { CallDirection, CallStatus, CallType, Peer } from "@/domain/call/types";
 import type { CallFailReason } from "@/modules/device/CallFailReason";
 import type { MediaPlan } from "@/modules/device/WebSocket";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
@@ -28,7 +30,7 @@ export class Call extends EventEmitter<CallEvents> {
     private lastTransportStats: CallStats | null = null;
     // Só existe para alimentar o evento `stats`, que está depreciado; `getStats()` não lê
     // daqui.
-    private lastStats: CallStats = makeEmptyCallStats();
+    private lastStats: CallStats = Stats.empty();
     private transport: ITransport | null = null;
 
     constructor(
@@ -45,9 +47,9 @@ export class Call extends EventEmitter<CallEvents> {
     // Não emite `status`: isso é dos handlers de evento do servidor no CallRouter, e emitir
     // aqui também dobraria o evento.
     private transition(name: TransitionName): boolean {
-        const def = TRANSITIONS[name];
-        if (!def.allow(this.status)) return false;
-        this.status = def.to;
+        const next = Status.transition(this.status, name);
+        if (!next) return false;
+        this.status = next;
         return true;
     }
 
@@ -67,13 +69,13 @@ export class Call extends EventEmitter<CallEvents> {
     applyServerStats(stats: ServerCallStats): void {
         this.emit("serverStats", stats);
         if (this.type !== "UNOFFICIAL") return;
-        this.lastServerProjection = toCallStats(stats);
+        this.lastServerProjection = Stats.fromServer(stats);
         this.lastStats = this.mergeUnofficialStats();
         this.emit("stats", this.lastStats);
     }
 
     async getStats(): Promise<CallStats> {
-        if (!this.transport) return makeEmptyCallStats();
+        if (!this.transport) return Stats.empty();
         const transportStats = await this.transport.getStats();
         if (this.type === "OFFICIAL") {
             this.lastStats = transportStats;
@@ -94,30 +96,8 @@ export class Call extends EventEmitter<CallEvents> {
         return super.on(event, listener);
     }
 
-    /**
-     * Chamada OFFICIAL usa só as stats do WebRTC. Na UNOFFICIAL nenhum dos lados tem o
-     * quadro inteiro: RTT, perda e totais vêm do `call:stats` do servidor, e bitrate,
-     * nível de áudio, jitter e latência de saída só o cliente mede.
-     */
     private mergeUnofficialStats(): CallStats {
-        const base = this.lastServerProjection ?? makeEmptyCallStats();
-        const t = this.lastTransportStats;
-        if (!t) return base;
-        return {
-            rtt: base.rtt,
-            tx: {
-                ...base.tx,
-                bitrate_kbps: t.tx.bitrate_kbps,
-                audio_level: t.tx.audio_level,
-            },
-            rx: {
-                ...base.rx,
-                bitrate_kbps: t.rx.bitrate_kbps,
-                audio_level: t.rx.audio_level,
-                jitter_ms: t.rx.jitter_ms,
-            },
-            audio_context: { ...t.audio_context },
-        };
+        return Stats.mergeUnofficial(this.lastServerProjection, this.lastTransportStats);
     }
 
     /**
@@ -159,70 +139,5 @@ export class Call extends EventEmitter<CallEvents> {
     }
 }
 
-export type CallStatus =
-    | "RINGING"
-    | "CALLING"
-    | "NOT_ANSWERED"
-    | "ACTIVE"
-    // Alguém desistiu antes do atendimento, nós ou o outro lado. Distinto de "ENDED", que
-    // é desligar depois de atender.
-    | "CANCELLED"
-    | "ENDED"
-    | "REJECTED"
-    | "FAILED"
-    | "DISCONNECTED";
-
-const CALL_STATUSES: readonly CallStatus[] = [
-    "RINGING",
-    "CALLING",
-    "NOT_ANSWERED",
-    "ACTIVE",
-    "CANCELLED",
-    "ENDED",
-    "REJECTED",
-    "FAILED",
-    "DISCONNECTED",
-];
-
-/**
- * O servidor tem um vocabulário maior que esta união: sem o estreitamento, um valor
- * desconhecido chegaria ao consumidor tipado como algo que ele não é, e todo `switch`
- * exaustivo do lado de lá cairia no vazio.
- */
-export function toCallStatus(status: string | undefined): CallStatus {
-    return CALL_STATUSES.find((known) => known === status) ?? "ENDED";
-}
-
-type TransitionName = "accept" | "reject" | "cancel" | "end" | "timeout" | "fail";
-
-const TRANSITIONS: Record<TransitionName, { allow: (s: CallStatus) => boolean; to: CallStatus }> = {
-    accept:  { allow: (s) => s === "RINGING" || s === "CALLING", to: "ACTIVE" },
-    reject:  { allow: (s) => s === "ACTIVE", to: "REJECTED" },
-    cancel:  { allow: (s) => s !== "ACTIVE", to: "CANCELLED" },
-    end:     { allow: (s) => s === "ACTIVE", to: "ENDED" },
-    timeout: { allow: (s) => s === "RINGING" || s === "CALLING", to: "NOT_ANSWERED" },
-    fail:    { allow: (s) => s === "ACTIVE", to: "FAILED" },
-};
-
-export type CallType = "OFFICIAL" | "UNOFFICIAL";
-
-/**
- * RTT da perna do cliente (device ↔ servidor), o mesmo que o indicador de ping da barra
- * de status mostra. O da perna do WhatsApp continua no `serverStats`.
- */
-export function toCallStats(s: ServerCallStats): CallStats {
-    return {
-        rtt: { ...s.rtt.client },
-        tx: { ...s.tx, bitrate_kbps: 0, audio_level: 0 },
-        rx: { ...s.rx, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
-        audio_context: { output_latency_ms: 0 },
-    };
-}
-
-export type Peer = {
-    phone: string;
-    displayName: string | null;
-    profilePicture: string | null;
-};
-
-export type CallDirection = "INCOMING" | "OUTGOING";
+export { Status } from "@/domain/call/status";
+export type { CallDirection, CallStatus, CallType, Peer } from "@/domain/call/types";

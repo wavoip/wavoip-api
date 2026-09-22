@@ -1,4 +1,5 @@
-import { type CallStats, makeEmptyCallStats } from "@/modules/call/Stats";
+import type { CallStats } from "@/modules/call/Stats";
+import { Stats } from "@/domain/call/stats";
 import type { IStatsAdapter } from "@/modules/media/composition/StatsAdapter";
 
 /**
@@ -6,7 +7,7 @@ import type { IStatsAdapter } from "@/modules/media/composition/StatsAdapter";
  * `AudioContext.outputLatency` porque o `pc.getStats` não a expõe.
  */
 export class RTCStatsAdapter implements IStatsAdapter {
-    private cache: CallStats = makeEmptyCallStats();
+    private cache: CallStats = Stats.empty();
     private prevBytesReceived = 0;
     private prevBytesSent = 0;
     private prevSampleTs = 0;

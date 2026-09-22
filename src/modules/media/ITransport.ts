@@ -1,8 +1,9 @@
 import type { CallStats } from "@/modules/call/Stats";
+import type { TransportStatus } from "@/domain/call/types";
 import type { ConnectivityIssue, IceConfig, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { EventEmitter } from "@/modules/shared/EventEmitter";
 
-export type TransportStatus = "disconnected" | "connected" | "connecting" | "reconnecting";
+export type { TransportStatus } from "@/domain/call/types";
 export type TransportKind = "webrtc" | "ws";
 
 export const DEFAULT_STATS_TICK_MS = 200;
