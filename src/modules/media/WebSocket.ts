@@ -1,5 +1,6 @@
-import type { CallStats } from "@/modules/call/Stats";
-import { WSAudioPipe, WSConnection, WSStatsAdapter } from "@/modules/media/composition";
+import type { CallStats } from "@/domain/call/stats";
+import type { MediaPlan } from "@/domain/call/types";
+import { type RelayAddress, WSAudioPipe, WSConnection, WSStatsAdapter } from "@/modules/media/composition";
 import {
     DEFAULT_STATS_TICK_MS,
     type Events,
@@ -31,16 +32,11 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
 
     private statsTimer: ReturnType<typeof setInterval> | null = null;
 
-    constructor(
-        mediaManager: MediaManager,
-        server: { host: string; port: string },
-        token: string,
-        options?: TransportOptions,
-    ) {
+    constructor(mediaManager: MediaManager, token: string, options?: TransportOptions) {
         super();
 
         this.statsTickMs = options?.statsTickMs ?? DEFAULT_STATS_TICK_MS;
-        this.connection = new WSConnection(server, token);
+        this.connection = new WSConnection(token);
 
         this.audioPipe = new WSAudioPipe(mediaManager, (data) => {
             this.connection.send(data);
@@ -61,7 +57,28 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         });
     }
 
-    async start(): Promise<void> {
+    /** Onde o relay atende, conhecido só quando a chamada é aceita. */
+    useRelay(server: RelayAddress): void {
+        this.connection.useRelay(server);
+    }
+
+    /**
+     * Atende: o relay não tem plano para mandar de volta, e a conexão sobe em paralelo —
+     * a chamada já existe enquanto o `connectionStatus` mostra o relay conectando.
+     */
+    async accept(): Promise<MediaPlan> {
+        void this.start();
+        return { type: "none" };
+    }
+
+    /** O outro lado atendeu: a resposta diz onde o relay espera a conexão. */
+    async connect(plan: MediaPlan): Promise<void> {
+        if (plan.type !== "relay") throw new Error(`A relay call cannot connect with a ${plan.type} plan`);
+        this.useRelay(plan);
+        await this.start();
+    }
+
+    private async start(): Promise<void> {
         await this.audioPipe.start();
         await this.connection.start();
         this.startStatsLoop();

@@ -8,7 +8,6 @@ function makeAudioContext(outputLatency = 0): AudioContext {
 const zeroLevels: AudioLevelProvider = { readTxLevel: () => 0, readRxLevel: () => 0 };
 
 describe("WSStatsAdapter", () => {
-
     it("snapshot() returns empty CallStats before any note/refresh", () => {
         const adapter = new WSStatsAdapter(makeAudioContext(), zeroLevels);
         const s = adapter.snapshot();

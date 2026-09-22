@@ -1,6 +1,6 @@
 import type { TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { IWSConnection, WSConnectionEvents } from "./Connection";
+import type { IWSConnection, RelayAddress, WSConnectionEvents } from "./Connection";
 
 // 1000 = o servidor encerrou de propósito; 1008 = o servidor recusou (ex.: token
 // inválido). Reconectar entraria em loop ou desfaria um fim intencional.
@@ -19,16 +19,24 @@ export class WSConnection extends EventEmitter<WSConnectionEvents> implements IW
     private ws?: WebSocket;
     private stopped = false;
     private reconnectDeadline: ReturnType<typeof setTimeout> | null = null;
+    private server: RelayAddress | null = null;
 
-    constructor(
-        private readonly server: { host: string; port: string },
-        private readonly token: string,
-    ) {
+    constructor(private readonly token: string) {
         super();
+    }
+
+    /**
+     * O relay só diz onde atende quando a chamada é aceita, então o endereço chega depois
+     * do objeto existir — como no SIP, em que o INVITE já leva o transporte e o destino só
+     * se resolve na resposta.
+     */
+    useRelay(server: RelayAddress): void {
+        this.server = server;
     }
 
     async start(): Promise<void> {
         if (this.ws) return;
+        if (!this.server) throw new Error("O relay ainda não informou host e porta");
         this.ws = this.connect();
     }
 
@@ -45,7 +53,8 @@ export class WSConnection extends EventEmitter<WSConnectionEvents> implements IW
     }
 
     private connect(): WebSocket {
-        const url = `wss://${this.server.host}:${this.server.port}?token=${this.token}`;
+        const { host, port } = this.server as RelayAddress;
+        const url = `wss://${host}:${port}?token=${this.token}`;
 
         const ws = new WebSocket(url);
         ws.binaryType = "arraybuffer";

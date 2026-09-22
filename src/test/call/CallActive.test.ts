@@ -1,428 +1,202 @@
-import { CallActiveProxy } from "@/modules/call/CallActive";
-import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
-import { Call } from "@/modules/device/Call";
-import type { ITransport, Events as TransportEvents } from "@/modules/media/ITransport";
-import { EventEmitter } from "@/modules/shared/EventEmitter";
-import { describe, expect, it, vi } from "vitest";
+import type { CallSession } from "@/application/call/CallSession";
+import type { CallActive } from "@/modules/call/CallActive";
+import { OfferProxy } from "@/modules/call/Offer";
+import { _resetDeprecationWarnings } from "@/modules/shared/deprecation";
+import { CallHarness, relayPlan, testPeer, webRTCPlan } from "@/test/support/CallHarness";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
+let harness: CallHarness;
 
-function makeCall() {
-    const call = Call.CreateOffer("call-1", "OFFICIAL", peer, "device-token");
-    call.accept();
-    return call;
+beforeEach(() => {
+    harness = new CallHarness();
+    _resetDeprecationWarnings();
+});
+
+async function makeActive(plan = relayPlan): Promise<{ session: CallSession; active: CallActive }> {
+    const type = plan === relayPlan ? "UNOFFICIAL" : "OFFICIAL";
+    const session = harness.incoming({ type, plan });
+    const { call } = await OfferProxy(session, vi.fn()).accept();
+    if (!call) throw new Error("accept failed");
+    return { session, active: call };
 }
 
-function makeMockTransport(overrides: Partial<ITransport> = {}): ITransport {
-    const t = new EventEmitter<TransportEvents>() as unknown as ITransport;
-    t.status = "disconnected";
-    t.peerMuted = false;
-    t.audioAnalyserIn = Promise.resolve({} as AnalyserNode);
-    t.audioAnalyserOut = Promise.resolve({} as AnalyserNode);
-    t.stats = {
-        rtt: { min: 0, max: 0, avg: 0 },
-        tx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0 },
-        rx: { total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
-        audio_context: { output_latency_ms: 0 },
-    };
-    t.start = vi.fn().mockResolvedValue(undefined);
-    t.stop = vi.fn().mockResolvedValue(undefined);
-    return Object.assign(t, overrides);
-}
+const serverStats = {
+    rtt: { client: { min: 10, max: 30, avg: 20 }, whatsapp: { min: 100, max: 300, avg: 200 } },
+    tx: { total: 50, total_bytes: 5000, loss: 1 },
+    rx: { total: 40, total_bytes: 4000, loss: 2 },
+};
 
-function makeMockMediaManager() {
-    return {
-        setMuted: vi.fn(),
-        startMedia: vi.fn(),
-        stopMedia: vi.fn(),
-        audioContext: {} as AudioContext,
-    };
-}
+describe("CallActive — getters", () => {
+    it("reads the call's identity from the session", async () => {
+        const { active } = await makeActive();
 
-describe("CallActive", () => {
-    describe("getters", () => {
-        it("id, type, direction, deviceToken, status proxy to call", () => {
-            const call = makeCall();
-
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-
-            expect(active.id).toBe("call-1");
-            expect(active.type).toBe("OFFICIAL");
-            expect(active.direction).toBe("INCOMING");
-            expect(active.deviceToken).toBe("device-token");
-            expect(active.status).toBe("ACTIVE");
+        expect(active).toMatchObject({
+            id: "call-1",
+            type: "UNOFFICIAL",
+            direction: "INCOMING",
+            deviceToken: "device-token",
+            status: "ACTIVE",
         });
-
-        it("peer.muted reflects transport.peerMuted", () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport({ peerMuted: true } as Partial<ITransport>);
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-
-            expect(active.peer.muted).toBe(true);
-        });
-
-        it("connectionStatus reads transport.status", () => {
-            const call = makeCall();
-
-            const transport = makeMockTransport({ status: "connected" } as Partial<ITransport>);
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-
-            expect(active.connectionStatus).toBe("connected");
-        });
-
-        it("status reflects later mutations of call.status", () => {
-            const call = makeCall();
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-
-            expect(active.status).toBe("ACTIVE");
-            call.status = "ENDED";
-            expect(active.status).toBe("ENDED");
-        });
-
-        it("connectionStatus reflects later mutations of transport.status", () => {
-            const call = makeCall();
-            const transport = makeMockTransport({ status: "connecting" } as Partial<ITransport>);
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-
-            expect(active.connectionStatus).toBe("connecting");
-            transport.status = "connected";
-            expect(active.connectionStatus).toBe("connected");
-        });
-
-        it("peer.muted reflects later mutations of transport.peerMuted", () => {
-            const call = makeCall();
-            const transport = makeMockTransport({ peerMuted: false } as Partial<ITransport>);
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-
-            expect(active.peer.muted).toBe(false);
-            transport.peerMuted = true;
-            expect(active.peer.muted).toBe(true);
-        });
-
-        it("audioAnalyserIn reads transport.audioAnalyserIn", async () => {
-            const call = makeCall();
-
-            const mockAnalyser = {} as AnalyserNode;
-            const transport = makeMockTransport({
-                audioAnalyserIn: Promise.resolve(mockAnalyser),
-            } as Partial<ITransport>);
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-
-            await expect(active.audioAnalyserIn).resolves.toBe(mockAnalyser);
-        });
-
-        it("audioAnalyserOut reads transport.audioAnalyserOut", async () => {
-            const call = makeCall();
-
-            const mockAnalyser = {} as AnalyserNode;
-            const transport = makeMockTransport({
-                audioAnalyserOut: Promise.resolve(mockAnalyser),
-            } as Partial<ITransport>);
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-
-            await expect(active.audioAnalyserOut).resolves.toBe(mockAnalyser);
-        });
+        expect(active.peer).toEqual({ ...testPeer, muted: false });
     });
 
-    describe("deprecated snake-case getters", () => {
-        it("device_token warns once then forwards to call.deviceToken", async () => {
-            const { _resetDeprecationWarnings } = await import("@/modules/shared/deprecation");
-            _resetDeprecationWarnings();
-            const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    it("connectionStatus follows the transport", async () => {
+        const { active } = await makeActive();
 
-            const call = makeCall();
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
+        harness.transports.current.status = "reconnecting";
 
-            expect(active.device_token).toBe("device-token");
-            expect(active.device_token).toBe("device-token");
-
-            const matches = warn.mock.calls.filter((c) => String(c[0]).includes("CallActive.device_token"));
-            expect(matches).toHaveLength(1);
-            warn.mockRestore();
-        });
-
-        it("connection_status warns once then reads transport.status", async () => {
-            const { _resetDeprecationWarnings } = await import("@/modules/shared/deprecation");
-            _resetDeprecationWarnings();
-            const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-            const call = makeCall();
-            const transport = makeMockTransport({ status: "connected" } as Partial<ITransport>);
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-
-            expect(active.connection_status).toBe("connected");
-            expect(active.connection_status).toBe("connected");
-
-            const matches = warn.mock.calls.filter((c) => String(c[0]).includes("CallActive.connection_status"));
-            expect(matches).toHaveLength(1);
-            warn.mockRestore();
-        });
-
-        it("audio_analyser warns once then forwards to transport.audioAnalyserIn", async () => {
-            const { _resetDeprecationWarnings } = await import("@/modules/shared/deprecation");
-            _resetDeprecationWarnings();
-            const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-            const call = makeCall();
-            const mockAnalyser = {} as AnalyserNode;
-            const transport = makeMockTransport({
-                audioAnalyserIn: Promise.resolve(mockAnalyser),
-            } as Partial<ITransport>);
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-
-            await expect(active.audio_analyser).resolves.toBe(mockAnalyser);
-            await expect(active.audio_analyser).resolves.toBe(mockAnalyser);
-
-            const matches = warn.mock.calls.filter((c) => String(c[0]).includes("CallActive.audio_analyser"));
-            expect(matches).toHaveLength(1);
-            warn.mockRestore();
-        });
+        expect(active.connectionStatus).toBe("reconnecting");
     });
 
-    describe("mute()", () => {
-        it("calls mediaManager.setMuted(true) and returns { err: null }", async () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
+    it("peer.muted follows the other side's microphone", async () => {
+        const { active } = await makeActive();
 
-            const result = await active.mute();
+        harness.transports.current.peerMuted = true;
 
-            expect(mm.setMuted).toHaveBeenCalledWith(true);
-            expect(result).toEqual({ err: null });
-        });
+        expect(active.peer.muted).toBe(true);
     });
 
-    describe("unmute()", () => {
-        it("calls mediaManager.setMuted(false) and returns { err: null }", async () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
+    it("status follows the server", async () => {
+        const { active, session } = await makeActive();
 
-            const result = await active.unmute();
+        harness.fromServer(session, { type: "disconnected" });
 
-            expect(mm.setMuted).toHaveBeenCalledWith(false);
-            expect(result).toEqual({ err: null });
-        });
+        expect(active.status).toBe("DISCONNECTED");
+    });
+});
+
+describe("CallActive — commands", () => {
+    it("mute and unmute tell the other side before cutting the microphone", async () => {
+        const { active } = await makeActive();
+        harness.signaling.sent.length = 0;
+
+        expect(await active.mute()).toEqual({ err: null });
+        expect(await active.unmute()).toEqual({ err: null });
+
+        expect(harness.muted).toEqual([true, false]);
+        expect(harness.signaling.sent.map((s) => s.command)).toEqual(["mute", "mute"]);
     });
 
-    describe("end()", () => {
-        it("calls callbacks.onEnd(call), transport.stop(), and returns { err: null }", async () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const onEnd = vi.fn();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd });
+    it("end tells the server and stops the media, once", async () => {
+        const { active } = await makeActive();
+        harness.signaling.sent.length = 0;
 
-            const result = await active.end();
+        expect(await active.end()).toEqual({ err: null });
+        expect(await active.end()).toEqual({ err: null });
 
-            expect(onEnd).toHaveBeenCalledWith(call);
-            expect(transport.stop).toHaveBeenCalledOnce();
-            expect(result).toEqual({ err: null });
-        });
-
-        it("is idempotent — calling end() twice still stops transport once", async () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-
-            await active.end();
-            await active.end();
-
-            expect(transport.stop).toHaveBeenCalledOnce();
-        });
+        expect(harness.signaling.sent.map((s) => s.command)).toEqual(["end"]);
+        expect(harness.transports.current.stops).toBe(1);
     });
 
-    describe("terminal cleanup (mic release)", () => {
-        it("bus 'ended' calls transport.stop()", () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
+    it("getStats merges the server's numbers into what the client measured", async () => {
+        const { active, session } = await makeActive();
 
-            call.emit("ended");
+        harness.fromServer(session, { type: "stats", stats: serverStats });
 
-            expect(transport.stop).toHaveBeenCalledOnce();
-        });
+        expect((await active.getStats()).rtt).toEqual({ min: 10, max: 30, avg: 20 });
+    });
+});
 
-        it("bus 'failed' calls transport.stop()", () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
+describe("CallActive — what the server says", () => {
+    it("turns the failure reason into the error event", async () => {
+        const { active, session } = await makeActive();
+        const heard = vi.fn();
+        active.on("error", heard);
 
-            call.emit("failed", "boom");
+        harness.fromServer(session, { type: "failed", reason: "CONNECTION_TIMEOUT" });
 
-            expect(transport.stop).toHaveBeenCalledOnce();
-        });
-
-        it("local end() then bus 'ended' still stops transport once", async () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-
-            await active.end();
-            call.emit("ended");
-
-            expect(transport.stop).toHaveBeenCalledOnce();
-        });
-
-        it("ended consumer event still fires after dispose", () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-            const cb = vi.fn();
-            active.on("ended", cb);
-
-            call.emit("ended");
-
-            expect(cb).toHaveBeenCalledOnce();
-            expect(transport.stop).toHaveBeenCalledOnce();
-        });
+        expect(heard).toHaveBeenCalledWith("CONNECTION_TIMEOUT");
     });
 
-    describe("event subscriptions", () => {
-        it("onPeerMute fires only when bus emits peerMuted(true)", () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-            const cb = vi.fn();
-            active.onPeerMute(cb);
+    it("splits the peer's mute into two events", async () => {
+        const { active, session } = await makeActive();
+        const muted = vi.fn();
+        const unmuted = vi.fn();
+        active.on("peerMute", muted);
+        active.on("peerUnmute", unmuted);
 
-            call.emit("peerMuted", false);
-            expect(cb).not.toHaveBeenCalled();
+        harness.fromServer(session, { type: "peerMuted", muted: true }, { type: "peerMuted", muted: false });
 
-            call.emit("peerMuted", true);
-            expect(cb).toHaveBeenCalledOnce();
-        });
+        expect(muted).toHaveBeenCalledOnce();
+        expect(unmuted).toHaveBeenCalledOnce();
+    });
 
-        it("onPeerUnmute fires only when bus emits peerMuted(false)", () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-            const cb = vi.fn();
-            active.onPeerUnmute(cb);
+    it("announces the outcome before ended", async () => {
+        const { active, session } = await makeActive();
+        const seen: string[] = [];
+        active.on("status", (status) => seen.push(`status:${status}`));
+        active.on("ended", () => seen.push(`ended:${active.status}`));
 
-            call.emit("peerMuted", true);
-            expect(cb).not.toHaveBeenCalled();
+        harness.fromServer(session, { type: "ended", status: "ENDED" });
 
-            call.emit("peerMuted", false);
-            expect(cb).toHaveBeenCalledOnce();
-        });
+        expect(seen).toEqual(["status:ENDED", "ended:ENDED"]);
+    });
 
-        it("onEnd fires when bus emits 'ended'", () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-            const cb = vi.fn();
-            active.onEnd(cb);
+    it("reports the server's stats as they arrive", async () => {
+        const { active, session } = await makeActive();
+        const heard = vi.fn();
+        active.on("serverStats", heard);
 
-            call.emit("ended");
+        harness.fromServer(session, { type: "stats", stats: serverStats });
 
-            expect(cb).toHaveBeenCalledOnce();
-        });
+        expect(heard).toHaveBeenCalledWith(serverStats);
+    });
+});
 
-        it("onStats fires with stats when bus emits 'stats'", () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-            const cb = vi.fn();
-            active.onStats(cb);
+describe("CallActive — media reports", () => {
+    it("forwards the transport's connection status", async () => {
+        const { active } = await makeActive();
+        const heard = vi.fn();
+        active.on("connectionStatus", heard);
 
-            const stats: CallStats = {
-                rtt: { min: 1, max: 5, avg: 3 },
-                tx: { total: 100, total_bytes: 5000, loss: 2, bitrate_kbps: 0, audio_level: 0 },
-                rx: { total: 98, total_bytes: 4900, loss: 1, bitrate_kbps: 0, audio_level: 0, jitter_ms: 0 },
-                audio_context: { output_latency_ms: 0 },
-            };
-            call.emit("stats", stats);
+        harness.transports.current.emit("statusChanged", "reconnecting");
 
-            expect(cb).toHaveBeenCalledWith(stats);
-        });
+        expect(heard).toHaveBeenCalledWith("reconnecting");
+    });
 
-        it("on('serverStats') fires when bus emits 'serverStats'", () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-            const cb = vi.fn();
-            active.on("serverStats", cb);
+    it("replays the last diagnostics to a listener that subscribes late", async () => {
+        const { active } = await makeActive(webRTCPlan);
+        const diag = {
+            gatheringDurationMs: 120,
+            gatheringTimedOut: false,
+            candidatesByType: { host: 1, srflx: 1, prflx: 0, relay: 0 },
+            stunReached: true,
+            turnReached: false,
+        };
+        harness.transports.current.emit("iceDiagnostics", diag);
 
-            const stats: ServerCallStats = {
-                rtt: {
-                    client: { min: 10, max: 30, avg: 20 },
-                    whatsapp: { min: 5, max: 15, avg: 9 },
-                },
-                tx: { total: 100, total_bytes: 5000, loss: 2 },
-                rx: { total: 98, total_bytes: 4900, loss: 1 },
-            };
-            call.emit("serverStats", stats);
+        const heard = vi.fn();
+        active.on("iceDiagnostics", heard);
 
-            expect(cb).toHaveBeenCalledWith(stats);
-        });
+        expect(heard).toHaveBeenCalledWith(diag);
+    });
+});
 
-        it("onConnectionStatus fires when bus emits 'connectionStatus'", () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-            const cb = vi.fn();
-            active.onConnectionStatus(cb);
+describe("CallActive — deprecated surface", () => {
+    it("warns once per deprecated member", async () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const { active } = await makeActive();
 
-            call.emit("connectionStatus", "connected");
+        void active.device_token;
+        void active.device_token;
+        void active.connection_status;
+        active.onEnd(vi.fn());
+        active.on("stats", vi.fn());
 
-            expect(cb).toHaveBeenCalledWith("connected");
-        });
+        const warned = warn.mock.calls.map((c) => String(c[0]));
+        expect(warned.filter((m) => m.includes("CallActive.device_token"))).toHaveLength(1);
+        expect(warned.filter((m) => m.includes("CallActive.connection_status"))).toHaveLength(1);
+        expect(warned.filter((m) => m.includes("CallActive.onEnd"))).toHaveLength(1);
+        expect(warned.filter((m) => m.includes("CallActive.stats event"))).toHaveLength(1);
+        warn.mockRestore();
+    });
 
-        it("onStatus fires when bus emits 'status'", () => {
-            const call = makeCall();
-            
-            const transport = makeMockTransport();
-            const mm = makeMockMediaManager();
-            const active = CallActiveProxy(call, transport, mm as never, { onEnd: vi.fn() });
-            const cb = vi.fn();
-            active.onStatus(cb);
+    it("does not warn about the stats event on its own", async () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-            call.emit("status", "ENDED");
+        await makeActive();
 
-            expect(cb).toHaveBeenCalledWith("ENDED");
-        });
+        expect(warn.mock.calls.filter((c) => String(c[0]).includes("stats event"))).toHaveLength(0);
+        warn.mockRestore();
     });
 });

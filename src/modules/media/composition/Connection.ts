@@ -38,8 +38,11 @@ export type WSConnectionEvents = ConnectionEvents & {
     message: [data: ArrayBuffer];
 };
 
+export type RelayAddress = { host: string; port: string };
+
 export interface IWSConnection extends IConnection, EventEmitter<WSConnectionEvents> {
     readonly kind: "ws";
+    useRelay(server: RelayAddress): void;
     send(data: ArrayBuffer): void;
 }
 

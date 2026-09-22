@@ -1,6 +1,6 @@
 import type { CallPeer } from "@/modules/call/Peer";
-import type { ServerCallStats } from "@/modules/call/Stats";
-import type { CallType } from "@/modules/device/Call";
+import type { ServerCallStats } from "@/domain/call/stats";
+import type { CallType } from "@/domain/call/types";
 import type { CallEndOutcome, MediaPlan } from "@/domain/call/types";
 
 export type {

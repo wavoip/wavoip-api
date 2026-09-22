@@ -6,6 +6,9 @@ import type { CallStatus, MediaPlan, Peer } from "@/domain/call/types";
  * A sinalização da chamada como a biblioteca precisa dela, sem socket.io no meio. O
  * adaptador traduz o protocolo do servidor para estes tipos, e é o único lugar que
  * conhece os nomes `call:*`.
+ *
+ * Todo comando espera o ack: sem ele, a biblioteca contaria ao integrador um desfecho que
+ * o servidor talvez nunca tenha visto — e a chamada continuaria de pé do outro lado.
  */
 
 /** Resposta do servidor a um comando. `timeout` é o ack que nunca chegou. */
@@ -54,10 +57,9 @@ export type Unsubscribe = () => void;
 
 export interface CallSignalingPort {
     startCall(to: string, plan: MediaPlan, timeoutMs: number): Promise<SignalAck<StartedCall>>;
-    // Sem ack: o servidor responde, mas nada do que ele diz muda o que a chamada faz.
-    accept(callId: string, answer: MediaPlan): void;
-    reject(callId: string): void;
-    end(callId: string): void;
+    accept(callId: string, answer: MediaPlan, timeoutMs: number): Promise<SignalAck>;
+    reject(callId: string, timeoutMs: number): Promise<SignalAck>;
+    end(callId: string, timeoutMs: number): Promise<SignalAck>;
     cancel(callId: string, timeoutMs: number): Promise<SignalAck>;
     mute(callId: string, muted: boolean, timeoutMs: number): Promise<SignalAck>;
     onOffer(listener: (offer: IncomingOffer) => void): Unsubscribe;

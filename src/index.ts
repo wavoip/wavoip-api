@@ -1,7 +1,7 @@
-export type { CallDirection, CallStatus, CallType } from "@/modules/device/Call";
+export type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 export type { CallEndOutcome } from "@/modules/device/WebSocket";
-export type { CallFailReason } from "@/modules/device/CallFailReason";
-export type { CallStats, ServerCallStats } from "@/modules/call/Stats";
+export type { CallFailReason } from "@/domain/call/failReason";
+export type { CallStats, ServerCallStats } from "@/domain/call/stats";
 export type { CallActive, CallActiveEvents } from "@/modules/call/CallActive";
 export type { CallOutgoing, CallOutgoingEvents } from "@/modules/call/CallOutgoing";
 export type { Offer, OfferEvents } from "@/modules/call/Offer";

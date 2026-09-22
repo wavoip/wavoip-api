@@ -1,5 +1,6 @@
 export type {
     ConnectionEvents,
+    RelayAddress,
     IConnection,
     IRTCConnection,
     IWSConnection,
