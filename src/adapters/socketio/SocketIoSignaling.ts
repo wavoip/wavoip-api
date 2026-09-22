@@ -1,6 +1,6 @@
 import { Status } from "@/domain/call/status";
 import type { MediaPlan } from "@/domain/call/types";
-import type { DeviceSocket, ServerEvents } from "@/modules/device/WebSocket";
+import type { ClientEvents, DeviceSocket, ServerEvents, WssResponse } from "@/modules/device/WebSocket";
 import {
     Ack,
     type CallSignalingPort,
@@ -11,6 +11,7 @@ import {
     type Unsubscribe,
 } from "@/ports/SignalingPort";
 
+type CommandName = keyof ClientEvents & string;
 type CallEventListener = (callId: string, event: ServerCallEvent) => void;
 type OfferListener = (offer: IncomingOffer) => void;
 
@@ -36,63 +37,27 @@ export class SocketIoSignaling implements CallSignalingPort {
     }
 
     async startCall(to: string, plan: MediaPlan, timeoutMs: number): Promise<SignalAck<StartedCall>> {
-        try {
-            const res = await this.socket.timeout(timeoutMs).emitWithAck("call.start", to, plan);
-            if (res.type === "error") return Ack.Refuse(res.result);
-            return Ack.Ok(res.result);
-        } catch {
-            return Ack.Timeout();
-        }
+        return this.ask(timeoutMs, "call.start", to, plan);
     }
 
     async cancel(callId: string, timeoutMs: number): Promise<SignalAck> {
-        try {
-            const res = await this.socket.timeout(timeoutMs).emitWithAck("call.cancel", callId);
-            if (res.type === "error") return Ack.Refuse(res.result);
-            return Ack.Ok();
-        } catch {
-            return Ack.Timeout();
-        }
+        return this.ask<void>(timeoutMs, "call.cancel", callId);
     }
 
     async mute(callId: string, muted: boolean, timeoutMs: number): Promise<SignalAck> {
-        try {
-            const res = await this.socket.timeout(timeoutMs).emitWithAck("call.mute", callId, muted);
-            if (res.type === "error") return Ack.Refuse(res.result);
-            return Ack.Ok();
-        } catch {
-            return Ack.Timeout();
-        }
+        return this.ask<void>(timeoutMs, "call.mute", callId, muted);
     }
 
     async accept(callId: string, answer: MediaPlan, timeoutMs: number): Promise<SignalAck> {
-        try {
-            const res = await this.socket.timeout(timeoutMs).emitWithAck("call.accept", callId, answer);
-            if (res.type === "error") return Ack.Refuse(res.result);
-            return Ack.Ok();
-        } catch {
-            return Ack.Timeout();
-        }
+        return this.ask<void>(timeoutMs, "call.accept", callId, answer);
     }
 
     async reject(callId: string, timeoutMs: number): Promise<SignalAck> {
-        try {
-            const res = await this.socket.timeout(timeoutMs).emitWithAck("call.reject", callId);
-            if (res.type === "error") return Ack.Refuse(res.result);
-            return Ack.Ok();
-        } catch {
-            return Ack.Timeout();
-        }
+        return this.ask<void>(timeoutMs, "call.reject", callId);
     }
 
     async end(callId: string, timeoutMs: number): Promise<SignalAck> {
-        try {
-            const res = await this.socket.timeout(timeoutMs).emitWithAck("call.end", callId);
-            if (res.type === "error") return Ack.Refuse(res.result);
-            return Ack.Ok();
-        } catch {
-            return Ack.Timeout();
-        }
+        return this.ask<void>(timeoutMs, "call.end", callId);
     }
 
     onCallEvent(listener: CallEventListener): Unsubscribe {
@@ -142,6 +107,23 @@ export class SocketIoSignaling implements CallSignalingPort {
     // O Socket tipado do socket.io expõe um FallbackToUntypedListener que o compilador não
     // unifica com o genérico daqui. O cast mora só aqui, e cada handler acima fica tipado
     // pelo contrato do servidor.
+    /**
+     * Manda o comando e traduz a resposta. O `timeout(ms).emitWithAck` rejeita a Promise
+     * quando o teto vence, então o `catch` é o ack que nunca chegou.
+     */
+    private async ask<T>(timeoutMs: number, event: CommandName, ...args: unknown[]): Promise<SignalAck<T>> {
+        try {
+            const socket = this.socket.timeout(timeoutMs) as unknown as {
+                emitWithAck(event: string, ...args: unknown[]): Promise<WssResponse<T & (string | object)>>;
+            };
+            const response = await socket.emitWithAck(event, ...args);
+            if (response.type === "error") return Ack.Refuse(response.result);
+            return Ack.Ok((response as { result?: T }).result as T);
+        } catch {
+            return Ack.Timeout();
+        }
+    }
+
     private bind<E extends keyof ServerEvents>(event: E, handler: ServerEvents[E]): void {
         const socket = this.socket as unknown as SocketLike;
         socket.on(event, handler);
