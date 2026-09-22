@@ -12,15 +12,14 @@ import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
 
 /**
- * Ceiling for the `call.cancel` ack. A dropped socket buffers the emit and the
- * callback never runs; with no ceiling the Promise stays pending forever and the UI
- * locks on "cancelling".
+ * Socket caído guarda o emit em buffer e o callback nunca roda: sem teto, a Promise fica
+ * pendente para sempre e a UI trava em "cancelando".
  */
 const ACK_TIMEOUT_MS = 10_000;
 
 /**
- * The one refusal that means the call is still up: the peer answered between the
- * click and the ack. Everything else is a dead call, and the media goes with it.
+ * A única recusa que significa chamada ainda de pé: o outro lado atendeu entre o clique
+ * e o ack. Qualquer outra é chamada morta, e a mídia vai junto.
  */
 const CALL_ALREADY_ANSWERED = "IS_NOT_OFFER";
 
@@ -84,9 +83,9 @@ export function CallOutgoingProxy(
 
         let transport: ITransport;
         if (preBuiltTransport && mediaPlan.type === "webRTC") {
-            // Defer marking `disposed` until handover succeeds. Otherwise a throw
-            // mid-await leaves preBuiltTransport orphaned (mic stream live, pc open)
-            // because the later dispose() short-circuits on the flag (B7).
+            // `disposed` só é marcado depois da passagem dar certo: marcado antes, uma exceção
+            // no meio do await deixaria o preBuiltTransport órfão (microfone vivo, pc aberto),
+            // porque o dispose() seguinte pararia na flag (B7).
             try {
                 await preBuiltTransport.setAnswer(mediaPlan.sdp);
                 await preBuiltTransport.start();
@@ -117,14 +116,12 @@ export function CallOutgoingProxy(
         });
         emitter.emit("peerAccept", active);
     });
-    // Pure 1:1 relays.
     forwardEvents(call, emitter, {
         status: "status",
         iceDiagnostics: "iceDiagnostics",
         connectivityIssue: "connectivityIssue",
     });
 
-    // Side-effecting (dispose, rename) stay inline.
     call.on("rejected", () => {
         emitter.emit("peerReject");
         void dispose();
@@ -169,22 +166,14 @@ export function CallOutgoingProxy(
         },
 
         /**
-         * Gives up the call before the peer answers. The name matches the
-         * `call.cancel` that has always gone over the wire.
+         * A mídia é liberada em todo desfecho **menos no que a chamada continua viva**
+         * (`CALL_ALREADY_ANSWERED`): derrubar o transporte ali deixava uma chamada
+         * conectada muda.
          *
-         * The media is released on every outcome **except the one where the call is
-         * still alive**: `IS_NOT_OFFER` means the peer answered in the same instant,
-         * and tearing the transport down there left a connected call mute — which is
-         * what the unconditional teardown this replaces used to do. Any other refusal
-         * (unknown id after an instance restart, internal error) leaves nothing to
-         * keep alive, so the microphone is freed rather than leaked.
-         *
-         * `ACK_TIMEOUT` is the honest "we do not know" answer: socket.io drops the
-         * buffered packet when the timer fires, so the server may never have seen the
-         * cancel and the peer may still be ringing. The transport is kept precisely
-         * because the call can still be answered.
-         *
-         * @example await outgoing.cancel()
+         * `ACK_TIMEOUT` é o "não sabemos" honesto: o socket.io descarta o pacote em buffer
+         * quando o timer vence, então o servidor pode nunca ter visto o cancelamento e o
+         * outro lado pode estar tocando ainda. O transporte fica justamente porque a
+         * chamada ainda pode ser atendida.
          */
         cancel(): Promise<{ err: string | null }> {
             return new Promise((resolve) => {
@@ -195,10 +184,9 @@ export function CallOutgoingProxy(
                         return resolve({ err: res.result });
                     }
 
-                    // Defence in depth: the server already refuses a cancel on an
-                    // ACTIVE call with IS_NOT_OFFER, so a local transition that will
-                    // not apply means the two disagree — do not tear the media down
-                    // on the strength of an ack we cannot honour.
+                    // O servidor já recusa cancelar uma chamada ACTIVE com IS_NOT_OFFER; uma
+                    // transição local que não se aplica quer dizer que os dois discordam, e
+                    // a mídia não cai com base num ack que não dá para honrar.
                     if (!call.cancel()) return resolve({ err: "IS_NOT_OFFER" });
                     await dispose();
                     resolve({ err: null });
@@ -206,7 +194,6 @@ export function CallOutgoingProxy(
             });
         },
 
-        /** @deprecated Use `cancel()` instead — same behaviour, name that matches the wire. */
         end(): Promise<{ err: string | null }> {
             warnDeprecated("CallOutgoing.end", "use `outgoing.cancel()` instead.");
             return proxy.cancel();
@@ -219,35 +206,30 @@ export function CallOutgoingProxy(
             return emitter.on(event, callback);
         },
 
-        /** @deprecated Use `on("peerAccept", callback)` instead. */
         onPeerAccept(callback: (call: CallActive) => void): void {
             warnDeprecated("CallOutgoing.onPeerAccept", 'use `outgoing.on("peerAccept", cb)` instead.');
             onPeerAcceptUnsub?.();
             onPeerAcceptUnsub = emitter.on("peerAccept", callback);
         },
 
-        /** @deprecated Use `on("peerReject", callback)` instead. */
         onPeerReject(callback: () => void): void {
             warnDeprecated("CallOutgoing.onPeerReject", 'use `outgoing.on("peerReject", cb)` instead.');
             onPeerRejectUnsub?.();
             onPeerRejectUnsub = emitter.on("peerReject", callback);
         },
 
-        /** @deprecated Use `on("unanswered", callback)` instead. */
         onUnanswered(callback: () => void): void {
             warnDeprecated("CallOutgoing.onUnanswered", 'use `outgoing.on("unanswered", cb)` instead.');
             onUnansweredUnsub?.();
             onUnansweredUnsub = emitter.on("unanswered", callback);
         },
 
-        /** @deprecated Use `on("ended", callback)` instead. */
         onEnd(callback: () => void): void {
             warnDeprecated("CallOutgoing.onEnd", 'use `outgoing.on("ended", cb)` instead.');
             onEndUnsub?.();
             onEndUnsub = emitter.on("ended", callback);
         },
 
-        /** @deprecated Use `on("status", callback)` instead. */
         onStatus(cb: (status: CallStatus) => void): void {
             warnDeprecated("CallOutgoing.onStatus", 'use `outgoing.on("status", cb)` instead.');
             onStatusUnsub?.();
@@ -255,7 +237,7 @@ export function CallOutgoingProxy(
         },
     } as CallOutgoing;
 
-    // Live getters — see CallActive.ts. `peer.muted` stays false until a transport exists.
+    // Getters vivos, ver CallActive.ts. `peer.muted` fica false enquanto não há transporte.
     Object.defineProperties(proxy, {
         status: { get: () => call.status, enumerable: true },
         peer: { get: () => ({ ...call.peer, muted: false }), enumerable: true },

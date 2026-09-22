@@ -11,19 +11,6 @@ export type Forwarding<S extends EventMap, D extends EventMap> = {
     [K in keyof S]?: keyof D | MappedEntry<S, K, D>;
 };
 
-/**
- * Maps a source-event name to either:
- *   - a destination-event name (1:1 forward, same payload), or
- *   - a `{ to, map }` pair where `map` transforms the payload before re-emit.
- *
- * Returns an Unsubscribe that detaches every forwarded listener at once.
- *
- * @example
- *   forwardEvents(call, emitter, {
- *     ended: "ended",
- *     peerMuted: { to: "peerMute", map: (m) => [m ? "on" : "off"] },
- *   });
- */
 export function forwardEvents<S extends EventMap, D extends EventMap>(
     source: EventEmitter<S>,
     dest: EventEmitter<D>,

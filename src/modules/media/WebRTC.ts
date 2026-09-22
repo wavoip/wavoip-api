@@ -69,9 +69,8 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         this.connection.on("connectivityIssue", (i) => this.emit("connectivityIssue", i));
         this.connection.on("statusChanged", (s) => {
             this.emit("statusChanged", s);
-            // Autonomous close (pc.connectionState transitions to "closed" outside
-            // stop()) still needs to release the mic. RTCConnection has no
-            // MediaManager dependency; the pipe owns mic lifecycle.
+            // Um fechamento fora do stop() também tem que liberar o microfone, e quem cuida do
+            // microfone é o pipe, não o RTCConnection.
             if (this.connection.pc.connectionState === "closed") void this.audioPipe.stop();
         });
     }

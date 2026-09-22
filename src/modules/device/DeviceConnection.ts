@@ -221,10 +221,9 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             }
 
             const { id, peer } = response.result;
-            // Trust device.callType (set by `device:init`) rather than the
-            // `call.start` response's `type` field — outgoing flows previously got
-            // OFFICIAL back for unofficial devices, which prevented the
-            // `call:stats` → `stats` projection from firing.
+            // O tipo vem do `device:init`, e não do `type` da resposta do `call.start`, que
+            // já devolveu OFFICIAL para device não oficial — e aí a projeção `call:stats` →
+            // `stats` nunca disparava.
             const call = new Call(id, this.device.callType, "OUTGOING", peer, this.device.token, "RINGING");
             this.router.register(call);
             const outgoing = CallOutgoingProxy(
@@ -240,7 +239,6 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         return promise;
     }
 
-    /** @deprecated Use `on("statusChanged", callback)` instead. */
     onStatus(cb: (status: DeviceStatus) => void): () => void {
         warnDeprecated("Device.onStatus", 'use `device.on("statusChanged", cb)` instead.');
         this._onStatusUnsub?.();
@@ -248,7 +246,6 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         return this._onStatusUnsub;
     }
 
-    /** @deprecated Use `on("qrCodeChanged", callback)` instead. */
     onQRCode(cb: (qrcode?: string) => void): () => void {
         warnDeprecated("Device.onQRCode", 'use `device.on("qrCodeChanged", cb)` instead.');
         this._onQRCodeUnsub?.();
@@ -256,7 +253,6 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         return this._onQRCodeUnsub;
     }
 
-    /** @deprecated Use `on("contactChanged", callback)` instead. */
     onContact(cb: (contact?: Contact) => void): () => void {
         warnDeprecated("Device.onContact", 'use `device.on("contactChanged", cb)` instead.');
         this._onContactUnsub?.();
@@ -290,10 +286,9 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
     disconnect() {
         this.stopped = true;
-        // Always close, even mid-handshake. socket.io reports `disconnected` while
-        // still connecting, so guarding on it would skip the close and leave the
-        // in-flight connection to complete as an orphaned live socket. `disconnect()`
-        // is idempotent and aborts a pending connection.
+        // Sem guarda de `disconnected`: o socket.io diz `disconnected` enquanto ainda está
+        // conectando, e a guarda deixaria a conexão em andamento terminar como socket órfão.
+        // `disconnect()` é idempotente e aborta a conexão pendente.
         this.wss.disconnect();
     }
 
@@ -368,8 +363,8 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 
                 return Promise.reject("Unsupported media plan type");
             },
-            // Local reject: server may or may not echo `call:rejected`. Drop the
-            // router entry now so it can't leak if the server response never lands.
+            // O servidor pode ou não ecoar `call:rejected`; a entrada sai do router já, para
+            // não vazar se a resposta nunca chegar.
             onReject: (call) => {
                 this.wss.emit("call.reject", call.id, () => {});
                 unregister();

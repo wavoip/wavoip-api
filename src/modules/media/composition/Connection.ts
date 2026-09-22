@@ -3,19 +3,9 @@ import type { TransportKind, TransportStatus } from "@/modules/media/ITransport"
 import type { EventEmitter } from "@/modules/shared/EventEmitter";
 
 /**
- * Connection role — owns the network lifecycle: open / close / reconnect for a
- * single peer-link. No mic or speaker wiring (that's `IAudioPipe`) and no stats
- * absorption (`IStatsAdapter`). Connection state surfaces purely as a typed
- * `status` event; consumers compose three roles to assemble a transport.
- *
- * Two concrete kinds extend the base shape via the `kind` discriminator:
- * - `IRTCConnection` — RTCPeerConnection + SDP handshake + ICE diagnostics
- * - `IWSConnection`  — WebSocket binary pump + reconnect
- *
- * The base `IConnection` is not generic over its event map: EventEmitter's
- * listener map is invariant in its event-type parameter, so a generic base
- * would block sub-interface assignment. Each subtype declares its own
- * `EventEmitter<...>` lineage directly.
+ * O `IConnection` base não é genérico no mapa de eventos: o mapa de listeners do
+ * EventEmitter é invariante no parâmetro de tipo, e uma base genérica impediria a
+ * atribuição dos subtipos. Cada subtipo declara a própria linhagem de `EventEmitter<...>`.
  */
 
 export type ConnectionEvents = {

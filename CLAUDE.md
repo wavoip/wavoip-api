@@ -1,81 +1,86 @@
-# Project Overview
-TypeScript library that integrates audio calls via Wavoip devices into web projects.
-Communicates with devices via WebSockets (Socket.IO) and standard Web APIs (WebRTC, AudioContext).
+# O projeto
 
-# Tech Stack
+Biblioteca TypeScript que leva chamadas de áudio dos devices Wavoip para projetos web.
+Fala com os devices por Socket.IO e com as APIs padrão do navegador (WebRTC, AudioContext).
 
-| Component | Technology |
+**É o único repositório com leitor externo**: quem instala `@wavoip/wavoip-api` lê a
+documentação sem ler o código. Isso muda as regras de idioma e de comentário abaixo.
+
+| Componente | Tecnologia |
 |---|---|
-| Language | TypeScript |
-| Build / Test | Vite, Vitest |
+| Linguagem | TypeScript |
+| Build / teste | Vite, Vitest |
 | WebSocket | Socket.IO |
 | HTTP | Axios |
-| Media transport | WebRTC (official calls), WebSocket binary (unofficial calls) |
-| Audio transcoding | LibSamplerateJs (via AudioWorklet) |
-| Audio encoding | PCMU / µ-law G.711 |
+| Transporte de mídia | WebRTC (chamada oficial), WebSocket binário (chamada não oficial) |
+| Áudio no WebSocket | PCM Int16 a 16kHz, **não** µ-law/PCMU (ver `AudioWorkletOut`) |
+| Resample | LibSampleRateJs, dentro dos AudioWorklets |
 
+## Estilo de código
 
-### Output worklet details
-- Server sends raw **Int16 PCM at 16kHz** (little-endian, 2 bytes per sample) — **not** µ-law/PCMU encoded.
-- The worklet decodes Int16 pairs to Float32, then resamples from 16kHz to the AudioContext's native
-  sample rate (typically 48kHz) using **LibSampleRate** (already loaded in the worklet scope).
-- A single shared `AudioContext` (owned by `MediaManager`) is used for both input and output.
-  Resampling happens inside the worklet rather than creating a separate 16kHz `AudioContext`.
-- Jitter buffer: incoming chunks are queued; if total buffered bytes exceed 25KB, oldest data is dropped
-  (10KB at a time) to reduce latency.
+- Funções: de 4 a 20 linhas. Passou, divida.
+- Arquivos: abaixo de 500 linhas. Divida por responsabilidade.
+- Uma coisa por função, uma responsabilidade por módulo (SRP).
+- Nomes: específicos e únicos. Evite `data`, `handler`, `Manager`.
+  Prefira nomes com menos de 5 ocorrências no grep do código.
+- Tipos: explícitos. Nada de `any`, `Dict` ou função sem tipo.
+- Sem duplicação. Extraia a lógica compartilhada para uma função ou módulo.
+- Retorno cedo em vez de `if` aninhado. No máximo 2 níveis de indentação.
+- Mensagem de exceção inclui o valor ofensor e a forma esperada.
 
-### WebSocket reconnection
-- On unexpected close, `WebsocketTransport` automatically reconnects to keep the call alive.
-- **No reconnect** on codes `1000` (Normal Closure — server ended intentionally) and `1008`
-  (Policy Violation — e.g. invalid token). All other close codes trigger reconnection.
-- Reconnect attempts happen after a 1s delay. A 30s deadline timer starts on the first
-  disconnect — if no successful reconnect occurs within that window, the transport gives up
-  and transitions to `"disconnected"`.
-- The `stopped` flag prevents reconnection after `stop()` is called (intentional teardown).
+## Idioma
 
-## Code style
+**Identificador é em inglês; texto que uma pessoa da equipe lê é em português.** Classe,
+função, variável, arquivo, nome de evento e título de `it(…)` em inglês; comentário
+interno, `.md` e mensagem de commit em português.
 
-- Functions: 4-20 lines. Split if longer.
-- Files: under 500 lines. Split by responsibility.
-- One thing per function, one responsibility per module (SRP).
-- Names: specific and unique. Avoid `data`, `handler`, `Manager`.
-  Prefer names that return <5 grep hits in the codebase.
-- Types: explicit. No `any`, no `Dict`, no untyped functions.
-- No code duplication. Extract shared logic into a function/module.
-- Early returns over nested ifs. Max 2 levels of indentation.
-- Exception messages must include the offending value and expected shape.
+**A superfície pública é outra conversa.** O que chega ao integrador — o JSDoc que sai
+no `dist/index.d.ts` e aparece no autocomplete dele, e o `README.md` — está em inglês,
+e a língua dela é decisão de produto, não convenção interna (DEV-453). Até ela ser
+tomada, não traduza esse texto. O `docs/` do GitBook, também público, já é pt-BR.
 
-## Comments
+Para saber de que lado um comentário está: ele aparece no `dist/index.d.ts` depois do
+`pnpm build`? Então é público.
 
-- Keep your own comments. Don't strip them on refactor — they carry
-  intent and provenance.
-- Write WHY, not WHAT. Skip `// increment counter` above `i++`.
-- Docstrings on public functions: intent + one usage example.
-- Reference issue numbers / commit SHAs when a line exists because
-  of a specific bug or upstream constraint.
+## Comentários e documentação
 
-## Tests
+- **Comentário interno registra o que o código não diz**: o porquê, a restrição
+  externa, o caminho não tomado. O que a função faz o código já diz. Sem `@example`
+  interno — o exemplo que não desatualiza é o teste.
+- **JSDoc público é documentação de produto**, lido por quem não tem o código. Ele pode
+  e deve dizer o que a função faz; o que não pode é ficar errado.
+- **A decisão mora aqui; a investigação mora na issue.** Cite a issue ou o PR e siga.
+- **Cada regra tem um dono só.** A regra de reconexão mora no `WSConnection`, o formato
+  do áudio no `AudioWorkletOut`, o bug do Chromium no `RTCAudioPipe`. Os outros lugares
+  no máximo apontam para ele.
+- **Releia o comentário e o `.md` que a sua mudança tocou.** Não "preserve" nem
+  "atualize se mudou o comportamento": releia. Documentação errada é pior que ausente,
+  porque a ausente ninguém segue.
 
-- Tests run with a single command: `<project-specific>`.
-- Every new function gets a test. Bug fixes get a regression test.
-- Mock external I/O (API, DB, filesystem) with named fake classes,
-  not inline stubs.
-- Tests must be F.I.R.S.T: fast, independent, repeatable,
-  self-validating, timely.
-  
-## Formatting
+## Testes
 
-- Use the language default formatter (`biome`). Don't discuss style beyond that.
+- Os testes rodam com um comando só: `pnpm test`.
+- Toda função nova ganha teste. Correção de bug ganha teste de regressão.
+- I/O externo (API, banco, sistema de arquivos) é trocado por classes fake nomeadas,
+  e não por stubs inline.
+- Testes F.I.R.S.T: rápidos, independentes, repetíveis, autoverificáveis, oportunos.
 
-# Documentation
+## Formatação
 
-Documentation lives in `docs/` and is formatted for GitBook (synced via Git). `.gitbook.yaml` at the repo root points GitBook at `./docs/`.
+- Use o formatador padrão da linguagem (`biome`). Não discuta estilo além disso.
 
-## GitBook file layout
+# Documentação pública (`docs/`)
+
+Formatada para o GitBook, sincronizado pelo Git; o `.gitbook.yaml` na raiz aponta para
+`./docs/`. Tudo em **pt-BR** — descrição, cabeçalho de tabela, texto, aviso, título de
+passo e comentário dentro de exemplo. Identificador, nome de tipo e sintaxe de bloco do
+GitBook ficam em inglês.
+
+## Estrutura
 ```
 docs/
-  README.md          ← homepage
-  SUMMARY.md         ← table of contents / sidebar
+  README.md          ← página inicial
+  SUMMARY.md         ← sumário e barra lateral
   getting-started/
     installation.md
     initialization.md
@@ -86,51 +91,39 @@ docs/
     active.md
   media.md
   types.md
+  troubleshooting.md
 ```
 
-## Key GitBook syntax rules
-- **Frontmatter**: YAML block at the very top — `description:`, `icon:`, `hidden:`, `layout:` fields.
-- **Hints**: `{% hint style="info|warning|danger|success" %}...{% endhint %}`
-- **Tabs**: `{% tabs %}{% tab title="..." %}...{% endtab %}{% endtabs %}`
+## Sintaxe do GitBook
+- **Frontmatter**: bloco YAML no topo — campos `description:`, `icon:`, `hidden:`, `layout:`.
+- **Avisos**: `{% hint style="info|warning|danger|success" %}...{% endhint %}`
+- **Abas**: `{% tabs %}{% tab title="..." %}...{% endtab %}{% endtabs %}`
 - **Stepper**: `{% stepper %}{% step %}## Title\ncontent{% endstep %}{% endstepper %}`
-- **Expandable**: `<details><summary>Title</summary>content</details>`
-- **Columns** (max 2): `{% columns %}{% column %}...{% endcolumn %}{% endcolumns %}`
-- **Buttons**: `<a href="..." class="button primary">Label</a>`
-- **Cards**: `<table data-view="cards">` with `<th data-card-target data-type="content-ref">`
-- Internal links use relative `.md` paths: `[text](../device.md)`
-- Always close custom blocks exactly — mismatched tags silently break rendering.
+- **Expansível**: `<details><summary>Título</summary>conteúdo</details>`
+- **Colunas** (no máximo 2): `{% columns %}{% column %}...{% endcolumn %}{% endcolumns %}`
+- **Botões**: `<a href="..." class="button primary">Label</a>`
+- **Cartões**: `<table data-view="cards">` with `<th data-card-target data-type="content-ref">`
+- Link interno usa caminho `.md` relativo: `[texto](../device.md)`
+- Feche todo bloco customizado exatamente: tag desencontrada quebra a renderização em silêncio.
 
-## Language
-All documentation in `docs/` must be written in **Portuguese (pt-BR)**. This includes descriptions, table headers, prose, hints, step titles, and code comments. Code identifiers, type names, and GitBook block syntax remain in English.
+## Quando atualizar
 
-## When to update docs
-Any change that affects how a consumer of `@wavoip/wavoip-api` uses the library MUST update `docs/` in the same change. This includes:
-- New, renamed, or removed public types / classes / methods
-- New, renamed, removed, or re-payloaded events on `Wavoip`, `Device`, `Offer`, `CallOutgoing`, `CallActive`
-- Changes to call flow ordering, semantics, or replay/buffering behavior visible to consumers
-- Changes to `Wavoip` constructor options or `setLanguage` / locale handling
-- Breaking changes in WebSocket event names that consumers can observe
+Toda mudança que altera como quem consome `@wavoip/wavoip-api` usa a biblioteca
+atualiza o `docs/` na mesma mudança. Isso inclui:
+- tipo, classe ou método público novo, renomeado ou removido;
+- evento novo, renomeado, removido ou com payload diferente em `Wavoip`, `Device`,
+  `Offer`, `CallOutgoing`, `CallActive`;
+- mudança de ordem, semântica ou replay/buffer do fluxo de chamada que o consumidor vê;
+- mudança nas opções do construtor do `Wavoip` ou no `setLanguage`/locale;
+- mudança de nome de evento de WebSocket que o consumidor observa.
 
-Keep `SUMMARY.md` in sync with the actual file structure — GitBook uses it as the authoritative sidebar.
+Mantenha o `SUMMARY.md` igual à estrutura real — o GitBook o usa como a barra lateral.
 
 # CI/CD
-After every change, these commands should run and return success
+
+Depois de toda mudança, os três têm que passar:
 ```
 pnpm lint
 pnpm test
 pnpm build
-```
-
-# Exceptional bugs 
-## WebRTC audio not playing on chromium
-There's a [bug on chromium](https://issues.chromium.org/issues/40094084) that blocks MediaStream for WebRTC to play audio.
-The workaround is to wire the MediaStream to an Audio element
-```
-this.pc.ontrack = (event) => {
-    const remoteStream = event.streams[0];
-
-    const audio = new Audio();
-    audio.muted = true;
-    audio.srcObject = remoteStream;
-}
 ```

@@ -13,22 +13,10 @@ import type { IRTCConnection, RTCConnectionEvents } from "./Connection";
 const SYMMETRIC_NAT_DETECTION_WINDOW_MS = 10_000;
 
 /**
- * WebRTC connection role — owns the RTCPeerConnection, the SDP handshake, the
- * ICE gathering loop, and the connection-state → TransportStatus mapping. Has
- * no concept of mic tracks, speakers, or stats absorption: callers attach
- * senders via `pc.addTrack` before `start()`; stats are observed by a separate
- * `RTCStatsAdapter`; the remote track lands in an `IAudioPipe`.
+ * Quem chama anexa os senders com `pc.addTrack` antes do `start()`.
  *
- * Lifecycle:
- *   - `createOffer()` is for the OUTGOING (no-remote-offer) flow.
- *   - `start()` is for the INCOMING (remote-offer pre-supplied) flow — it
- *     drives setRemoteDescription / createAnswer / ICE gather / answer resolve.
- *   - `setAnswer(sdp)` completes the OUTGOING flow once the peer responds.
- *   - `stop()` closes pc and cancels the symmetric-NAT detection timer.
- *
- * ICE diagnostics fire after the first ICE gathering pass (whichever of
- * `start` / `createOffer` runs first). `connectivityIssue` is deduplicated per
- * issue kind via `_emittedConnectivityIssues`.
+ * Duas entradas: `createOffer()` + `setAnswer()` na chamada que sai, `start()` com a
+ * oferta remota passada no construtor na chamada que entra.
  */
 export class RTCConnection extends EventEmitter<RTCConnectionEvents> implements IRTCConnection {
     readonly kind = "webrtc" as const;
@@ -95,11 +83,6 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> implements 
         };
     }
 
-    /**
-     * INCOMING flow: complete the SDP handshake using the offer supplied to the
-     * constructor. No-op for OUTGOING calls (where `createOffer` drives the
-     * handshake instead).
-     */
     async start(): Promise<void> {
         if (this.started) return;
         this.started = true;

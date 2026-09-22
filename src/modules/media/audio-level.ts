@@ -1,11 +1,6 @@
 /**
- * RMS amplitude (0..1) of an Int16 PCM frame. Used by `WebsocketTransport` to
- * expose `stats.tx.audio_level` / `stats.rx.audio_level` straight from the PCM
- * buffers crossing the transport — avoids the AnalyserNode path that reads
- * zero when the input graph has no connection to `audioContext.destination`.
- *
- * Example:
- *   const lvl = rmsInt16(int16Pcm160ByteFrame); // 0..1
+ * O nível sai direto do PCM que cruza o transporte WS, e não de um AnalyserNode, que lê
+ * zero quando o grafo não tem caminho até o `audioContext.destination`.
  */
 export function rmsInt16(buf: ArrayBuffer): number {
     const samples = new Int16Array(buf);

@@ -1,5 +1,4 @@
-// Minimal AudioWorklet global scope type declarations for TypeScript versions
-// that do not include a built-in audioworklet lib.
+// Para versões do TypeScript sem a lib audioworklet embutida.
 
 declare const sampleRate: number;
 declare const currentTime: number;

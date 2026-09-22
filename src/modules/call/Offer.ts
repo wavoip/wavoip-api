@@ -120,35 +120,30 @@ export function OfferProxy(
             return emitter.on(event, callback);
         },
 
-        /** @deprecated Use `on("acceptedElsewhere", callback)` instead. */
         onAcceptedElsewhere(callback: () => void): void {
             warnDeprecated("Offer.onAcceptedElsewhere", 'use `offer.on("acceptedElsewhere", cb)` instead.');
             onAcceptedElsewhereUnsub?.();
             onAcceptedElsewhereUnsub = emitter.on("acceptedElsewhere", callback);
         },
 
-        /** @deprecated Use `on("rejectedElsewhere", callback)` instead. */
         onRejectedElsewhere(callback: () => void): void {
             warnDeprecated("Offer.onRejectedElsewhere", 'use `offer.on("rejectedElsewhere", cb)` instead.');
             onRejectedElsewhereUnsub?.();
             onRejectedElsewhereUnsub = emitter.on("rejectedElsewhere", callback);
         },
 
-        /** @deprecated Use `on("unanswered", callback)` instead. */
         onUnanswered(cb: () => void): void {
             warnDeprecated("Offer.onUnanswered", 'use `offer.on("unanswered", cb)` instead.');
             onUnansweredUnsub?.();
             onUnansweredUnsub = emitter.on("unanswered", cb);
         },
 
-        /** @deprecated Use `on("ended", callback)` instead. */
         onEnd(cb: () => void): void {
             warnDeprecated("Offer.onEnd", 'use `offer.on("ended", cb)` instead.');
             onEndUnsub?.();
             onEndUnsub = emitter.on("ended", cb);
         },
 
-        /** @deprecated Use `on("status", callback)` instead. */
         onStatus(cb: (status: CallStatus) => void): void {
             warnDeprecated("Offer.onStatus", 'use `offer.on("status", cb)` instead.');
             onStatusUnsub?.();
@@ -156,7 +151,7 @@ export function OfferProxy(
         },
     } as Offer;
 
-    // Live getters — see CallActive.ts.
+    // Getters vivos, ver CallActive.ts.
     Object.defineProperties(proxy, {
         status: { get: () => call.status, enumerable: true },
         peer: { get: () => ({ ...call.peer, muted: false }), enumerable: true },

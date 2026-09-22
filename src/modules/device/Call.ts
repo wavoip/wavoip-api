@@ -26,10 +26,8 @@ export type CallEvents = {
 export class Call extends EventEmitter<CallEvents> {
     private lastServerProjection: CallStats | null = null;
     private lastTransportStats: CallStats | null = null;
-    // Most recent CallStats snapshot — populated by the deprecated 200ms tick
-    // (transport.statsChanged) and by applyServerStats. The pull API `getStats()`
-    // bypasses this cache and triggers a fresh transport-side refresh; this
-    // field exists only to back the deprecated `stats` event.
+    // Só existe para alimentar o evento `stats`, que está depreciado; `getStats()` não lê
+    // daqui.
     private lastStats: CallStats = makeEmptyCallStats();
     private transport: ITransport | null = null;
 
@@ -44,10 +42,8 @@ export class Call extends EventEmitter<CallEvents> {
         super();
     }
 
-    // Status-transition table. Each entry guards a transition by predicate on the
-    // current status and declares the target. Behavior matches the historical
-    // ad-hoc methods exactly — emitting `status` on transition stays the
-    // responsibility of the CallRouter's server-event handlers (no double-emit).
+    // Não emite `status`: isso é dos handlers de evento do servidor no CallRouter, e emitir
+    // aqui também dobraria o evento.
     private transition(name: TransitionName): boolean {
         const def = TRANSITIONS[name];
         if (!def.allow(this.status)) return false;
@@ -62,14 +58,6 @@ export class Call extends EventEmitter<CallEvents> {
     timeout(): boolean { return this.transition("timeout"); }
     fail(): boolean { return this.transition("fail"); }
 
-    /**
-     * Apply a server-pushed `call:stats` payload. Called by CallRouter. Emits
-     * `serverStats` for retro-compat and — for UNOFFICIAL calls only — caches
-     * the server projection so `wireTransport`'s next transport-stats merge
-     * can produce the combined `stats` snapshot. Server-only RTT/loss/totals
-     * merge with client-side bitrate/level/jitter/output-latency from the WS
-     * transport (no other code path can measure those).
-     */
     applyServerStats(stats: ServerCallStats): void {
         this.emit("serverStats", stats);
         if (this.type !== "UNOFFICIAL") return;
@@ -78,19 +66,6 @@ export class Call extends EventEmitter<CallEvents> {
         this.emit("stats", this.lastStats);
     }
 
-    /**
-     * Pull-based stats accessor — the supported API going forward. Triggers a
-     * fresh transport-side `getStats()` (WebRTC: `pc.getStats()`; WS: recompute
-     * bitrate/level/latency from current counters) and returns the resulting
-     * snapshot.
-     *
-     * For UNOFFICIAL calls the transport's client-side fields are merged with
-     * the most recent server-pushed projection (RTT, loss, totals from the
-     * `call:stats` socket event), since neither side alone has the full picture.
-     *
-     * Before any transport is wired, returns an empty snapshot. The legacy
-     * `on("stats", cb)` event remains supported but is deprecated.
-     */
     async getStats(): Promise<CallStats> {
         if (!this.transport) return makeEmptyCallStats();
         const transportStats = await this.transport.getStats();
@@ -113,6 +88,11 @@ export class Call extends EventEmitter<CallEvents> {
         return super.on(event, listener);
     }
 
+    /**
+     * Chamada OFFICIAL usa só as stats do WebRTC. Na UNOFFICIAL nenhum dos lados tem o
+     * quadro inteiro: RTT, perda e totais vêm do `call:stats` do servidor, e bitrate,
+     * nível de áudio, jitter e latência de saída só o cliente mede.
+     */
     private mergeUnofficialStats(): CallStats {
         const base = this.lastServerProjection ?? makeEmptyCallStats();
         const t = this.lastTransportStats;
@@ -135,24 +115,18 @@ export class Call extends EventEmitter<CallEvents> {
     }
 
     /**
-     * Subscribe to transport events. Called after construction once a
-     * WebRTC/WebSocket transport is ready. Replays any ICE diagnostics the
-     * transport gathered before being wired so late listeners catch up.
+     * Repassa os diagnósticos de ICE que o transporte juntou antes de ser ligado, para
+     * quem escuta depois não perdê-los.
      */
     wireTransport(transport: ITransport): void {
         this.transport = transport;
 
-        // Forward connection status without inferring call termination from it.
-        // Transient transport drops (WS reconnect, brief WebRTC ICE disconnect) used
-        // to end the call here, which racy reconnects could fire. Call termination
-        // is now driven exclusively by the signaling `call:*` terminal events (B3).
+        // Queda de transporte não encerra a chamada: uma reconexão do WS ou um ICE
+        // desconectado por instantes é passageiro. Quem encerra são só os eventos terminais
+        // `call:*` da sinalização (B3).
         transport.on("statusChanged", (s) => this.emit("connectionStatus", s));
         transport.on("peerMuted", (m) => this.emit("peerMuted", m));
 
-        // OFFICIAL calls use WebRTC peer-measured stats as source of truth.
-        // UNOFFICIAL (relay) calls take RTT/loss/totals from server `call:stats` but
-        // merge client-side fields (bitrate, audio level, jitter, output latency) from
-        // the WebSocket transport — only the client can measure those.
         if (this.type === "OFFICIAL") {
             transport.on("statsChanged", (s) => {
                 this.lastStats = s;
@@ -166,9 +140,6 @@ export class Call extends EventEmitter<CallEvents> {
             });
         }
 
-        // ICE events come only from WebRTC transports. Narrow via the kind
-        // discriminator so the WS path doesn't see a no-op replay block, and so
-        // the WebRTC-only fields stop polluting the base ITransport surface.
         if (!isRTCTransport(transport)) return;
         transport.on("iceDiagnostics", (d) => this.emit("iceDiagnostics", d));
         transport.on("connectivityIssue", (i) => this.emit("connectivityIssue", i));
@@ -187,8 +158,8 @@ export type CallStatus =
     | "CALLING"
     | "NOT_ANSWERED"
     | "ACTIVE"
-    // Someone gave up before the answer — us or the other side. This used to arrive
-    // as "ENDED", indistinguishable from a normal hangup. See `CallEndOutcome`.
+    // Alguém desistiu antes do atendimento, nós ou o outro lado. Distinto de "ENDED", que
+    // é desligar depois de atender.
     | "CANCELLED"
     | "ENDED"
     | "REJECTED"
@@ -208,12 +179,9 @@ const CALL_STATUSES: readonly CallStatus[] = [
 ];
 
 /**
- * Narrows a status that came off the wire. The server owns a wider vocabulary than
- * this union, and `CallStatus` does not exist at runtime — without this, an unknown
- * value would be handed to consumers typed as something it is not, and every
- * exhaustive `switch` downstream would fall through.
- *
- * @example toCallStatus(outcome?.status) // "CANCELLED", or "ENDED" for anything unknown
+ * O servidor tem um vocabulário maior que esta união: sem o estreitamento, um valor
+ * desconhecido chegaria ao consumidor tipado como algo que ele não é, e todo `switch`
+ * exaustivo do lado de lá cairia no vazio.
  */
 export function toCallStatus(status: string | undefined): CallStatus {
     return CALL_STATUSES.find((known) => known === status) ?? "ENDED";
@@ -233,9 +201,8 @@ const TRANSITIONS: Record<TransitionName, { allow: (s: CallStatus) => boolean; t
 export type CallType = "OFFICIAL" | "UNOFFICIAL";
 
 /**
- * Project server-pushed ServerCallStats onto the consumer-facing CallStats shape.
- * Uses the client-leg RTT (device ↔ server) — the same value already shown in the
- * status-bar ping indicator. The whatsapp-leg RTT remains available via `serverStats`.
+ * RTT da perna do cliente (device ↔ servidor), o mesmo que o indicador de ping da barra
+ * de status mostra. O da perna do WhatsApp continua no `serverStats`.
  */
 export function toCallStats(s: ServerCallStats): CallStats {
     return {

@@ -21,12 +21,12 @@ describe("rmsInt16", () => {
     });
 
     it("matches the closed-form RMS for a known waveform", () => {
-        // 16384 = half-scale → s = 0.5; RMS of constant 0.5 = 0.5
+        // 16384 = meia escala → 0.5; o RMS de uma constante 0.5 é 0.5
         expect(rmsInt16(buildInt16Buffer([16384, 16384, 16384, 16384]))).toBeCloseTo(0.5, 3);
     });
 
     it("reads Int16 from any ArrayBuffer (160-byte PCMU frame shape)", () => {
-        const arr = new Int16Array(80).fill(16384); // 160 bytes / 2 bytes per sample
+        const arr = new Int16Array(80).fill(16384); // 160 bytes / 2 bytes por amostra
         expect(rmsInt16(arr.buffer)).toBeCloseTo(0.5, 3);
     });
 });

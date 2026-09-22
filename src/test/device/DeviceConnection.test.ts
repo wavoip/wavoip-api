@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 
-// ---------------------------------------------------------------------------
-// Hoisted socket factory — must be defined before vi.mock() calls
-// ---------------------------------------------------------------------------
-
 const { makeSocket, getSocket } = vi.hoisted(() => {
     type SocketListener = (...args: unknown[]) => void;
     let _last: ReturnType<typeof _make> | null = null;
@@ -31,11 +27,9 @@ const { makeSocket, getSocket } = vi.hoisted(() => {
                 );
                 return this;
             },
-            /** Simulate a message arriving from the server */
             receive(event: string, ...args: unknown[]) {
                 for (const cb of listeners.get(event) ?? []) cb(...args);
             },
-            /** Test helper — count listeners for an event */
             listenerCount(event: string): number {
                 return listeners.get(event)?.length ?? 0;
             },
@@ -46,10 +40,6 @@ const { makeSocket, getSocket } = vi.hoisted(() => {
 
     return { makeSocket: _make, getSocket: () => _last ?? _make() };
 });
-
-// ---------------------------------------------------------------------------
-// Module mocks
-// ---------------------------------------------------------------------------
 
 vi.mock("@/modules/device/WebSocket", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@/modules/device/WebSocket")>();
@@ -76,17 +66,9 @@ vi.mock("@/modules/media/WebRTC", () => ({
     },
 }));
 
-// ---------------------------------------------------------------------------
-// Imports (after mocks)
-// ---------------------------------------------------------------------------
-
 import { DeviceConnection } from "@/modules/device/DeviceConnection";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import type { CallType } from "@/modules/device/Call";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
 
@@ -101,7 +83,6 @@ function makeDeviceConnection() {
     return { dc, socket };
 }
 
-/** Access the routing table inside the DeviceConnection's CallRouter. */
 function callsMap(dc: DeviceConnection): Map<string, unknown> {
     return (dc as unknown as { router: { calls: Map<string, unknown> } }).router.calls;
 }
@@ -111,10 +92,6 @@ const offerProps = (id: string) => ({
     peer,
     offer: { type: "webRTC" as const, sdp: "v=0\r\n..." },
 });
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 describe("DeviceConnection — manual disconnect", () => {
     it("does not auto-reconnect after manual disconnect()", async () => {
@@ -134,9 +111,9 @@ describe("DeviceConnection — manual disconnect", () => {
     });
 
     it("closes the socket even while still connecting", () => {
-        // Socket.io reports `disconnected: true` until the handshake completes.
-        // disconnect() must still close it, or the in-flight connection survives
-        // as an orphaned live socket (leaving the device page mid-connect).
+        // O socket.io diz `disconnected: true` até o handshake terminar. O disconnect() tem
+        // que fechar mesmo assim, senão a conexão em andamento sobrevive como socket órfão
+        // (sair da página do device no meio da conexão).
         const { dc, socket } = makeDeviceConnection();
         socket.connected = false;
         socket.disconnected = true;
@@ -269,7 +246,7 @@ describe("DeviceConnection — calls map cleanup", () => {
         function setupStartCall(id: string, callType: CallType = "UNOFFICIAL") {
             const { dc, socket } = makeDeviceConnection();
 
-            // Simulate device being UP so canCall() passes
+            // Device UP para o canCall() passar.
             socket.receive("device:init", "UP", callType, null, null, false);
 
             socket.emit.mockImplementation((event: string, ...args: unknown[]) => {
@@ -373,7 +350,7 @@ describe("DeviceConnection — calls map cleanup", () => {
             const { dc, socket } = makeDeviceConnection();
             socket.receive("device:init", "UP", "UNOFFICIAL", null, null, false);
 
-            // Server lies and reports OFFICIAL in the call.start response.
+            // O servidor mente e diz OFFICIAL na resposta do call.start.
             socket.emit.mockImplementation((event: string, ...args: unknown[]) => {
                 if (event === "call.start") {
                     const callback = args[args.length - 1] as (r: unknown) => void;

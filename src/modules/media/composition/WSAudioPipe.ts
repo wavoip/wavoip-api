@@ -6,18 +6,8 @@ import type { IAudioPipe, PipeEvents } from "./AudioPipe";
 type AudioDataCallback = (data: ArrayBuffer) => void;
 
 /**
- * WebSocket audio pipe role — owns mic resampling (Int16 PCM out, sent via the
- * `onMicData` callback) and speaker playback (raw Int16 PCM in via
- * `playInbound`). Bundles the prior `AudioInput` + `AudioOutput` inner classes
- * under a single role so `WebsocketTransport` composes one pipe object rather
- * than juggling two.
- *
- * `peerMuted` is permanently `false`: the WS transport has no native peer-mute
- * signal (the relay server doesn't surface remote-track mute state). Listeners
- * that need it for UNOFFICIAL calls observe `peerMuted` via signaling events.
- *
- * Stats use the `readTxLevel` / `readRxLevel` accessors — `WSStatsAdapter`
- * samples mic+speaker RMS through this pipe per `refresh()`.
+ * `peerMuted` é sempre `false`: o relay não expõe o mute da track remota. Na chamada
+ * UNOFFICIAL o mute do outro lado chega pela sinalização (`call:peer:muted`).
  */
 export class WSAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe {
     peerMuted = false;
@@ -58,7 +48,6 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe 
         await this.mediaManager.stopMedia();
     }
 
-    /** Route an inbound binary frame from the WS to the speaker worklet. */
     playInbound(data: ArrayBuffer): void {
         this.audioOut.sendAudioData(data);
     }
@@ -106,14 +95,8 @@ class AudioInput {
         this.source = this.audioContext.createMediaStreamSource(stream);
         this.source.connect(this.resampleNode);
 
-        // ResampleProcessor only processes — it does not connect to destination.
-        // Output goes to the main thread via port.postMessage. RMS is computed in main
-        // thread from the same buffer.
-        //
-        // Tx analyser tap: fan-out the same source through an AnalyserNode anchored
-        // to destination via a silent GainNode. AnalyserNode reads empty without a
-        // path to destination; the silent gain keeps the graph rendering without
-        // echoing the mic into the speaker.
+        // O AnalyserNode lê vazio sem caminho até o destination; o ganho zero mantém o
+        // grafo renderizando sem devolver o microfone no alto-falante.
         this.analyserNode = this.audioContext.createAnalyser();
         this.analyserNode.fftSize = 256;
         this.silentGain = this.audioContext.createGain();
@@ -183,14 +166,10 @@ class AudioOutput {
         this.analyserResolver.resolve(this.analyserNode);
     }
 
-    /**
-     * Send a raw PCMU ArrayBuffer chunk to the output worklet.
-     * Transfers ownership to avoid a copy across the worklet boundary.
-     */
     sendAudioData(data: ArrayBuffer): void {
         if (!this.playbackNode) return;
         this.lastLevel = rmsInt16(data);
-        // Clone before transfer — WebSocket event.data may be reused.
+        // Copia antes de transferir: o event.data do WebSocket pode ser reutilizado.
         const copy = data.slice(0);
         this.playbackNode.port.postMessage(copy, [copy]);
     }

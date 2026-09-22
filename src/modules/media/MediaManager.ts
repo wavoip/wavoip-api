@@ -1,8 +1,6 @@
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-// Vendored at build time via vite-plugin-worklet: the upstream
-// `libsamplerate.worklet.js` (WASM inlined) is built to a Blob URL inside the
-// dist bundle. Replaces the previous jsdelivr CDN URL so the library no longer
-// depends on a network fetch nor on the CDN being up at consumer page-load.
+// Embutido no bundle pelo vite-plugin-worklet (vira Blob URL), e não puxado de CDN: a lib
+// não depende de rede nem de CDN no carregamento da página do integrador.
 import libSampleRateWorkletUrl from "@alexanderolsen/libsamplerate-js/dist/libsamplerate.worklet.js?worklet";
 import micWorkletUrl from "../worklets/AudioWorkletMic.ts?worklet";
 import outWorkletUrl from "../worklets/AudioWorkletOut.ts?worklet";
@@ -33,9 +31,8 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
     private attachedElements: Set<HTMLAudioElement> = new Set();
     private activeSpeakerId?: string;
     private permissionGranted = false;
-    // Lazily memoised on first `waitReady()` / `startMedia()` so a MediaManager
-    // that is constructed-then-never-used does not fetch the libsamplerate
-    // worklet over the network nor pay the addModule parse cost.
+    // Preguiçoso para um MediaManager construído e nunca usado não pagar o custo de
+    // addModule dos três worklets.
     private _workletReady: Promise<void> | null = null;
 
     constructor() {
@@ -60,20 +57,12 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
         return this._workletReady;
     }
 
-    /**
-     * Returns true if at least one microphone and one speaker are available.
-     */
     haveMedia(): boolean {
         const hasMic = this.devices.some((d) => d.kind === "audioinput");
         const hasSpeaker = this.devices.some((d) => d.kind === "audiooutput");
         return hasMic && hasSpeaker;
     }
 
-    /**
-     * Resume the AudioContext, acquire the microphone stream and return it.
-     * Uses the activeMic if already chosen, otherwise the first available microphone.
-     * Safe to call multiple times — returns the existing stream if already started.
-     */
     async startMedia(): Promise<MediaStream> {
         if (this.stream) return this.stream;
 
@@ -102,10 +91,6 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
         return stream;
     }
 
-    /**
-     * Suspend the AudioContext and stop microphone capture.
-     * Does not destroy the AudioContext — it can be restarted via startMedia().
-     */
     async stopMedia(): Promise<void> {
         if (this.stream) {
             for (const track of this.stream.getTracks()) {
@@ -119,9 +104,6 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
         }
     }
 
-    /**
-     * Tear down everything: stop media, remove listeners, close AudioContext.
-     */
     async destroy(): Promise<void> {
         await this.stopMedia();
 
@@ -132,10 +114,8 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
     }
 
     /**
-     * Switch the active microphone.
-     * If a stream is already running, performs a seamless hot-swap:
-     * acquires the new device, replaces the track in-place on the existing
-     * stream, and stops the old track — no interruption to active senders.
+     * Com stream rodando, troca a track dentro do próprio stream em vez de criar outro,
+     * para quem já está enviando não ser interrompido.
      */
     async setMicrophone(deviceId: string): Promise<boolean> {
         const device = this.devices.find((d) => d.kind === "audioinput" && d.deviceId === deviceId);
@@ -169,12 +149,8 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
     }
 
     /**
-     * Switch the active speaker.
-     * Applies setSinkId to all currently attached HTMLAudioElements and
-     * stores the preference for future attachments.
-     *
-     * Note: setSinkId is not available in all browsers (Firefox lacks it as
-     * of 2024). The method degrades gracefully when unsupported.
+     * setSinkId não existe em todo navegador (o Firefox não tinha em 2024); sem ele, a
+     * troca de alto-falante simplesmente não acontece.
      */
     async setSpeaker(deviceId: string): Promise<void> {
         const device = this.devices.find((d) => d.kind === "audiooutput" && d.deviceId === deviceId);
@@ -191,11 +167,6 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
         this.emit("speakerChanged", device);
     }
 
-    /**
-     * Register an HTMLAudioElement for speaker routing (WebRTC path).
-     * Immediately applies the current speaker preference and keeps it
-     * in sync with future setSpeaker() calls.
-     */
     async attachSpeaker(el: HTMLAudioElement): Promise<void> {
         this.attachedElements.add(el);
 
@@ -204,16 +175,12 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
         }
     }
 
-    /**
-     * Detach an HTMLAudioElement from speaker routing.
-     */
     detachSpeaker(el: HTMLAudioElement): void {
         this.attachedElements.delete(el);
     }
 
     /**
-     * Toggle microphone mute state.
-     * Operates on track.enabled — no stream teardown, no re-negotiation.
+     * Pelo track.enabled: sem derrubar o stream e sem renegociar.
      */
     toggleMute(): void {
         if (!this.stream) return;
@@ -227,9 +194,6 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
         this.emit("muteChanged", this.muted);
     }
 
-    /**
-     * Explicitly set mute state.
-     */
     setMuted(muted: boolean): void {
         if (!this.stream || this.muted === muted) return;
 
