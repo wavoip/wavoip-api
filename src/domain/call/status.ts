@@ -24,10 +24,13 @@ function narrow(status: string | undefined): CallStatus {
 export type TransitionName = "accept" | "reject" | "cancel" | "end" | "timeout" | "fail";
 
 // Só os comandos locais passam por aqui. O status que o servidor anuncia vale direto.
+//
+// Recusar e cancelar são desfechos de quem ainda não atendeu, e por isso só valem em
+// RINGING e CALLING. Uma chamada ACTIVE tem só duas saídas: terminar ou falhar.
 const TRANSITIONS: Record<TransitionName, { allow: (s: CallStatus) => boolean; to: CallStatus }> = {
     accept:  { allow: (s) => s === "RINGING" || s === "CALLING", to: "ACTIVE" },
-    reject:  { allow: (s) => s === "ACTIVE", to: "REJECTED" },
-    cancel:  { allow: (s) => s !== "ACTIVE", to: "CANCELLED" },
+    reject:  { allow: (s) => s === "RINGING" || s === "CALLING", to: "REJECTED" },
+    cancel:  { allow: (s) => s === "RINGING" || s === "CALLING", to: "CANCELLED" },
     end:     { allow: (s) => s === "ACTIVE", to: "ENDED" },
     timeout: { allow: (s) => s === "RINGING" || s === "CALLING", to: "NOT_ANSWERED" },
     fail:    { allow: (s) => s === "ACTIVE", to: "FAILED" },

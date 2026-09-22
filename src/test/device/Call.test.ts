@@ -44,13 +44,13 @@ describe("Call", () => {
     });
 
     describe("reject()", () => {
-        it("transitions ACTIVE → REJECTED and returns true", () => {
-            const call = makeCall("ACTIVE");
+        it.each(["CALLING", "RINGING"] as const)("transitions %s → REJECTED and returns true", (status) => {
+            const call = makeCall(status);
             expect(call.reject()).toBe(true);
             expect(call.status).toBe("REJECTED");
         });
 
-        it.each(["CALLING", "RINGING", "ENDED", "FAILED", "NOT_ANSWERED"] as const)(
+        it.each(["ACTIVE", "ENDED", "FAILED", "NOT_ANSWERED"] as const)(
             "returns false when status=%s",
             (status) => {
                 const call = makeCall(status);
@@ -86,11 +86,14 @@ describe("Call", () => {
 
         // Chamada conectada se encerra, nunca se cancela. O servidor aplica a mesma regra com
         // IS_NOT_OFFER.
-        it("returns false when the call is already ACTIVE", () => {
-            const call = makeCall("ACTIVE");
-            expect(call.cancel()).toBe(false);
-            expect(call.status).toBe("ACTIVE");
-        });
+        it.each(["ACTIVE", "ENDED", "FAILED", "NOT_ANSWERED", "CANCELLED"] as const)(
+            "returns false when status=%s",
+            (status) => {
+                const call = makeCall(status);
+                expect(call.cancel()).toBe(false);
+                expect(call.status).toBe(status);
+            },
+        );
     });
 
     describe("timeout()", () => {

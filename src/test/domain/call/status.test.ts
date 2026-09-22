@@ -17,7 +17,12 @@ describe("Status.transition", () => {
         ["RINGING", "accept", "ACTIVE"],
         ["ACTIVE", "accept", null],
         ["RINGING", "cancel", "CANCELLED"],
+        ["CALLING", "cancel", "CANCELLED"],
         ["ACTIVE", "cancel", null],
+        ["ENDED", "cancel", null],
+        ["CALLING", "reject", "REJECTED"],
+        ["RINGING", "reject", "REJECTED"],
+        ["ACTIVE", "reject", null],
         ["ACTIVE", "end", "ENDED"],
         ["RINGING", "timeout", "NOT_ANSWERED"],
     ] as const)("%s + %s → %s", (from, name, to) => {
