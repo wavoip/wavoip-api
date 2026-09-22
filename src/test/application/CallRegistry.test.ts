@@ -1,0 +1,110 @@
+import { CallRegistry } from "@/application/call/CallRegistry";
+import { CallSession } from "@/application/call/CallSession";
+import { FakeCallSignaling } from "@/test/fakes/FakeCallSignaling";
+import { FakeTransportFactory } from "@/test/fakes/FakeTransportFactory";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
+
+let signaling: FakeCallSignaling;
+let registry: CallRegistry;
+
+beforeEach(() => {
+    signaling = new FakeCallSignaling();
+    registry = new CallRegistry(signaling);
+    registry.start();
+});
+
+function session(id: string): CallSession {
+    return new CallSession(
+        { signaling, transports: new FakeTransportFactory(), setLocalMuted: () => {} },
+        { id, type: "OFFICIAL", direction: "INCOMING", peer, deviceToken: "device-token", status: "CALLING" },
+    );
+}
+
+describe("CallRegistry", () => {
+    it("routes an event to the session with that id", () => {
+        const first = session("call-1");
+        const second = session("call-2");
+        registry.register(first);
+        registry.register(second);
+        const heard = vi.fn();
+        const notHeard = vi.fn();
+        first.on("ringing", heard);
+        second.on("ringing", notHeard);
+
+        signaling.receiveCallEvent("call-1", { type: "ringing" });
+
+        expect(heard).toHaveBeenCalledOnce();
+        expect(notHeard).not.toHaveBeenCalled();
+    });
+
+    it("ignores an event for a call it does not know", () => {
+        expect(() => signaling.receiveCallEvent("other-call", { type: "ringing" })).not.toThrow();
+    });
+
+    it.each([
+        [{ type: "ended" as const, status: "ENDED" as const }],
+        [{ type: "unanswered" as const }],
+        [{ type: "rejected" as const }],
+        [{ type: "failed" as const, reason: "CONNECTION_TIMEOUT" }],
+    ])("drops the call after %o", (event) => {
+        registry.register(session("call-1"));
+
+        signaling.receiveCallEvent("call-1", event);
+
+        expect(registry.has("call-1")).toBe(false);
+    });
+
+    it("keeps the call through a recoverable media drop", () => {
+        registry.register(session("call-1"));
+
+        signaling.receiveCallEvent("call-1", { type: "disconnected" });
+
+        expect(registry.has("call-1")).toBe(true);
+    });
+
+    it("delivers the terminal event to the session it just dropped", () => {
+        const call = session("call-1");
+        registry.register(call);
+        const ended = vi.fn();
+        call.on("ended", ended);
+
+        signaling.receiveCallEvent("call-1", { type: "ended", status: "ENDED" });
+
+        expect(ended).toHaveBeenCalledOnce();
+    });
+
+    it("unregisters a call that never reached the server", () => {
+        const unregister = registry.register(session("call-1"));
+
+        unregister();
+
+        expect(registry.has("call-1")).toBe(false);
+    });
+
+    it("subscribes once, however many times it starts", () => {
+        const call = session("call-1");
+        registry.register(call);
+        const heard = vi.fn();
+        call.on("ringing", heard);
+
+        registry.start();
+        signaling.receiveCallEvent("call-1", { type: "ringing" });
+
+        expect(heard).toHaveBeenCalledOnce();
+    });
+
+    it("stops listening and forgets its calls", () => {
+        const call = session("call-1");
+        registry.register(call);
+        const heard = vi.fn();
+        call.on("ringing", heard);
+
+        registry.stop();
+        signaling.receiveCallEvent("call-1", { type: "ringing" });
+
+        expect(heard).not.toHaveBeenCalled();
+        expect(registry.has("call-1")).toBe(false);
+    });
+});

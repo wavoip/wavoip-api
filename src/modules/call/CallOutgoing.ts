@@ -1,3 +1,4 @@
+import { CallPolicy } from "@/domain/call/policy";
 import { type CallActive, CallActiveProxy } from "@/modules/call/CallActive";
 import type { CallPeer } from "@/modules/call/Peer";
 import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
@@ -10,18 +11,6 @@ import { WebsocketTransport } from "@/modules/media/WebSocket";
 import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
-
-/**
- * Socket caído guarda o emit em buffer e o callback nunca roda: sem teto, a Promise fica
- * pendente para sempre e a UI trava em "cancelando".
- */
-const ACK_TIMEOUT_MS = 10_000;
-
-/**
- * A única recusa que significa chamada ainda de pé: o outro lado atendeu entre o clique
- * e o ack. Qualquer outra é chamada morta, e a mídia vai junto.
- */
-const CALL_ALREADY_ANSWERED = "IS_NOT_OFFER";
 
 export type CallOutgoingEvents = {
     peerAccept: [call: CallActive];
@@ -167,7 +156,7 @@ export function CallOutgoingProxy(
 
         /**
          * A mídia é liberada em todo desfecho **menos no que a chamada continua viva**
-         * (`CALL_ALREADY_ANSWERED`): derrubar o transporte ali deixava uma chamada
+         * (`CallPolicy.alreadyAnswered`): derrubar o transporte ali deixava uma chamada
          * conectada muda.
          *
          * `ACK_TIMEOUT` é o "não sabemos" honesto: o socket.io descarta o pacote em buffer
@@ -177,10 +166,10 @@ export function CallOutgoingProxy(
          */
         cancel(): Promise<{ err: string | null }> {
             return new Promise((resolve) => {
-                wss.timeout(ACK_TIMEOUT_MS).emit("call.cancel", call.id, async (timeoutErr, res) => {
+                wss.timeout(CallPolicy.ackTimeoutMs).emit("call.cancel", call.id, async (timeoutErr, res) => {
                     if (timeoutErr) return resolve({ err: "ACK_TIMEOUT" });
                     if (res.type === "error") {
-                        if (res.result !== CALL_ALREADY_ANSWERED) await dispose();
+                        if (res.result !== CallPolicy.alreadyAnswered) await dispose();
                         return resolve({ err: res.result });
                     }
 
