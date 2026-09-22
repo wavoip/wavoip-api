@@ -15,10 +15,6 @@ export class CallHarness {
     readonly muted: boolean[] = [];
     readonly registry = new CallRegistry(this.signaling);
 
-    constructor() {
-        this.registry.start();
-    }
-
     incoming(init: Partial<CallSessionInit> = {}): CallSession {
         return this.session({ direction: "INCOMING", status: "CALLING", remotePlan: webRTCPlan, ...init });
     }

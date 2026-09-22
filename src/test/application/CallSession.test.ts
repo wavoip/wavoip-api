@@ -34,14 +34,19 @@ function makeSession(init: Partial<CallSessionInit> = {}): CallSession {
     );
 }
 
+function outgoingSession(type: CallSessionInit["type"] = "OFFICIAL"): CallSession {
+    return CallSession.forOutgoing(
+        { signaling, transports, setLocalMuted: (value) => muted.push(value) },
+        { type, deviceToken: "device-token" },
+    );
+}
+
 /** Disca de verdade: a oferta é montada antes do `call.start`, como em produção. */
 async function dialedSession(type: CallSessionInit["type"] = "OFFICIAL"): Promise<CallSession> {
-    const dialed = await CallSession.dial(
-        { signaling, transports, setLocalMuted: (value) => muted.push(value) },
-        { to: "5511999999999", type, deviceToken: "device-token" },
-    );
-    if (!dialed.session) throw new Error(dialed.err);
-    return dialed.session;
+    const session = outgoingSession(type);
+    const err = await session.dial("5511999999999");
+    if (err) throw new Error(err);
+    return session;
 }
 
 describe("CallSession — accepting an offer", () => {
@@ -124,14 +129,16 @@ describe("CallSession — outgoing call", () => {
 
     it("releases the prepared offer when the server refuses the call", async () => {
         signaling.startAnswer = Ack.Refuse("busy");
+        const session = outgoingSession();
 
-        const dialed = await CallSession.dial(
-            { signaling, transports, setLocalMuted: () => {} },
-            { to: "5511999999999", type: "OFFICIAL", deviceToken: "device-token" },
-        );
-
-        expect(dialed.err).toBe("busy");
+        expect(await session.dial("5511999999999")).toBe("busy");
         expect(transports.current.stops).toBe(1);
+    });
+
+    it("has no id before the server answers the dial", () => {
+        const session = outgoingSession();
+
+        expect(() => session.id).toThrow("ainda não tem id");
     });
 
     it("hands the prepared offer over when the peer answers", async () => {

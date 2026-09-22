@@ -1,5 +1,5 @@
 import type { CallPeer } from "@/modules/call/Peer";
-import type { CallSession } from "@/application/call/CallSession";
+import type { CallSession, CallSessionEvents } from "@/application/call/CallSession";
 import type { CallStats, ServerCallStats } from "@/domain/call/stats";
 import type { CallDirection, CallStatus, CallType, TransportStatus } from "@/domain/call/types";
 import type { CallFailReason } from "@/domain/call/failReason";
@@ -72,7 +72,7 @@ export function CallActiveProxy(session: CallSession): CallActive {
     let lastIceDiagnostics: IceDiagnostics | undefined;
     const bufferedConnectivityIssues: ConnectivityIssue[] = [];
 
-    forwardEvents(session, emitter, {
+    forwardEvents<CallSessionEvents, CallActiveEvents>(session, emitter, {
         stats: "stats",
         serverStats: "serverStats",
         connectionStatus: "connectionStatus",

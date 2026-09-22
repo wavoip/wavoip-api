@@ -11,13 +11,10 @@ const TERMINAL: ServerCallEvent["type"][] = ["ended", "unanswered", "rejected", 
  */
 export class CallRegistry {
     private readonly sessions = new Map<string, CallSession>();
-    private unsubscribe: Unsubscribe | null = null;
+    private readonly unsubscribe: Unsubscribe;
 
-    constructor(private readonly signaling: CallSignalingPort) {}
-
-    start(): void {
-        if (this.unsubscribe) return;
-        this.unsubscribe = this.signaling.onCallEvent((callId, event) => this.route(callId, event));
+    constructor(signaling: CallSignalingPort) {
+        this.unsubscribe = signaling.onCallEvent((callId, event) => this.route(callId, event));
     }
 
     /** O Unsubscribe devolvido só é necessário para descartar uma chamada no meio do caminho. */
@@ -33,15 +30,16 @@ export class CallRegistry {
     }
 
     stop(): void {
-        this.unsubscribe?.();
-        this.unsubscribe = null;
+        this.unsubscribe();
         this.sessions.clear();
     }
 
+    // A chamada sai da tabela depois de tratar o evento: enquanto os listeners dela rodam,
+    // ela ainda é uma chamada conhecida.
     private route(callId: string, event: ServerCallEvent): void {
         const session = this.sessions.get(callId);
         if (!session) return;
-        if (TERMINAL.includes(event.type)) this.sessions.delete(callId);
         session.handleServerEvent(event);
+        if (TERMINAL.includes(event.type)) this.sessions.delete(callId);
     }
 }

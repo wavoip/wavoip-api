@@ -12,7 +12,6 @@ let registry: CallRegistry;
 beforeEach(() => {
     signaling = new FakeCallSignaling();
     registry = new CallRegistry(signaling);
-    registry.start();
 });
 
 function session(id: string): CallSession {
@@ -64,15 +63,18 @@ describe("CallRegistry", () => {
         expect(registry.has("call-1")).toBe(true);
     });
 
-    it("delivers the terminal event to the session it just dropped", () => {
+    it("still knows the call while its terminal listeners run", () => {
         const call = session("call-1");
         registry.register(call);
-        const ended = vi.fn();
-        call.on("ended", ended);
+        let knownInListener: boolean | undefined;
+        call.on("ended", () => {
+            knownInListener = registry.has("call-1");
+        });
 
         signaling.receiveCallEvent("call-1", { type: "ended", status: "ENDED" });
 
-        expect(ended).toHaveBeenCalledOnce();
+        expect(knownInListener).toBe(true);
+        expect(registry.has("call-1")).toBe(false);
     });
 
     it("unregisters a call that never reached the server", () => {
@@ -81,18 +83,6 @@ describe("CallRegistry", () => {
         unregister();
 
         expect(registry.has("call-1")).toBe(false);
-    });
-
-    it("subscribes once, however many times it starts", () => {
-        const call = session("call-1");
-        registry.register(call);
-        const heard = vi.fn();
-        call.on("ringing", heard);
-
-        registry.start();
-        signaling.receiveCallEvent("call-1", { type: "ringing" });
-
-        expect(heard).toHaveBeenCalledOnce();
     });
 
     it("stops listening and forgets its calls", () => {

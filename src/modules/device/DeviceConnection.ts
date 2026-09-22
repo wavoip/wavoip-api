@@ -78,7 +78,6 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         this.wss = DeviceWebSocketFactory(token, platform);
         this.signaling = new SocketIoSignaling(this.wss);
         this.registry = new CallRegistry(this.signaling);
-        this.registry.start();
         this.callDeps = {
             signaling: this.signaling,
             transports: this.transportsFor(mediaManager),
@@ -202,15 +201,15 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         const { err } = this.device.canCall();
         if (err) return { err };
 
-        const dialed = await CallSession.dial(this.callDeps, {
-            to,
+        const session = CallSession.forOutgoing(this.callDeps, {
             type: this.device.callType,
             deviceToken: this.device.token,
         });
-        if (!dialed.session) return { err: dialed.err };
+        const dialErr = await session.dial(to);
+        if (dialErr) return { err: dialErr };
 
-        this.registry.register(dialed.session);
-        return { call: CallOutgoingProxy(dialed.session) };
+        this.registry.register(session);
+        return { call: CallOutgoingProxy(session) };
     }
 
     onStatus(cb: (status: DeviceStatus) => void): () => void {

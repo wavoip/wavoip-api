@@ -1,4 +1,4 @@
-import type { EventEmitter, Unsubscribe } from "@/modules/shared/EventEmitter";
+import type { EventEmitter, Subscribable, Unsubscribe } from "@/modules/shared/EventEmitter";
 
 type EventMap = { [k: string]: unknown[] };
 
@@ -12,7 +12,7 @@ export type Forwarding<S extends EventMap, D extends EventMap> = {
 };
 
 export function forwardEvents<S extends EventMap, D extends EventMap>(
-    source: EventEmitter<S>,
+    source: Subscribable<S>,
     dest: EventEmitter<D>,
     mapping: Forwarding<S, D>,
 ): Unsubscribe {
@@ -25,7 +25,7 @@ export function forwardEvents<S extends EventMap, D extends EventMap>(
         const listener = ((...args: S[typeof key]) => {
             const out = (mapped ? mapped.map(...args) : args) as D[keyof D];
             dest.emit(targetKey, ...out);
-        }) as Parameters<EventEmitter<S>["on"]>[1];
+        }) as Parameters<Subscribable<S>["on"]>[1];
         unsubs.push(source.on(key, listener));
     }
     return () => {

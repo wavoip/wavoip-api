@@ -1,6 +1,6 @@
 import { type CallActive, CallActiveProxy } from "@/modules/call/CallActive";
 import type { CallPeer } from "@/modules/call/Peer";
-import type { CallSession } from "@/application/call/CallSession";
+import type { CallSession, CallSessionEvents } from "@/application/call/CallSession";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 import { warnDeprecated } from "@/modules/shared/deprecation";
@@ -54,7 +54,7 @@ export function CallOutgoingProxy(session: CallSession): CallOutgoing {
     session.on("rejected", () => emitter.emit("peerReject"));
     session.on("unanswered", () => emitter.emit("unanswered"));
     session.on("ended", () => emitter.emit("ended"));
-    forwardEvents(session, emitter, {
+    forwardEvents<CallSessionEvents, CallOutgoingEvents>(session, emitter, {
         status: "status",
         iceDiagnostics: "iceDiagnostics",
         connectivityIssue: "connectivityIssue",

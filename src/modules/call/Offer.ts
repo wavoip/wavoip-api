@@ -1,6 +1,6 @@
 import { type CallActive, CallActiveProxy } from "@/modules/call/CallActive";
 import type { CallPeer } from "@/modules/call/Peer";
-import type { CallSession } from "@/application/call/CallSession";
+import type { CallSession, CallSessionEvents } from "@/application/call/CallSession";
 import type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import { warnDeprecated } from "@/modules/shared/deprecation";
@@ -61,7 +61,7 @@ export function OfferProxy(session: CallSession, release: () => void): Offer {
     sessionUnsubs.push(session.on("unanswered", () => endWith("unanswered")));
     sessionUnsubs.push(session.on("ended", () => endWith("ended")));
     sessionUnsubs.push(
-        forwardEvents(session, emitter, {
+        forwardEvents<CallSessionEvents, OfferEvents>(session, emitter, {
             status: "status",
             iceDiagnostics: "iceDiagnostics",
             connectivityIssue: "connectivityIssue",
