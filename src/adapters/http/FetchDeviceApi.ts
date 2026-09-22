@@ -1,4 +1,4 @@
-import { Endpoints } from "@/config/endpoints";
+import { Config } from "@/config/config";
 import { Result } from "@/domain/shared/Result";
 import type { DeviceApiPort } from "@/ports/DeviceApiPort";
 
@@ -10,11 +10,11 @@ export class FetchDeviceApi implements DeviceApiPort {
     constructor(private readonly token: string) {}
 
     restart(): Promise<Result<void>> {
-        return this.get(`${Endpoints.devices}/${this.token}/device/restart`);
+        return this.get(`${Config.devicesUrl}/${this.token}/device/restart`);
     }
 
     logout(): Promise<Result<void>> {
-        return this.get(`${Endpoints.devices}/${this.token}/whatsapp/logout`);
+        return this.get(`${Config.devicesUrl}/${this.token}/whatsapp/logout`);
     }
 
     /**
@@ -26,7 +26,7 @@ export class FetchDeviceApi implements DeviceApiPort {
      * 409 `DEVICE_DISABLED`, 429 `WAKE_UP_RATE_LIMITED` e os 5xx de infraestrutura.
      */
     wakeUp(): Promise<Result<void>> {
-        return this.get(`${Endpoints.api}/v2/devices/${this.token}/wakeup`);
+        return this.get(`${Config.apiUrl}/v2/devices/${this.token}/wakeup`);
     }
 
     private async get(url: string): Promise<Result<void>> {

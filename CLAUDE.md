@@ -133,6 +133,10 @@ pnpm test
 pnpm build
 ```
 
+O `pnpm build` começa pelo `scripts/check-env.mjs`, que quebra se faltar alguma env do
+`src/config/config.ts`. As URLs de produção moram no `.env` versionado; para apontar para
+outro ambiente, use um `.env.local`, que o git ignora e o Vite carrega por cima.
+
 O `pnpm lint` também roda `tsc -p tsconfig.core.json`: compila o `src/domain/` sem DOM e sem
 `@types/node` (que declara `WebSocket` e `performance` globais). O domínio é a parte que roda
 igual no navegador, no React Native e no desktop — regra pura, sem I/O e sem timer. O que
