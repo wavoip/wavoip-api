@@ -37,7 +37,7 @@ wavoip.on("offer", async (offer) => {
 | `direction`                       | `CallDirection` | Sempre `"INCOMING"` para ofertas.                       |
 | `peer`                            | `CallPeer`      | Telefone, nome de exibição e foto de perfil do chamador.|
 | `deviceToken`                     | `string`        | Token do dispositivo que recebeu a chamada.             |
-| `status`                          | `CallStatus`    | Estado atual da chamada (ex: `"CALLING"`).              |
+| `status`                          | `CallStatus`    | Estado atual da chamada (ex: `"CALLING"`). Acompanha os eventos do servidor: dentro de qualquer handler já traz o valor novo. |
 | ~~`device_token`~~ **(deprecated)** | `string`      | **Use `deviceToken` no lugar.** Acesso emite `console.warn` único. |
 
 ---
@@ -86,12 +86,10 @@ Assine com `offer.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
 {% hint style="info" %}
 Quando o chamador desiste antes de você atender, o `status` chega como `CANCELLED`
-**imediatamente antes** do `ended`. Guarde-o se quiser distinguir os desfechos:
+**imediatamente antes** do `ended`, e `offer.status` já o traz dentro do handler:
 
 ```typescript
-let outcome: CallStatus = "ENDED"
-offer.on("status", (s) => { outcome = s })
-offer.on("ended", () => hideIncomingCall(outcome))
+offer.on("ended", () => hideIncomingCall(offer.status))
 ```
 
 Sempre pare o toque e limpe a interface no `ended` — ele é o único evento terminal da

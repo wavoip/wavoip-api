@@ -62,7 +62,7 @@ call.on("unanswered", () => console.log("Sem resposta"))
 | `direction`                       | `CallDirection` | Sempre `"OUTGOING"`.                                       |
 | `peer`                            | `CallPeer`      | Telefone, nome de exibição e foto de perfil do destinatário.|
 | `deviceToken`                     | `string`        | Token do dispositivo que está realizando a chamada.        |
-| `status`                          | `CallStatus`    | Estado atual da chamada.                                   |
+| `status`                          | `CallStatus`    | Estado atual da chamada. Acompanha os eventos do servidor: dentro de qualquer handler já traz o valor novo. |
 | ~~`device_token`~~ **(deprecated)** | `string`      | **Use `deviceToken` no lugar.** Acesso emite `console.warn` único. |
 
 ---
@@ -84,19 +84,17 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 #### Cancelada ou encerrada?
 
 `ended` é o único evento terminal, e é ele que desfaz a chamada. Para saber **qual**
-fim foi, olhe o `status` que vem junto:
+fim foi, leia `call.status` dentro do handler, que já traz o desfecho:
 
 ```typescript
-let outcome: CallStatus = "ENDED"
-call.on("status", (s) => { outcome = s })
 call.on("ended", () => {
     // "CANCELLED" quando alguém desistiu antes do atendimento
-    showEndScreen(outcome)
+    showEndScreen(call.status)
 })
 ```
 
-O `status` do desfecho é sempre emitido **antes** do `ended`, justamente para que o
-handler acima já o veja.
+O evento `status` do desfecho também é sempre emitido **antes** do `ended`, para quem
+prefere acompanhar pelo evento.
 
 {% hint style="info" %}
 `CANCELLED` **não** quer dizer "você cancelou": quer dizer que alguém desistiu antes do

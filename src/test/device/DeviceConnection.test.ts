@@ -57,6 +57,7 @@ vi.mock("axios", () => ({
 vi.mock("@/modules/media/WebRTC", () => ({
     WebRTCTransport: class {
         createOffer = vi.fn().mockResolvedValue("v=0\r\nfake-offer-sdp");
+        answer = Promise.resolve({ type: "answer", sdp: "v=0\r\nfake-answer-sdp" });
         setAnswer = vi.fn().mockResolvedValue(undefined);
         start = vi.fn().mockResolvedValue(undefined);
         stop = vi.fn().mockResolvedValue(undefined);
@@ -69,6 +70,7 @@ vi.mock("@/modules/media/WebRTC", () => ({
 import { DeviceConnection } from "@/modules/device/DeviceConnection";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import type { CallType } from "@/modules/device/Call";
+import type { Offer } from "@/modules/call/Offer";
 
 const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
 
@@ -239,6 +241,26 @@ describe("DeviceConnection — calls map cleanup", () => {
 
             expect(callsMap(dc).has("call-A")).toBe(false);
             expect(callsMap(dc).has("call-B")).toBe(true);
+        });
+    });
+
+    describe("accepting an official offer", () => {
+        it("reads ACTIVE once accepted and sends the WebRTC answer", async () => {
+            const { dc, socket } = makeDeviceConnection();
+            const received: Offer[] = [];
+            dc.on("offerReceived", (offer) => received.push(offer));
+            socket.receive("call:offer", offerProps("call-1"), vi.fn());
+
+            const { call, err } = await received[0].accept();
+
+            expect(err).toBeNull();
+            expect(call?.status).toBe("ACTIVE");
+            expect(socket.emit).toHaveBeenCalledWith(
+                "call.accept",
+                "call-1",
+                { type: "webRTC", sdp: "v=0\r\nfake-answer-sdp" },
+                expect.any(Function),
+            );
         });
     });
 

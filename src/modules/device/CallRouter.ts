@@ -34,6 +34,7 @@ export class CallRouter {
         bind("call:ringing", (id) => {
             const call = this.calls.get(id);
             if (!call) return;
+            call.settle("RINGING");
             call.emit("ringing");
             call.emit("status", "RINGING");
         });
@@ -45,25 +46,30 @@ export class CallRouter {
             // proxy se desmonta no `ended`, e o do `Offer` solta as inscrições. Um status
             // emitido depois não chega a ninguém, e uma oferta cujo chamador desistiu nunca
             // saberia que foi CANCELLED.
-            call.emit("status", toCallStatus(outcome?.status));
+            const status = toCallStatus(outcome?.status);
+            call.settle(status);
+            call.emit("status", status);
             call.emit("ended");
             this.calls.delete(id);
         });
         bind("call:accepted", (id) => {
             const call = this.calls.get(id);
             if (!call) return;
+            call.settle("ACTIVE");
             call.emit("accepted");
             call.emit("status", "ACTIVE");
         });
         bind("call:answered", (id, mediaPlan) => {
             const call = this.calls.get(id);
             if (!call) return;
+            call.settle("ACTIVE");
             call.emit("answered", mediaPlan);
             call.emit("status", "ACTIVE");
         });
         bind("call:unanswered", (id) => {
             const call = this.calls.get(id);
             if (!call) return;
+            call.settle("NOT_ANSWERED");
             call.emit("unanswered");
             call.emit("status", "NOT_ANSWERED");
             this.calls.delete(id);
@@ -71,6 +77,7 @@ export class CallRouter {
         bind("call:rejected", (id) => {
             const call = this.calls.get(id);
             if (!call) return;
+            call.settle("REJECTED");
             call.emit("rejected");
             call.emit("status", "REJECTED");
             this.calls.delete(id);
@@ -78,6 +85,7 @@ export class CallRouter {
         bind("call:failed", (id, err) => {
             const call = this.calls.get(id);
             if (!call) return;
+            call.settle("FAILED");
             call.emit("failed", err);
             call.emit("status", "FAILED");
             this.calls.delete(id);
@@ -85,10 +93,16 @@ export class CallRouter {
         // Queda e volta da perna de mídia não são terminais: a chamada fica em `this.calls`
         // para o call:connected seguinte ainda ser roteado.
         bind("call:disconnected", (id) => {
-            this.calls.get(id)?.emit("status", "DISCONNECTED");
+            const call = this.calls.get(id);
+            if (!call) return;
+            call.settle("DISCONNECTED");
+            call.emit("status", "DISCONNECTED");
         });
         bind("call:connected", (id) => {
-            this.calls.get(id)?.emit("status", "ACTIVE");
+            const call = this.calls.get(id);
+            if (!call) return;
+            call.settle("ACTIVE");
+            call.emit("status", "ACTIVE");
         });
         bind("call:stats", (id, stats) => {
             this.calls.get(id)?.applyServerStats(stats);
