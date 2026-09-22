@@ -201,7 +201,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         const { err } = this.device.canCall();
         if (err) return { err };
 
-        const started = await CallSession.start(this.callDeps, {
+        const started = await CallSession.Start(this.callDeps, {
             to,
             type: this.device.callType,
             deviceToken: this.device.token,

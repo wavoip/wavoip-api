@@ -95,7 +95,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
      * precisa mandar o SDP junto. A sessão só existe se o servidor aceitar; se não, o
      * transporte é liberado e ninguém fica com o microfone aberto.
      */
-    static async start(deps: CallSessionDeps, params: StartCallParams): Promise<Result<CallSession>> {
+    static async Start(deps: CallSessionDeps, params: StartCallParams): Promise<Result<CallSession>> {
         const transport = deps.transports.forCall(params.type);
 
         let plan: MediaPlan = { type: "none" };

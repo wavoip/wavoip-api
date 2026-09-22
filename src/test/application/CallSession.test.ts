@@ -41,7 +41,7 @@ function makeSession(init: Partial<CallSessionInit> & { plan?: MediaPlan } = {})
 
 /** Disca de verdade: o transporte é montado antes do `call.start`, como em produção. */
 async function dialedSession(type: CallSessionInit["type"] = "OFFICIAL"): Promise<CallSession> {
-    const started = await CallSession.start(deps(), { to: "5511999999999", type, deviceToken: "device-token" });
+    const started = await CallSession.Start(deps(), { to: "5511999999999", type, deviceToken: "device-token" });
     if (!started.data) throw new Error(started.error.code);
     return started.data;
 }
@@ -125,7 +125,7 @@ describe("CallSession — outgoing call", () => {
     it("releases the prepared transport when the server refuses the call", async () => {
         signaling.startAnswer = Ack.Refuse("busy");
 
-        const started = await CallSession.start(deps(), {
+        const started = await CallSession.Start(deps(), {
             to: "5511999999999",
             type: "OFFICIAL",
             deviceToken: "device-token",

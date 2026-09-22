@@ -28,6 +28,8 @@ documentação sem ler o código. Isso muda as regras de idioma e de comentário
 - Nada de função ou constante exportada solta: agrupe num objeto de nome claro e exporte
   só ele (`Stats.mergeUnofficial(...)`, `Status.narrow(...)`). Quem lê a chamada vê de onde
   a funcionalidade vem. Tipo e interface seguem exportados direto.
+- Método estático que constrói a própria classe começa com maiúscula, para se distinguir
+  de método comum: `CallSession.Start(...)`, e não `CallSession.start(...)`.
 - Retorno cedo em vez de `if` aninhado. No máximo 2 níveis de indentação.
 - Mensagem de exceção inclui o valor ofensor e a forma esperada.
 
