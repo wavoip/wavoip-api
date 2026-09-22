@@ -2,7 +2,6 @@ import { CallRegistry } from "@/application/call/CallRegistry";
 import { CallSession, type CallSessionDeps, type TransportFactory } from "@/application/call/CallSession";
 import { ReconnectPolicy } from "@/domain/device/reconnectPolicy";
 import { CallPolicy } from "@/domain/call/policy";
-import type { MediaPlan, Peer } from "@/domain/call/types";
 import { Result } from "@/domain/shared/Result";
 import type { ConnectionStatus, Contact, DeviceStatus } from "@/modules/device/Device";
 import { DeviceModel } from "@/modules/device/Device";
@@ -111,12 +110,12 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents> {
     private receiveOffer(offer: IncomingOffer): void {
         const session = new CallSession(this.callDeps, {
             id: offer.id,
-            peer: offer.peer as Peer,
+            peer: offer.peer,
             type: this.device.callType,
             direction: "INCOMING",
             deviceToken: this.device.token,
             status: "CALLING",
-            transport: this.deps.transports.forOffer(offer.plan as MediaPlan, this.device.token),
+            transport: this.deps.transports.forOffer(offer.plan, this.device.token),
         });
         this.events.emit("offerReceived", session, this.registry.register(session));
     }
@@ -229,8 +228,13 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents> {
     }
 
     /**
-     * Acorda o device pela API central antes de tentar o socket: hibernado, ele não
-     * responde ao handshake. O status novo chega no `device:init` da reconexão.
+     * Acorda o device pela API central antes de tentar o socket. O nginx do
+     * `devices.wavoip.com` acorda sozinho um device hibernado que recebe requisição HTTP,
+     * mas pula essa parte quando o upgrade é websocket — então o socket bateria num device
+     * dormindo para sempre. Era por isso que a v2 funcionava: ela pedia `/whatsapp/all_info`
+     * antes de reconectar, e quem acordava o device era o efeito colateral do nginx.
+     *
+     * O status novo chega no `device:init` da reconexão.
      */
     private reconnect(attempt: number): void {
         const delayMs = ReconnectPolicy.nextDelayMs(attempt);

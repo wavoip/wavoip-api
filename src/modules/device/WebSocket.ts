@@ -12,11 +12,12 @@ export type {
 } from "@/domain/call/types";
 import type { CallFailReason } from "@/modules/device/CallFailReason";
 import type { Contact, DeviceStatus } from "@/modules/device/Device";
+import { Endpoints } from "@/config/endpoints";
 import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";
 
 export function DeviceWebSocketFactory(token: string, platform?: string): DeviceSocket {
-    const websocket = io("https://devices.wavoip.com", {
+    const websocket = io(Endpoints.devices, {
         transports: ["websocket"],
         path: `/${token}/websocket`,
         autoConnect: false,
