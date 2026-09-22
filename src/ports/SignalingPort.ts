@@ -1,6 +1,7 @@
 import type { CallFailReason } from "@/domain/call/failReason";
 import type { ServerCallStats } from "@/domain/call/stats";
-import type { CallStatus, MediaPlan, Peer } from "@/domain/call/types";
+import type { CallStatus, CallType, MediaPlan, Peer } from "@/domain/call/types";
+import type { Contact, DeviceStatus } from "@/modules/device/Device";
 
 /**
  * A sinalização da chamada como a biblioteca precisa dela, sem socket.io no meio. O
@@ -54,6 +55,39 @@ export type ServerCallEvent =
     | { readonly type: "peerMuted"; readonly muted: boolean };
 
 export type Unsubscribe = () => void;
+
+/** O que o servidor conta sobre o device, já no vocabulário da biblioteca. */
+export type ServerDeviceEvent =
+    | {
+          readonly type: "init";
+          readonly status: DeviceStatus;
+          readonly callType: CallType;
+          readonly contact: Contact | null;
+          readonly qrCode: string | null;
+          readonly restricted: boolean;
+          readonly restrictedUntil: Date | null;
+          readonly activeCalls: number;
+      }
+    | { readonly type: "building" }
+    | { readonly type: "open"; readonly contact: Contact }
+    | { readonly type: "connecting"; readonly qrCode: string | null }
+    | { readonly type: "close" }
+    | { readonly type: "restarting" }
+    | { readonly type: "hibernating" }
+    | { readonly type: "restriction"; readonly restricted: boolean; readonly restrictedUntil: Date | null }
+    | { readonly type: "activeCalls"; readonly count: number };
+
+export interface DeviceSignalingPort {
+    connect(): void;
+    disconnect(): void;
+    /** O socket.io ainda está tentando por conta própria: reconectar por cima duplicaria. */
+    isRetrying(): boolean;
+    isConnected(): boolean;
+    onDeviceEvent(listener: (event: ServerDeviceEvent) => void): Unsubscribe;
+    /** A conexão caiu, por queda de rede ou porque o servidor encerrou. */
+    onConnectionLost(listener: () => void): Unsubscribe;
+    requestPairingCode(phone: string, timeoutMs: number): Promise<SignalAck<string>>;
+}
 
 export interface CallSignalingPort {
     startCall(to: string, plan: MediaPlan, timeoutMs: number): Promise<SignalAck<StartedCall>>;

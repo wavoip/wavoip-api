@@ -4,8 +4,10 @@ import type { ClientEvents, DeviceSocket, ServerEvents, WssResponse } from "@/mo
 import {
     Ack,
     type CallSignalingPort,
+    type DeviceSignalingPort,
     type IncomingOffer,
     type ServerCallEvent,
+    type ServerDeviceEvent,
     type SignalAck,
     type StartedCall,
     type Unsubscribe,
@@ -27,13 +29,15 @@ type SocketLike = {
  * Um listener por evento no socket compartilhado, e não um por chamada: quem separa por
  * `callId` é quem escuta esta porta.
  */
-export class SocketIoSignaling implements CallSignalingPort {
+export class SocketIoSignaling implements CallSignalingPort, DeviceSignalingPort {
     private readonly callListeners = new Set<CallEventListener>();
+    private readonly deviceListeners = new Set<(event: ServerDeviceEvent) => void>();
     private readonly offerListeners = new Set<OfferListener>();
     private readonly unbinds: Unsubscribe[] = [];
 
     constructor(private readonly socket: DeviceSocket) {
         this.bindCallEvents();
+        this.bindDeviceEvents();
     }
 
     async startCall(to: string, plan: MediaPlan, timeoutMs: number): Promise<SignalAck<StartedCall>> {
@@ -60,6 +64,39 @@ export class SocketIoSignaling implements CallSignalingPort {
         return this.ask<void>(timeoutMs, "call.end", callId);
     }
 
+    connect(): void {
+        if (this.socket.connected) return;
+        this.socket.connect();
+    }
+
+    disconnect(): void {
+        // Sem guarda de `disconnected`: o socket.io diz `disconnected` enquanto ainda está
+        // conectando, e a guarda deixaria a conexão em andamento terminar como socket
+        // órfão. `disconnect()` é idempotente e aborta a conexão pendente.
+        this.socket.disconnect();
+    }
+
+    isConnected(): boolean {
+        return this.socket.connected;
+    }
+
+    isRetrying(): boolean {
+        return this.socket.active;
+    }
+
+    requestPairingCode(phone: string, timeoutMs: number): Promise<SignalAck<string>> {
+        return this.ask(timeoutMs, "device.pairing_code", phone);
+    }
+
+    onConnectionLost(listener: () => void): Unsubscribe {
+        return this.listen("disconnect", listener);
+    }
+
+    onDeviceEvent(listener: (event: ServerDeviceEvent) => void): Unsubscribe {
+        this.deviceListeners.add(listener);
+        return () => this.deviceListeners.delete(listener);
+    }
+
     onCallEvent(listener: CallEventListener): Unsubscribe {
         this.callListeners.add(listener);
         return () => this.callListeners.delete(listener);
@@ -75,6 +112,7 @@ export class SocketIoSignaling implements CallSignalingPort {
         this.unbinds.length = 0;
         this.callListeners.clear();
         this.offerListeners.clear();
+        this.deviceListeners.clear();
     }
 
     /** Uma linha por evento do servidor: o nome no protocolo e o que ele vira aqui. */
@@ -98,6 +136,42 @@ export class SocketIoSignaling implements CallSignalingPort {
             ackOffer();
             for (const listener of this.offerListeners) listener({ id, peer, plan: offer });
         });
+    }
+
+    /** Uma linha por evento do device: o nome no protocolo e o que ele vira aqui. */
+    private bindDeviceEvents(): void {
+        this.bind("device:init", (status, callType, contact, qrCode, restricted, restrictedUntil, activeCalls) =>
+            this.tell({
+                type: "init",
+                status,
+                callType,
+                contact: contact ?? null,
+                qrCode: qrCode ?? null,
+                restricted,
+                restrictedUntil: restrictedUntil ? new Date(restrictedUntil) : null,
+                activeCalls: activeCalls ?? 0,
+            }),
+        );
+        this.bind("device:building", () => this.tell({ type: "building" }));
+        this.bind("device:open", (contact) => this.tell({ type: "open", contact }));
+        this.bind("device:connecting", (qrCode) => this.tell({ type: "connecting", qrCode: qrCode ?? null }));
+        this.bind("device:close", () => this.tell({ type: "close" }));
+        this.bind("device:restarting", () => this.tell({ type: "restarting" }));
+        this.bind("device:hibernating", () => this.tell({ type: "hibernating" }));
+        this.bind("device:restriction:changed", (restricted, until) =>
+            this.tell({ type: "restriction", restricted, restrictedUntil: until ? new Date(until) : null }),
+        );
+        this.bind("device:calls", (count) => this.tell({ type: "activeCalls", count }));
+    }
+
+    private tell(event: ServerDeviceEvent): void {
+        for (const listener of this.deviceListeners) listener(event);
+    }
+
+    private listen(event: string, handler: () => void): Unsubscribe {
+        const socket = this.socket as unknown as SocketLike;
+        socket.on(event, handler);
+        return () => socket.off(event, handler);
     }
 
     private announce(callId: string, event: ServerCallEvent): void {

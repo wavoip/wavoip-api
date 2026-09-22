@@ -103,9 +103,10 @@ function makeDeviceConnection() {
     return { dc, socket };
 }
 
-// A tabela de chamadas roteadas vive no CallRegistry da conexão.
+// A tabela de chamadas roteadas vive no CallRegistry da sessão do device.
 function callsMap(dc: DeviceConnection): Map<string, unknown> {
-    return (dc as unknown as { registry: { sessions: Map<string, unknown> } }).registry.sessions;
+    const session = (dc as unknown as { session: { registry: { sessions: Map<string, unknown> } } }).session;
+    return session.registry.sessions;
 }
 
 const offerProps = (id: string) => ({

@@ -1,20 +1,18 @@
 import { FetchDeviceApi } from "@/adapters/http/FetchDeviceApi";
 import { SocketIoSignaling } from "@/adapters/socketio/SocketIoSignaling";
-import { CallRegistry } from "@/application/call/CallRegistry";
-import { CallSession, type CallSessionDeps, type TransportFactory } from "@/application/call/CallSession";
-import type { MediaPlan, Peer } from "@/domain/call/types";
+import { DeviceSession, type DeviceSessionEvents } from "@/application/device/DeviceSession";
 import { type CallOutgoing, CallOutgoingProxy } from "@/modules/call/CallOutgoing";
 import { type Offer, OfferProxy } from "@/modules/call/Offer";
-import { DeviceModel } from "@/modules/device/Device";
 import type { ConnectionStatus, Contact, DeviceStatus } from "@/modules/device/Device";
-import { type DeviceSocket, DeviceWebSocketFactory } from "@/modules/device/WebSocket";
+import { DeviceWebSocketFactory } from "@/modules/device/WebSocket";
 import type { TransportOptions } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
-import type { DeviceApiPort } from "@/ports/DeviceApiPort";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
 import { WebsocketTransport } from "@/modules/media/WebSocket";
 import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
+import { forwardEvents } from "@/modules/shared/forwardEvents";
+import type { TransportFactory } from "@/application/call/CallSession";
 
 export type DeviceEvents = {
     statusChanged: [status: DeviceStatus];
@@ -52,163 +50,65 @@ export interface Device {
 }
 
 export class DeviceConnection extends EventEmitter<Events> implements Device {
-    private readonly wss: DeviceSocket;
-    private readonly api: DeviceApiPort;
-    private readonly signaling: SocketIoSignaling;
-    private readonly registry: CallRegistry;
-    private readonly callDeps: CallSessionDeps;
-
-    private readonly device: DeviceModel;
+    private readonly session: DeviceSession;
 
     private _onStatusUnsub?: () => void;
     private _onQRCodeUnsub?: () => void;
     private _onContactUnsub?: () => void;
-    private stopped = false;
 
-    constructor(
-        private readonly mediaManager: MediaManager,
-        token: string,
-        platform?: string,
-        private readonly transportOptions?: TransportOptions,
-    ) {
+    constructor(mediaManager: MediaManager, token: string, platform?: string, transportOptions?: TransportOptions) {
         super();
 
-        this.device = new DeviceModel(token);
-        this.api = new FetchDeviceApi(this.device.token);
-        this.wss = DeviceWebSocketFactory(token, platform);
-        this.signaling = new SocketIoSignaling(this.wss);
-        this.registry = new CallRegistry(this.signaling);
-        this.callDeps = {
-            signaling: this.signaling,
-            transports: this.transportsFor(mediaManager),
-            setLocalMuted: (muted) => mediaManager.setMuted(muted),
-        };
-        this.signaling.onOffer((offer) => this.onOffer(offer));
-        this.wss.on("disconnect", this.onDisconnect.bind(this));
+        const signaling = new SocketIoSignaling(DeviceWebSocketFactory(token, platform));
+        this.session = new DeviceSession(
+            {
+                signaling,
+                api: new FetchDeviceApi(token),
+                transports: transportsFor(mediaManager, token, transportOptions),
+                setLocalMuted: (muted) => mediaManager.setMuted(muted),
+            },
+            token,
+        );
 
-        this.wss.on("device:init", (status, callType, contact, qrCode, restricted, restrictedUntil, activeCalls) => {
-            this.device.status = status;
-            this.device.callType = callType;
-            this.device.contact = contact ?? undefined;
-            this.device.qrCode = qrCode ?? undefined;
-            this.device.restricted = restricted;
-            this.device.restrictedUntil = restrictedUntil ? new Date(restrictedUntil) : null;
-            this.device.activeCalls = activeCalls ?? 0;
-            if (this.device.connectionStatus !== "connected") {
-                this.device.connectionStatus = "connected";
-                this.emit("connectionStatusChanged", this.device.connectionStatus);
-            }
-            this.emit("statusChanged", this.device.status);
-            this.emit("contactChanged", this.device.contact);
-            this.emit("qrCodeChanged", this.device.qrCode);
-            this.emit("restrictedChanged", this.device.restricted, this.device.restrictedUntil);
-            this.emit("activeCallsChanged", this.device.activeCalls);
-        });
-        this.wss.on("device:calls", (count) => {
-            this.device.activeCalls = count;
-            this.emit("activeCallsChanged", count);
-        });
-        this.wss.on("device:restriction:changed", (restricted, restrictedUntil) => {
-            this.device.restricted = restricted;
-            this.device.restrictedUntil = restrictedUntil ? new Date(restrictedUntil) : null;
-            this.emit("restrictedChanged", this.device.restricted, this.device.restrictedUntil);
-        });
-        this.wss.on("device:building", () => {
-            this.device.status = "BUILDING";
-            this.emit("statusChanged", this.device.status);
-        });
-        this.wss.on("device:open", (contact) => {
-            this.device.status = "open";
-            this.device.contact = contact;
-            this.device.qrCode = undefined;
-            this.emit("statusChanged", this.device.status);
-            this.emit("contactChanged", this.device.contact);
-            this.emit("qrCodeChanged", this.device.qrCode);
-        });
-        this.wss.on("device:connecting", (qrcode) => {
-            this.device.status = "connecting";
-            this.device.contact = undefined;
-            this.device.qrCode = qrcode ?? undefined;
-            this.device.restricted = false;
-            this.device.restrictedUntil = null;
-            this.emit("statusChanged", this.device.status);
-            this.emit("contactChanged", this.device.contact);
-            this.emit("qrCodeChanged", this.device.qrCode);
-        });
-        this.wss.on("device:close", () => {
-            this.device.status = "close";
-            this.device.contact = undefined;
-            this.device.qrCode = undefined;
-            this.device.restricted = false;
-            this.device.restrictedUntil = null;
-            this.emit("statusChanged", this.device.status);
-            this.emit("contactChanged", this.device.contact);
-            this.emit("qrCodeChanged", this.device.qrCode);
-        });
-        this.wss.on("device:restarting", () => {
-            this.device.status = "restarting";
-            this.emit("statusChanged", this.device.status);
-        });
-        this.wss.on("device:hibernating", () => {
-            this.device.status = "hibernating";
-            this.emit("statusChanged", this.device.status);
-        });
-
+        this.forwardSessionEvents();
         this.connect();
     }
 
     get token(): string {
-        return this.device.token;
+        return this.session.state.token;
     }
 
     get qrCode(): string | undefined {
-        return this.device.qrCode;
+        return this.session.state.qrCode;
     }
 
     get contact(): Contact | undefined {
-        return this.device.contact;
+        return this.session.state.contact;
     }
 
     get status(): DeviceStatus {
-        return this.device.status;
+        return this.session.state.status;
     }
 
     get connectionStatus(): ConnectionStatus {
-        return this.device.connectionStatus;
+        return this.session.state.connectionStatus;
     }
 
     get restricted(): boolean {
-        return this.device.restricted;
+        return this.session.state.restricted;
     }
 
     get restrictedUntil(): Date | null {
-        return this.device.restrictedUntil;
+        return this.session.state.restrictedUntil;
     }
 
     get activeCalls(): number {
-        return this.device.activeCalls;
-    }
-
-    get socket(): DeviceSocket {
-        return this.wss;
-    }
-
-    get media(): MediaManager {
-        return this.mediaManager;
+        return this.session.state.activeCalls;
     }
 
     async startCall(to: string): Promise<{ call: CallOutgoing; err?: undefined } | { call?: undefined; err: string }> {
-        const { err } = this.device.canCall();
-        if (err) return { err };
-
-        const started = await CallSession.Start(this.callDeps, {
-            to,
-            type: this.device.callType,
-            deviceToken: this.device.token,
-        });
+        const started = await this.session.startCall(to);
         if (started.error) return { err: started.error.code };
-
-        this.registry.register(started.data);
         return { call: CallOutgoingProxy(started.data) };
     }
 
@@ -234,108 +134,63 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     }
 
     async wakeUp(): Promise<boolean> {
-        const woken = await this.api.wakeUp();
+        const woken = await this.session.wakeUp();
         return woken.error === null;
     }
 
     async pairingCode(phone: string): Promise<{ pairingCode: string; err: null } | { pairingCode: null; err: string }> {
-        const { promise, resolve } = Promise.withResolvers<
-            { pairingCode: string; err: null } | { pairingCode: null; err: string }
-        >();
+        const code = await this.session.pairingCode(phone);
+        if (code.error) return { pairingCode: null, err: code.error.code };
+        return { pairingCode: code.data, err: null };
+    }
 
-        this.wss.emit("device.pairing_code", phone, (response) => {
-            if (response.type === "error") resolve({ pairingCode: null, err: response.result });
-            else resolve({ pairingCode: response.result as string, err: null });
+    connect(): void {
+        this.session.connect();
+    }
+
+    disconnect(): void {
+        this.session.disconnect();
+    }
+
+    async restart(): Promise<void> {
+        await this.session.restart();
+    }
+
+    async logout(): Promise<void> {
+        await this.session.logout();
+    }
+
+    private forwardSessionEvents(): void {
+        forwardEvents<DeviceSessionEvents, Events>(this.session, this, {
+            statusChanged: "statusChanged",
+            connectionStatusChanged: "connectionStatusChanged",
+            qrCodeChanged: "qrCodeChanged",
+            contactChanged: "contactChanged",
+            restrictedChanged: "restrictedChanged",
+            activeCallsChanged: "activeCallsChanged",
         });
-
-        return promise;
+        this.session.on("offerReceived", (call, release) => this.emit("offerReceived", OfferProxy(call, release)));
     }
+}
 
-    connect() {
-        if (this.wss.connected) return;
-        this.stopped = false;
-        this.wss.connect();
-    }
-
-    disconnect() {
-        this.stopped = true;
-        // Sem guarda de `disconnected`: o socket.io diz `disconnected` enquanto ainda está
-        // conectando, e a guarda deixaria a conexão em andamento terminar como socket órfão.
-        // `disconnect()` é idempotente e aborta a conexão pendente.
-        this.wss.disconnect();
-    }
-
-    async restart() {
-        await this.api.restart();
-    }
-
-    async logout() {
-        await this.api.logout();
-    }
-
-    private onDisconnect() {
-        if (this.device.connectionStatus !== "disconnected") {
-            this.device.connectionStatus = "disconnected";
-            this.emit("connectionStatusChanged", this.device.connectionStatus);
-        }
-        if (this.stopped) return;
-        if (this.wss.active) return;
-        this.reconnect();
-    }
-
-    private reconnect(attempt = 1) {
-        if (attempt === 3 || this.wss.connected || this.stopped) return;
-
-        if (this.device.connectionStatus !== "reconnecting") {
-            this.device.connectionStatus = "reconnecting";
-            this.emit("connectionStatusChanged", this.device.connectionStatus);
-        }
-
-        // Acorda o device pela API central antes de tentar o socket: hibernado, ele não
-        // responde ao handshake. O status novo chega no `device:init` da reconexão.
-        setTimeout(async () => {
-            if (this.stopped) return;
-            const woken = await this.api.wakeUp();
-            if (this.stopped) return;
-            if (woken.error) return this.reconnect(attempt + 1);
-            this.wss.connect();
-        }, attempt * 1000);
-    }
-
-    private onOffer(offer: { id: string; peer: Peer; plan: MediaPlan }): void {
-        const session = new CallSession(this.callDeps, {
-            id: offer.id,
-            type: this.device.callType,
-            direction: "INCOMING",
-            peer: offer.peer,
-            deviceToken: this.device.token,
-            status: "CALLING",
-            transport: this.callDeps.transports.forOffer(offer.plan, this.device.token),
-        });
-        const release = this.registry.register(session);
-
-        this.emit("offerReceived", OfferProxy(session, release));
-    }
-
-    /**
-     * O device decide o transporte da chamada que sai: OFFICIAL fala WebRTC, UNOFFICIAL
-     * fala relay. Na oferta recebida, quem decide é o plano que veio nela.
-     */
-    private transportsFor(mediaManager: MediaManager): TransportFactory {
-        return {
-            forCall: (type) =>
-                type === "OFFICIAL"
-                    ? new WebRTCTransport(mediaManager, undefined, this.transportOptions)
-                    : new WebsocketTransport(mediaManager, this.device.token, this.transportOptions),
-            forOffer: (plan, deviceToken) => {
-                if (plan.type === "webRTC") return new WebRTCTransport(mediaManager, plan.sdp, this.transportOptions);
-                if (plan.type === "relay") {
-                    const relay = new WebsocketTransport(mediaManager, deviceToken, this.transportOptions);
-                    relay.useRelay(plan);
-                    return relay;
-                }
-                throw new Error(`Unsupported media plan type: ${plan.type}`);
-            },
-        };
-    }
+/**
+ * O device decide o transporte da chamada que sai: OFFICIAL fala WebRTC, UNOFFICIAL fala
+ * relay. Na oferta recebida, quem decide é o plano que veio nela.
+ */
+function transportsFor(mediaManager: MediaManager, token: string, options?: TransportOptions): TransportFactory {
+    return {
+        forCall: (type) =>
+            type === "OFFICIAL"
+                ? new WebRTCTransport(mediaManager, undefined, options)
+                : new WebsocketTransport(mediaManager, token, options),
+        forOffer: (plan, deviceToken) => {
+            if (plan.type === "webRTC") return new WebRTCTransport(mediaManager, plan.sdp, options);
+            if (plan.type === "relay") {
+                const relay = new WebsocketTransport(mediaManager, deviceToken, options);
+                relay.useRelay(plan);
+                return relay;
+            }
+            throw new Error(`Unsupported media plan type: ${plan.type}`);
+        },
+    };
 }
