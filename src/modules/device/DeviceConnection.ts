@@ -1,3 +1,4 @@
+import { FetchDeviceApi } from "@/adapters/http/FetchDeviceApi";
 import { SocketIoSignaling } from "@/adapters/socketio/SocketIoSignaling";
 import { CallRegistry } from "@/application/call/CallRegistry";
 import { CallSession, type CallSessionDeps, type TransportFactory } from "@/application/call/CallSession";
@@ -9,12 +10,11 @@ import type { ConnectionStatus, Contact, DeviceStatus } from "@/modules/device/D
 import { type DeviceSocket, DeviceWebSocketFactory } from "@/modules/device/WebSocket";
 import type { TransportOptions } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
+import type { DeviceApiPort } from "@/ports/DeviceApiPort";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
 import { WebsocketTransport } from "@/modules/media/WebSocket";
 import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
-import type { AxiosInstance } from "axios";
-import axios from "axios";
 
 export type DeviceEvents = {
     statusChanged: [status: DeviceStatus];
@@ -53,7 +53,7 @@ export interface Device {
 
 export class DeviceConnection extends EventEmitter<Events> implements Device {
     private readonly wss: DeviceSocket;
-    private readonly api: AxiosInstance;
+    private readonly api: DeviceApiPort;
     private readonly signaling: SocketIoSignaling;
     private readonly registry: CallRegistry;
     private readonly callDeps: CallSessionDeps;
@@ -74,7 +74,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         super();
 
         this.device = new DeviceModel(token);
-        this.api = axios.create({ baseURL: `https://devices.wavoip.com/${this.device.token}` });
+        this.api = new FetchDeviceApi(this.device.token);
         this.wss = DeviceWebSocketFactory(token, platform);
         this.signaling = new SocketIoSignaling(this.wss);
         this.registry = new CallRegistry(this.signaling);
@@ -234,8 +234,8 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     }
 
     async wakeUp(): Promise<boolean> {
-        const infos = await this.getInfos();
-        return !!infos;
+        const woken = await this.api.wakeUp();
+        return woken.error === null;
     }
 
     async pairingCode(phone: string): Promise<{ pairingCode: string; err: null } | { pairingCode: null; err: string }> {
@@ -266,11 +266,11 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
     }
 
     async restart() {
-        await this.api.get<{ result: string }>("/device/restart");
+        await this.api.restart();
     }
 
     async logout() {
-        await this.api.get<{ result: string }>("/whatsapp/logout");
+        await this.api.logout();
     }
 
     private onDisconnect() {
@@ -291,22 +291,15 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             this.emit("connectionStatusChanged", this.device.connectionStatus);
         }
 
+        // Acorda o device pela API central antes de tentar o socket: hibernado, ele não
+        // responde ao handshake. O status novo chega no `device:init` da reconexão.
         setTimeout(async () => {
             if (this.stopped) return;
-            const infos = await this.getInfos();
+            const woken = await this.api.wakeUp();
             if (this.stopped) return;
-            if (!infos) return this.reconnect(attempt + 1);
-            this.device.status = infos.status;
-            this.emit("statusChanged", this.device.status);
+            if (woken.error) return this.reconnect(attempt + 1);
             this.wss.connect();
         }, attempt * 1000);
-    }
-
-    async getInfos() {
-        return this.api
-            .get("/whatsapp/all_info")
-            .then((res) => res.data.result)
-            .catch(() => null);
     }
 
     private onOffer(offer: { id: string; peer: Peer; plan: MediaPlan }): void {

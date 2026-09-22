@@ -57,11 +57,11 @@ vi.mock("@/modules/device/WebSocket", async (importOriginal) => {
     return { ...actual, DeviceWebSocketFactory: vi.fn(makeSocket) };
 });
 
-vi.mock("axios", () => ({
-    default: {
-        create: vi.fn(() => ({
-            get: vi.fn().mockResolvedValue({ data: { result: null } }),
-        })),
+vi.mock("@/adapters/http/FetchDeviceApi", () => ({
+    FetchDeviceApi: class {
+        restart = vi.fn().mockResolvedValue({ data: undefined, error: null });
+        logout = vi.fn().mockResolvedValue({ data: undefined, error: null });
+        wakeUp = vi.fn().mockResolvedValue({ data: undefined, error: null });
     },
 }));
 

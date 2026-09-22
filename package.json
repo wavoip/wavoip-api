@@ -50,7 +50,6 @@
     },
     "dependencies": {
         "a18n": "^1.12.4",
-        "axios": "^1.12.2",
         "socket.io-client": "^4.8.1"
     }
 }
