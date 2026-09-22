@@ -46,7 +46,7 @@ function makeActive() {
 }
 
 describe("status follows the server's call:* events", () => {
-    it.fails("outgoing call reads REJECTED after call:rejected, already inside peerReject", () => {
+    it("outgoing call reads REJECTED after call:rejected, already inside peerReject", () => {
         const { socket, outgoing } = makeOutgoing();
         let seenInListener: string | undefined;
         outgoing.on("peerReject", () => {
@@ -59,7 +59,7 @@ describe("status follows the server's call:* events", () => {
         expect(outgoing.status).toBe("REJECTED");
     });
 
-    it.fails("outgoing call reads NOT_ANSWERED after call:unanswered", () => {
+    it("outgoing call reads NOT_ANSWERED after call:unanswered", () => {
         const { socket, outgoing } = makeOutgoing();
 
         socket.receive("call:unanswered", "call-1");
@@ -67,7 +67,7 @@ describe("status follows the server's call:* events", () => {
         expect(outgoing.status).toBe("NOT_ANSWERED");
     });
 
-    it.fails("offer reads CANCELLED after the caller gives up, already inside ended", () => {
+    it("offer reads CANCELLED after the caller gives up, already inside ended", () => {
         const { socket, offer } = makeOffer();
         let seenInListener: string | undefined;
         offer.on("ended", () => {
@@ -80,7 +80,7 @@ describe("status follows the server's call:* events", () => {
         expect(offer.status).toBe("CANCELLED");
     });
 
-    it.fails("offer reads ACTIVE after being accepted elsewhere", () => {
+    it("offer reads ACTIVE after being accepted elsewhere", () => {
         const { socket, offer } = makeOffer();
 
         socket.receive("call:accepted", "call-1");
@@ -88,7 +88,7 @@ describe("status follows the server's call:* events", () => {
         expect(offer.status).toBe("ACTIVE");
     });
 
-    it.fails("active call reads DISCONNECTED on call:disconnected and ACTIVE again on call:connected", () => {
+    it("active call reads DISCONNECTED on call:disconnected and ACTIVE again on call:connected", () => {
         const { socket, active } = makeActive();
 
         socket.receive("call:disconnected", "call-1");
@@ -98,7 +98,7 @@ describe("status follows the server's call:* events", () => {
         expect(active.status).toBe("ACTIVE");
     });
 
-    it.fails("active call reads FAILED after call:failed", () => {
+    it("active call reads FAILED after call:failed", () => {
         const { socket, active } = makeActive();
 
         socket.receive("call:failed", "call-1", "CONNECTION_TIMEOUT");
@@ -106,7 +106,7 @@ describe("status follows the server's call:* events", () => {
         expect(active.status).toBe("FAILED");
     });
 
-    it.fails("active call reads ENDED after call:ended from an older instance without outcome", () => {
+    it("active call reads ENDED after call:ended from an older instance without outcome", () => {
         const { socket, active } = makeActive();
 
         socket.receive("call:ended", "call-1");

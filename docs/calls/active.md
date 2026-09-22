@@ -18,7 +18,7 @@ Um objeto `CallActive` é fornecido quando uma oferta recebida é aceita ou quan
 | `direction`           | `CallDirection`         | `"INCOMING"` ou `"OUTGOING"`.                                          |
 | `peer`                | `CallPeer`              | Parte remota — telefone, nome de exibição, foto de perfil e mudo.      |
 | `deviceToken`         | `string`                | Token do dispositivo que gerencia esta chamada.                        |
-| `status`              | `CallStatus`            | Estado atual da chamada.                                               |
+| `status`              | `CallStatus`            | Estado atual da chamada. Acompanha os eventos do servidor: dentro de qualquer handler já traz o valor novo. |
 | `connectionStatus`    | `TransportStatus`       | Estado do transporte de mídia: `"connecting"`, `"connected"`, `"reconnecting"` ou `"disconnected"`. |
 | `audioAnalyserIn`     | `Promise<AnalyserNode>` | Resolve para um `AnalyserNode` conectado ao stream de áudio **recebido** (par → alto-falante local). |
 | `audioAnalyserOut`    | `Promise<AnalyserNode>` | Resolve para um `AnalyserNode` conectado ao stream de áudio **enviado** (microfone local → par). |

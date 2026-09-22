@@ -51,6 +51,12 @@ export class Call extends EventEmitter<CallEvents> {
         return true;
     }
 
+    // O status anunciado pelo servidor vale sem passar pela tabela de transições, que só
+    // guarda os comandos locais. Quem chama é o CallRouter, antes de emitir.
+    settle(status: CallStatus): void {
+        this.status = status;
+    }
+
     accept(): boolean { return this.transition("accept"); }
     reject(): boolean { return this.transition("reject"); }
     cancel(): boolean { return this.transition("cancel"); }
