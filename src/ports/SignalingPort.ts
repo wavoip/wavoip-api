@@ -14,6 +14,23 @@ export type SignalAck<T = void> =
     | { readonly kind: "refused"; readonly code: string }
     | { readonly kind: "timeout" };
 
+/** Fábrica das três respostas, para os adaptadores não repetirem a forma do `SignalAck`. */
+function ok(): SignalAck<void>;
+function ok<T>(value: T): SignalAck<T>;
+function ok<T>(value?: T): SignalAck<T> {
+    return { kind: "ok", value: value as T };
+}
+
+function refuse(code: string): SignalAck<never> {
+    return { kind: "refused", code };
+}
+
+function timeout(): SignalAck<never> {
+    return { kind: "timeout" };
+}
+
+export const Ack = { Ok: ok, Refuse: refuse, Timeout: timeout };
+
 export type StartedCall = { readonly id: string; readonly peer: Peer };
 
 export type IncomingOffer = { readonly id: string; readonly peer: Peer; readonly plan: MediaPlan };
