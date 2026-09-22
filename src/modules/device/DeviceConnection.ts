@@ -169,7 +169,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             restrictedChanged: "restrictedChanged",
             activeCallsChanged: "activeCallsChanged",
         });
-        this.session.on("offerReceived", (call, release) => this.emit("offerReceived", OfferProxy(call, release)));
+        this.session.on("offerReceived", (call) => this.emit("offerReceived", OfferProxy(call)));
     }
 }
 

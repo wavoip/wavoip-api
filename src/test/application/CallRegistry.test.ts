@@ -86,10 +86,11 @@ describe("CallRegistry", () => {
         expect(registry.has("call-1")).toBe(false);
     });
 
-    it("unregisters a call that never reached the server", () => {
-        const unregister = registry.register(session("call-1"));
+    it("drops a call that closed itself, without waiting for the server to echo it", async () => {
+        const call = session("call-1");
+        registry.register(call);
 
-        unregister();
+        await call.reject();
 
         expect(registry.has("call-1")).toBe(false);
     });

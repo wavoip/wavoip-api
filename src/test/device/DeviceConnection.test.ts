@@ -105,8 +105,8 @@ function makeDeviceConnection() {
 
 // A tabela de chamadas roteadas vive no CallRegistry da sessão do device.
 function callsMap(dc: DeviceConnection): Map<string, unknown> {
-    const session = (dc as unknown as { session: { registry: { sessions: Map<string, unknown> } } }).session;
-    return session.registry.sessions;
+    const session = (dc as unknown as { session: { registry: { routed: Map<string, unknown> } } }).session;
+    return session.registry.routed;
 }
 
 const offerProps = (id: string) => ({
@@ -380,8 +380,8 @@ describe("DeviceConnection — calls map cleanup", () => {
 
             await dc.startCall("5511999999999");
 
-            const call = callsMap(dc).get("call-out-1") as { type: string } | undefined;
-            expect(call?.type).toBe("UNOFFICIAL");
+            const routed = callsMap(dc).get("call-out-1") as { session: { type: string } } | undefined;
+            expect(routed?.session.type).toBe("UNOFFICIAL");
         });
     });
 

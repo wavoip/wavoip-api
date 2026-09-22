@@ -15,7 +15,7 @@ beforeEach(() => {
 async function makeActive(plan = relayPlan): Promise<{ session: CallSession; active: CallActive }> {
     const type = plan === relayPlan ? "UNOFFICIAL" : "OFFICIAL";
     const session = harness.incoming({ type, plan });
-    const { call } = await OfferProxy(session, vi.fn()).accept();
+    const { call } = await OfferProxy(session).accept();
     if (!call) throw new Error("accept failed");
     return { session, active: call };
 }
