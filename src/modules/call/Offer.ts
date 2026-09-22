@@ -88,10 +88,11 @@ export function OfferProxy(session: CallSession, release: () => void): Offer {
             return { call: CallActiveProxy(session), err: null };
         },
 
-        // O servidor pode ou não ecoar `call:rejected`; a chamada sai do roteamento já, para
-        // não vazar se a resposta nunca chegar.
+        // A oferta só sai do roteamento quando o servidor confirma a recusa; se ele não
+        // confirmar, ela continua tocando e o integrador fica sabendo.
         async reject(): Promise<{ err: string | null }> {
-            session.reject();
+            const rejected = await session.reject();
+            if (rejected.error) return { err: rejected.error.code };
             release();
             dispose();
             return { err: null };

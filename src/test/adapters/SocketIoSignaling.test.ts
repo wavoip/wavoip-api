@@ -118,14 +118,19 @@ describe("SocketIoSignaling — commands", () => {
     });
 
     it.each([
-        ["accept", () => signaling.accept("call-1", { type: "none" }), "call.accept"],
-        ["reject", () => signaling.reject("call-1"), "call.reject"],
-        ["end", () => signaling.end("call-1"), "call.end"],
-    ])("%s is sent without waiting for the server", (_name, run, event) => {
-        run();
+        ["accept", () => signaling.accept("call-1", { type: "none" }, 10_000), "call.accept"],
+        ["reject", () => signaling.reject("call-1", 10_000), "call.reject"],
+        ["end", () => signaling.end("call-1", 10_000), "call.end"],
+    ])("%s also waits for the ack under the same ceiling", async (_name, run, event) => {
+        expect(await run()).toEqual({ kind: "ok", value: undefined });
+        expect(lastSent()).toMatchObject({ event, timeoutMs: 10_000 });
+    });
 
-        expect(lastSent().event).toBe(event);
-        expect(lastSent().timeoutMs).toBeUndefined();
+    it("reports the refusal of a command that used to be fire-and-forget", async () => {
+        socket.ackMode = "error";
+        socket.errorCode = "CALL_NOT_FOUND";
+
+        expect(await signaling.end("call-1", 10_000)).toEqual({ kind: "refused", code: "CALL_NOT_FOUND" });
     });
 });
 

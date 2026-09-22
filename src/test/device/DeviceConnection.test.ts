@@ -274,12 +274,8 @@ describe("DeviceConnection — calls map cleanup", () => {
 
             expect(err).toBeNull();
             expect(call?.status).toBe("ACTIVE");
-            expect(socket.emit).toHaveBeenCalledWith(
-                "call.accept",
-                "call-1",
-                { type: "webRTC", sdp: "v=0\r\nfake-answer-sdp" },
-                expect.any(Function),
-            );
+            const accepted = socket.withAck.find((s) => s.event === "call.accept");
+            expect(accepted?.args).toEqual(["call-1", { type: "webRTC", sdp: "v=0\r\nfake-answer-sdp" }]);
         });
     });
 

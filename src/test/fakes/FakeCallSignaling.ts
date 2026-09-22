@@ -20,6 +20,9 @@ export class FakeCallSignaling implements CallSignalingPort {
     startAnswer: SignalAck<StartedCall> = Ack.Ok({ id: "call-1", peer: fakePeer() });
     cancelAnswer: SignalAck = Ack.Ok();
     muteAnswer: SignalAck = Ack.Ok();
+    acceptAnswer: SignalAck = Ack.Ok();
+    rejectAnswer: SignalAck = Ack.Ok();
+    endAnswer: SignalAck = Ack.Ok();
     disposed = false;
 
     private readonly callListeners = new Set<(callId: string, event: ServerCallEvent) => void>();
@@ -40,16 +43,19 @@ export class FakeCallSignaling implements CallSignalingPort {
         return this.muteAnswer;
     }
 
-    accept(callId: string, answer: MediaPlan): void {
+    async accept(callId: string, answer: MediaPlan): Promise<SignalAck> {
         this.sent.push({ command: "accept", callId, payload: answer });
+        return this.acceptAnswer;
     }
 
-    reject(callId: string): void {
+    async reject(callId: string): Promise<SignalAck> {
         this.sent.push({ command: "reject", callId });
+        return this.rejectAnswer;
     }
 
-    end(callId: string): void {
+    async end(callId: string): Promise<SignalAck> {
         this.sent.push({ command: "end", callId });
+        return this.endAnswer;
     }
 
     onCallEvent(listener: (callId: string, event: ServerCallEvent) => void): Unsubscribe {

@@ -65,16 +65,34 @@ export class SocketIoSignaling implements CallSignalingPort {
         }
     }
 
-    accept(callId: string, answer: MediaPlan): void {
-        this.socket.emit("call.accept", callId, answer, () => {});
+    async accept(callId: string, answer: MediaPlan, timeoutMs: number): Promise<SignalAck> {
+        try {
+            const res = await this.socket.timeout(timeoutMs).emitWithAck("call.accept", callId, answer);
+            if (res.type === "error") return Ack.Refuse(res.result);
+            return Ack.Ok();
+        } catch {
+            return Ack.Timeout();
+        }
     }
 
-    reject(callId: string): void {
-        this.socket.emit("call.reject", callId, () => {});
+    async reject(callId: string, timeoutMs: number): Promise<SignalAck> {
+        try {
+            const res = await this.socket.timeout(timeoutMs).emitWithAck("call.reject", callId);
+            if (res.type === "error") return Ack.Refuse(res.result);
+            return Ack.Ok();
+        } catch {
+            return Ack.Timeout();
+        }
     }
 
-    end(callId: string): void {
-        this.socket.emit("call.end", callId, () => {});
+    async end(callId: string, timeoutMs: number): Promise<SignalAck> {
+        try {
+            const res = await this.socket.timeout(timeoutMs).emitWithAck("call.end", callId);
+            if (res.type === "error") return Ack.Refuse(res.result);
+            return Ack.Ok();
+        } catch {
+            return Ack.Timeout();
+        }
     }
 
     onCallEvent(listener: CallEventListener): Unsubscribe {

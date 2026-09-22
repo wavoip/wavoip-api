@@ -155,14 +155,25 @@ export class CallSession implements Subscribable<CallSessionEvents> {
             await this.stopMedia();
             return Result.fail("MEDIA_START_FAILED", err);
         }
+
+        // Só há chamada ativa depois de o servidor confirmar: sem o ack, a biblioteca
+        // contaria uma chamada em curso enquanto o outro lado ainda toca.
+        const ack = await this.deps.signaling.accept(this.id, answer, CallPolicy.ackTimeoutMs);
+        if (ack.kind !== "ok") {
+            await this.stopMedia();
+            return Result.fail(ack.kind === "timeout" ? "ACK_TIMEOUT" : ack.code);
+        }
+
         this.status = Status.transition(this.status, "accept") ?? this.status;
-        this.deps.signaling.accept(this.id, answer);
         this.activate();
         return Result.ok();
     }
 
-    reject(): Result<void> {
-        this.deps.signaling.reject(this.id);
+    /** A oferta só está recusada quando o servidor confirma; até lá, ela continua tocando. */
+    async reject(): Promise<Result<void>> {
+        const ack = await this.deps.signaling.reject(this.id, CallPolicy.ackTimeoutMs);
+        if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
+        if (ack.kind === "refused") return Result.fail(ack.code);
         return Result.ok();
     }
 
@@ -193,9 +204,15 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         return Result.ok();
     }
 
+    /**
+     * A mídia só cai quando o servidor confirma o fim. Derrubá-la antes deixaria o
+     * integrador anunciando chamada encerrada enquanto o outro lado continua falando.
+     */
     async end(): Promise<Result<void>> {
         if (this.stopped) return Result.ok();
-        this.deps.signaling.end(this.id);
+        const ack = await this.deps.signaling.end(this.id, CallPolicy.ackTimeoutMs);
+        if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
+        if (ack.kind === "refused") return Result.fail(ack.code);
         await this.stopMedia();
         return Result.ok();
     }
