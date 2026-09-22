@@ -78,12 +78,15 @@ describe("CallSession — accepting an offer", () => {
 
     it("relay: the call is active before the relay connects", async () => {
         const session = makeSession({ type: "UNOFFICIAL", plan: relayPlan });
-        const seen: string[] = [];
-        session.on("activated", () => seen.push(`activated:${transports.current.starts}`));
+        const relay = transports.current;
+        relay.blockStart();
+        const activated = vi.fn();
+        session.on("activated", activated);
 
         await session.accept();
 
-        expect(seen).toEqual(["activated:0"]);
+        expect(activated).toHaveBeenCalledOnce();
+        expect(relay.connected).toBe(false);
         expect(signaling.sent).toEqual([{ command: "accept", callId: "call-1", payload: { type: "none" } }]);
         expect(session.status).toBe("ACTIVE");
     });

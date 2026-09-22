@@ -1,4 +1,5 @@
 import type { CallStats } from "@/domain/call/stats";
+import type { MediaPlan } from "@/domain/call/types";
 import type { TransportStatus } from "@/domain/call/types";
 import type { ConnectivityIssue, IceConfig, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { EventEmitter } from "@/modules/shared/EventEmitter";
@@ -32,7 +33,13 @@ export interface ITransport extends EventEmitter<Events> {
     audioAnalyserOut: Promise<AnalyserNode>;
     stats: CallStats;
 
-    start(): Promise<void>;
+    /**
+     * Sobe a mídia para atender a oferta e devolve o plano local que vai no `call.accept`.
+     * O WebRTC devolve o SDP da resposta; o relay não tem o que mandar e conecta sozinho.
+     */
+    accept(): Promise<MediaPlan>;
+    /** Completa a mídia com o plano que o outro lado mandou ao atender. */
+    connect(plan: MediaPlan): Promise<void>;
     stop(): Promise<void>;
 
     getStats(): Promise<CallStats>;
@@ -40,15 +47,15 @@ export interface ITransport extends EventEmitter<Events> {
 
 export interface IRTCTransport extends ITransport {
     readonly kind: "webrtc";
-    readonly answer: Promise<RTCSessionDescriptionInit>;
     lastDiagnostics: IceDiagnostics | null;
     emittedConnectivityIssues: ReadonlySet<ConnectivityIssue>;
+    /** O SDP da oferta que a chamada que sai manda no `call.start`. */
     createOffer(): Promise<string>;
-    setAnswer(sdp: string): Promise<void>;
 }
 
 export interface IWSTransport extends ITransport {
     readonly kind: "ws";
+    /** Onde o relay atende, conhecido só quando a chamada é aceita. */
     useRelay(server: { host: string; port: string }): void;
 }
 

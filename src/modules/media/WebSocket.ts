@@ -1,4 +1,5 @@
 import type { CallStats } from "@/domain/call/stats";
+import type { MediaPlan } from "@/domain/call/types";
 import { type RelayAddress, WSAudioPipe, WSConnection, WSStatsAdapter } from "@/modules/media/composition";
 import {
     DEFAULT_STATS_TICK_MS,
@@ -61,7 +62,23 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         this.connection.useRelay(server);
     }
 
-    async start(): Promise<void> {
+    /**
+     * Atende: o relay não tem plano para mandar de volta, e a conexão sobe em paralelo —
+     * a chamada já existe enquanto o `connectionStatus` mostra o relay conectando.
+     */
+    async accept(): Promise<MediaPlan> {
+        void this.start();
+        return { type: "none" };
+    }
+
+    /** O outro lado atendeu: a resposta diz onde o relay espera a conexão. */
+    async connect(plan: MediaPlan): Promise<void> {
+        if (plan.type !== "relay") throw new Error(`A relay call cannot connect with a ${plan.type} plan`);
+        this.useRelay(plan);
+        await this.start();
+    }
+
+    private async start(): Promise<void> {
         await this.audioPipe.start();
         await this.connection.start();
         this.startStatsLoop();

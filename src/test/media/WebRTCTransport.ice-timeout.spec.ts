@@ -106,18 +106,16 @@ describe("WebRTCTransport ICE gathering timeout", () => {
         });
     });
 
-    describe("start (incoming) honors the same timeout cap", () => {
+    describe("accept (incoming) honors the same timeout cap", () => {
         it("resolves the answer at the configured timeout when gathering hangs", async () => {
             const mm = makeMockMediaManager();
             const transport = new WebRTCTransport(mm as never, "offer-sdp", { iceConfig: { gatheringTimeoutMs: 400 } });
 
-            const startPromise = transport.start();
+            const accepting = transport.accept();
 
             await vi.advanceTimersByTimeAsync(500);
-            await startPromise;
 
-            const answer = await transport.answer;
-            expect(answer.sdp).toBe("mock-answer-sdp");
+            expect(await accepting).toEqual({ type: "webRTC", sdp: "mock-answer-sdp" });
         });
     });
 });

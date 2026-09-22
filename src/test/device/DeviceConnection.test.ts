@@ -75,9 +75,8 @@ vi.mock("@/modules/media/WebRTC", () => ({
         audioAnalyserIn = Promise.resolve({});
         audioAnalyserOut = Promise.resolve({});
         createOffer = vi.fn().mockResolvedValue("v=0\r\nfake-offer-sdp");
-        answer = Promise.resolve({ type: "answer", sdp: "v=0\r\nfake-answer-sdp" });
-        setAnswer = vi.fn().mockResolvedValue(undefined);
-        start = vi.fn().mockResolvedValue(undefined);
+        accept = vi.fn().mockResolvedValue({ type: "webRTC", sdp: "v=0\r\nfake-answer-sdp" });
+        connect = vi.fn().mockResolvedValue(undefined);
         stop = vi.fn().mockResolvedValue(undefined);
         getStats = vi.fn().mockResolvedValue({});
         on = vi.fn();

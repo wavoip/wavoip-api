@@ -5,7 +5,7 @@ import { type CallStats, type ServerCallStats, Stats } from "@/domain/call/stats
 import { Status } from "@/domain/call/status";
 import type { CallDirection, CallStatus, CallType, MediaPlan, Peer, TransportStatus } from "@/domain/call/types";
 import { Result } from "@/domain/shared/Result";
-import { type ITransport, isRTCTransport, isWSTransport } from "@/modules/media/ITransport";
+import { type ITransport, isRTCTransport } from "@/modules/media/ITransport";
 import { EventEmitter, type Subscribable, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import type { CallSignalingPort, ServerCallEvent } from "@/ports/SignalingPort";
 
@@ -147,7 +147,18 @@ export class CallSession implements Subscribable<CallSessionEvents> {
 
     /** Atende a oferta recebida: o transporte já sabe com quem falar desde a criação. */
     async accept(): Promise<Result<void>> {
-        return isWSTransport(this.transport) ? this.acceptRelay() : this.acceptWebRTC();
+        let answer: MediaPlan;
+        try {
+            answer = await this.transport.accept();
+        } catch (err) {
+            // Sem isto o microfone fica aberto depois de um aceite que falhou.
+            await this.stopMedia();
+            return Result.fail("MEDIA_START_FAILED", err);
+        }
+        this.status = Status.transition(this.status, "accept") ?? this.status;
+        this.deps.signaling.accept(this.id, answer);
+        this.activate();
+        return Result.ok();
     }
 
     reject(): Result<void> {
@@ -291,12 +302,8 @@ export class CallSession implements Subscribable<CallSessionEvents> {
     /** O outro lado atendeu a chamada que saiu: a resposta dele completa o transporte. */
     private async handleAnswered(plan: MediaPlan): Promise<void> {
         this.events.emit("status", this.status);
-        const transport = this.transport;
         try {
-            if (isRTCTransport(transport) && plan.type === "webRTC") await transport.setAnswer(plan.sdp);
-            else if (isWSTransport(transport) && plan.type === "relay") transport.useRelay(plan);
-            else throw new Error(`Media plan ${plan.type} does not fit a ${transport.kind} transport`);
-            await transport.start();
+            await this.transport.connect(plan);
         } catch {
             await this.stopMedia();
             this.events.emit("handoverFailed");
@@ -305,38 +312,6 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         this.activate();
     }
 
-    private async acceptWebRTC(): Promise<Result<void>> {
-        const transport = this.transport;
-        if (!isRTCTransport(transport)) return Result.fail("MEDIA_START_FAILED");
-        try {
-            await transport.start();
-            const answer = await transport.answer;
-            this.deps.signaling.accept(this.id, { type: "webRTC", sdp: answer.sdp as string });
-        } catch (err) {
-            // Sem isto o microfone fica aberto depois de um aceite que falhou.
-            await this.stopMedia();
-            return Result.fail("MEDIA_START_FAILED", err);
-        }
-        this.status = Status.transition(this.status, "accept") ?? this.status;
-        this.activate();
-        return Result.ok();
-    }
-
-    // A chamada ativa existe antes de o relay conectar: o `connectionStatus` dela mostra a
-    // conexão subindo.
-    private async acceptRelay(): Promise<Result<void>> {
-        this.status = Status.transition(this.status, "accept") ?? this.status;
-        this.activate();
-        this.deps.signaling.accept(this.id, { type: "none" });
-        void this.transport.start();
-        return Result.ok();
-    }
-
-    /**
-     * Liga a mídia à chamada. O que o transporte reportou antes disso (diagnóstico de ICE
-     * da oferta) é repassado agora, para quem só passa a escutar com a chamada ativa não
-     * perder.
-     */
     private activate(): void {
         if (this.wired) return;
         this.wired = true;

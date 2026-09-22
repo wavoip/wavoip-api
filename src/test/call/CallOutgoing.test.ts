@@ -1,7 +1,6 @@
 import { CallOutgoingProxy } from "@/modules/call/CallOutgoing";
 import { _resetDeprecationWarnings } from "@/modules/shared/deprecation";
 import { Ack } from "@/ports/SignalingPort";
-import { FakeTransport } from "@/test/fakes/FakeTransport";
 import { CallHarness, relayPlan, testPeer } from "@/test/support/CallHarness";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -52,12 +51,10 @@ describe("CallOutgoing — the peer answers", () => {
     });
 
     it("reports a failed handover as the end of the call", async () => {
-        const { outgoing, session } = makeOutgoing("OFFICIAL");
+        const { outgoing, session } = makeOutgoing("UNOFFICIAL");
         const ended = vi.fn();
         outgoing.on("ended", ended);
-        const media = new FakeTransport();
-        media.startFailure = new Error("no mic");
-        vi.spyOn(harness.transports, "forCall").mockReturnValue(media);
+        harness.transports.current.startFailure = new Error("no mic");
 
         harness.fromServer(session, { type: "answered", plan: relayPlan });
         await vi.waitFor(() => expect(ended).toHaveBeenCalledOnce());
@@ -140,12 +137,15 @@ describe("CallOutgoing — what the server says", () => {
 
     it("forwards the ICE diagnostics the media reports", async () => {
         const { outgoing, session } = makeOutgoing("OFFICIAL");
+        const media = harness.transports.current;
         const heard = vi.fn();
+        const accepted = vi.fn();
         outgoing.on("connectivityIssue", heard);
+        outgoing.on("peerAccept", accepted);
 
         harness.fromServer(session, { type: "answered", plan: { type: "webRTC", sdp: "v=0 answer" } });
-        await vi.waitFor(() => expect(harness.transports.current.starts).toBe(1));
-        harness.transports.current.emit("connectivityIssue", "STUN_UNREACHABLE");
+        await vi.waitFor(() => expect(accepted).toHaveBeenCalledOnce());
+        media.emit("connectivityIssue", "STUN_UNREACHABLE");
 
         expect(heard).toHaveBeenCalledWith("STUN_UNREACHABLE");
     });

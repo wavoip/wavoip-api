@@ -105,7 +105,7 @@ function makeMockMediaManager() {
 }
 
 async function startTransport(transport: WebRTCTransport) {
-    await transport.start();
+    await transport.accept();
 }
 
 describe("WebRTCTransport", () => {
@@ -164,10 +164,9 @@ describe("WebRTCTransport", () => {
             const mm = makeMockMediaManager();
             const transport = new WebRTCTransport(mm as never, "offer-sdp");
 
-            await startTransport(transport);
+            const answer = await transport.accept();
 
-            const answer = await transport.answer;
-            expect(answer).toEqual({ type: "answer", sdp: "mock-answer-sdp" });
+            expect(answer).toEqual({ type: "webRTC", sdp: "mock-answer-sdp" });
         });
 
         it("enables mic track when mediaManager is not muted", async () => {

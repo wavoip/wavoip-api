@@ -1,4 +1,5 @@
 import type { CallStats } from "@/domain/call/stats";
+import type { MediaPlan } from "@/domain/call/types";
 import { RTCAudioPipe, RTCConnection, RTCStatsAdapter } from "@/modules/media/composition";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import {
@@ -37,10 +38,6 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         return this.connection.pc;
     }
 
-    get answer(): Promise<RTCSessionDescriptionInit> {
-        return this.connection.answer;
-    }
-
     get lastDiagnostics(): IceDiagnostics | null {
         return this.connection.lastDiagnostics;
     }
@@ -75,7 +72,21 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         });
     }
 
-    async start(): Promise<void> {
+    /** Atende: sobe a mídia e devolve a resposta SDP que o servidor repassa ao outro lado. */
+    async accept(): Promise<MediaPlan> {
+        await this.start();
+        const answer = await this.connection.answer;
+        return { type: "webRTC", sdp: answer.sdp as string };
+    }
+
+    /** O outro lado atendeu: a resposta dele fecha a negociação e a mídia sobe. */
+    async connect(plan: MediaPlan): Promise<void> {
+        if (plan.type !== "webRTC") throw new Error(`A WebRTC call cannot connect with a ${plan.type} plan`);
+        await this.connection.setAnswer(plan.sdp);
+        await this.start();
+    }
+
+    private async start(): Promise<void> {
         if (this.startedOnce) return;
         this.startedOnce = true;
 
@@ -89,10 +100,6 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     async createOffer(): Promise<string> {
         await this.audioPipe.start();
         return this.connection.createOffer();
-    }
-
-    async setAnswer(sdp: string): Promise<void> {
-        await this.connection.setAnswer(sdp);
     }
 
     async stop(): Promise<void> {
