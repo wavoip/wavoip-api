@@ -379,6 +379,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         await webRTC.start();
 
         const answer = await webRTC.answer;
+        call.accept();
         this.wss.emit("call.accept", call.id, { type: "webRTC", sdp: answer.sdp as string }, () => {});
 
         const active = CallActiveProxy(call, webRTC, this.mediaManager, {
