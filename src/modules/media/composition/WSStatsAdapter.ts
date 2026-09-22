@@ -1,4 +1,5 @@
-import { type CallStats, makeEmptyCallStats } from "@/modules/call/Stats";
+import type { CallStats } from "@/modules/call/Stats";
+import { Stats } from "@/domain/call/stats";
 import type { IStatsAdapter } from "@/modules/media/composition/StatsAdapter";
 
 // Cadência esperada de chegada dos frames do relay, para o estimador de jitter da
@@ -15,7 +16,7 @@ export interface AudioLevelProvider {
  * juntados na Call (`mergeUnofficialStats`).
  */
 export class WSStatsAdapter implements IStatsAdapter {
-    private cache: CallStats = makeEmptyCallStats();
+    private cache: CallStats = Stats.empty();
     private prevRxBytes = 0;
     private prevTxBytes = 0;
     private prevSampleTs = 0;

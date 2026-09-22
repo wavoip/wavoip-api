@@ -1,4 +1,5 @@
-import { type Call, toCallStatus } from "@/modules/device/Call";
+import type { Call } from "@/modules/device/Call";
+import { Status } from "@/domain/call/status";
 import type { DeviceSocket, ServerEvents } from "@/modules/device/WebSocket";
 import type { Unsubscribe } from "@/modules/shared/EventEmitter";
 
@@ -46,7 +47,7 @@ export class CallRouter {
             // proxy se desmonta no `ended`, e o do `Offer` solta as inscrições. Um status
             // emitido depois não chega a ninguém, e uma oferta cujo chamador desistiu nunca
             // saberia que foi CANCELLED.
-            const status = toCallStatus(outcome?.status);
+            const status = Status.narrow(outcome?.status);
             call.settle(status);
             call.emit("status", status);
             call.emit("ended");
