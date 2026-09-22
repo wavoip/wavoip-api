@@ -13,6 +13,17 @@ const { makeSocket, getSocket } = vi.hoisted(() => {
             connect: vi.fn(),
             disconnect: vi.fn(),
             emit: vi.fn() as ReturnType<typeof vi.fn>,
+            // Respostas dos comandos com ack (call.start, call.cancel, call.mute).
+            ackResponse: { type: "success" } as unknown,
+            withAck: [] as { event: string; args: unknown[] }[],
+            timeout(_ms: number) {
+                return {
+                    emitWithAck: async (event: string, ...args: unknown[]) => {
+                        this.withAck.push({ event, args });
+                        return this.ackResponse;
+                    },
+                };
+            },
             on(event: string, cb: SocketListener) {
                 if (!listeners.has(event)) listeners.set(event, []);
                 listeners.get(event)?.push(cb);
@@ -56,11 +67,19 @@ vi.mock("axios", () => ({
 
 vi.mock("@/modules/media/WebRTC", () => ({
     WebRTCTransport: class {
+        kind = "webrtc" as const;
+        status = "connected" as const;
+        peerMuted = false;
+        lastDiagnostics = null;
+        emittedConnectivityIssues = new Set();
+        audioAnalyserIn = Promise.resolve({});
+        audioAnalyserOut = Promise.resolve({});
         createOffer = vi.fn().mockResolvedValue("v=0\r\nfake-offer-sdp");
         answer = Promise.resolve({ type: "answer", sdp: "v=0\r\nfake-answer-sdp" });
         setAnswer = vi.fn().mockResolvedValue(undefined);
         start = vi.fn().mockResolvedValue(undefined);
         stop = vi.fn().mockResolvedValue(undefined);
+        getStats = vi.fn().mockResolvedValue({});
         on = vi.fn();
         emit = vi.fn();
         off = vi.fn();
@@ -69,7 +88,7 @@ vi.mock("@/modules/media/WebRTC", () => ({
 
 import { DeviceConnection } from "@/modules/device/DeviceConnection";
 import type { MediaManager } from "@/modules/media/MediaManager";
-import type { CallType } from "@/modules/device/Call";
+import type { CallType } from "@/domain/call/types";
 import type { Offer } from "@/modules/call/Offer";
 
 const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
@@ -85,8 +104,9 @@ function makeDeviceConnection() {
     return { dc, socket };
 }
 
+// A tabela de chamadas roteadas vive no CallRegistry da conexão.
 function callsMap(dc: DeviceConnection): Map<string, unknown> {
-    return (dc as unknown as { router: { calls: Map<string, unknown> } }).router.calls;
+    return (dc as unknown as { registry: { sessions: Map<string, unknown> } }).registry.sessions;
 }
 
 const offerProps = (id: string) => ({
@@ -271,15 +291,7 @@ describe("DeviceConnection — calls map cleanup", () => {
             // Device UP para o canCall() passar.
             socket.receive("device:init", "UP", callType, null, null, false);
 
-            socket.emit.mockImplementation((event: string, ...args: unknown[]) => {
-                if (event === "call.start") {
-                    const callback = args[args.length - 1] as (r: unknown) => void;
-                    callback({
-                        type: "success",
-                        result: { id, type: callType, peer },
-                    });
-                }
-            });
+            socket.ackResponse = { type: "success", result: { id, type: callType, peer } };
 
             return { dc, socket };
         }
@@ -349,12 +361,9 @@ describe("DeviceConnection — calls map cleanup", () => {
 
             await dc.startCall("5511999999999");
 
-            const callStartEmit = socket.emit.mock.calls.find((c: unknown[]) => c[0] === "call.start");
-            expect(callStartEmit).toBeDefined();
-            const [, phone, mediaPlan] = callStartEmit as [string, string, { type: string; sdp?: string }];
-            expect(phone).toBe("5511999999999");
-            expect(mediaPlan.type).toBe("webRTC");
-            expect(mediaPlan.sdp).toBe("v=0\r\nfake-offer-sdp");
+            const started = socket.withAck.find((s) => s.event === "call.start");
+            expect(started?.args[0]).toBe("5511999999999");
+            expect(started?.args[1]).toEqual({ type: "webRTC", sdp: "v=0\r\nfake-offer-sdp" });
         });
 
         it("sends none mediaplan in call.start when device callType is unofficial", async () => {
@@ -362,10 +371,8 @@ describe("DeviceConnection — calls map cleanup", () => {
 
             await dc.startCall("5511999999999");
 
-            const callStartEmit = socket.emit.mock.calls.find((c: unknown[]) => c[0] === "call.start");
-            expect(callStartEmit).toBeDefined();
-            const [, , mediaPlan] = callStartEmit as [string, string, { type: string }];
-            expect(mediaPlan.type).toBe("none");
+            const started = socket.withAck.find((s) => s.event === "call.start");
+            expect(started?.args[1]).toEqual({ type: "none" });
         });
 
         it("outgoing Call.type follows device.callType, not the server response 'type'", async () => {
@@ -373,12 +380,7 @@ describe("DeviceConnection — calls map cleanup", () => {
             socket.receive("device:init", "UP", "UNOFFICIAL", null, null, false);
 
             // O servidor mente e diz OFFICIAL na resposta do call.start.
-            socket.emit.mockImplementation((event: string, ...args: unknown[]) => {
-                if (event === "call.start") {
-                    const callback = args[args.length - 1] as (r: unknown) => void;
-                    callback({ type: "success", result: { id: "call-out-1", type: "OFFICIAL", peer } });
-                }
-            });
+            socket.ackResponse = { type: "success", result: { id: "call-out-1", type: "OFFICIAL", peer } };
 
             await dc.startCall("5511999999999");
 
@@ -456,12 +458,7 @@ describe("DeviceConnection — calls map cleanup", () => {
         it("startCall proceeds when device is restricted (backend owns the gate)", async () => {
             const { dc, socket } = makeDeviceConnection();
             socket.receive("device:init", "UP", "UNOFFICIAL", null, null, true);
-            socket.emit.mockImplementation((event: string, ...args: unknown[]) => {
-                if (event === "call.start") {
-                    const callback = args[args.length - 1] as (r: unknown) => void;
-                    callback({ type: "success", result: { id: "call-restricted", type: "UNOFFICIAL", peer } });
-                }
-            });
+            socket.ackResponse = { type: "success", result: { id: "call-restricted", type: "UNOFFICIAL", peer } };
 
             const result = await dc.startCall("5511999999999");
 

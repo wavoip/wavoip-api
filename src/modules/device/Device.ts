@@ -1,4 +1,4 @@
-import { Call, type CallType, type Peer } from "@/modules/device/Call";
+import type { CallType } from "@/domain/call/types";
 import { t } from "@/modules/shared/i18n";
 
 /**
@@ -33,11 +33,6 @@ export class DeviceModel {
     public activeCalls = 0;
 
     constructor(public readonly token: string) {}
-
-    receiveOffer(id: string, peer: Peer) {
-        const offer = Call.CreateOffer(id, this.callType, peer, this.token);
-        return offer;
-    }
 
     canCall(): { err?: string } {
         if (this.status === "error") {

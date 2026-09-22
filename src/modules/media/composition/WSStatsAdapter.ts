@@ -1,4 +1,4 @@
-import type { CallStats } from "@/modules/call/Stats";
+import type { CallStats } from "@/domain/call/stats";
 import { Stats } from "@/domain/call/stats";
 import type { IStatsAdapter } from "@/modules/media/composition/StatsAdapter";
 

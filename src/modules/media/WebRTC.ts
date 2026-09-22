@@ -1,4 +1,4 @@
-import type { CallStats } from "@/modules/call/Stats";
+import type { CallStats } from "@/domain/call/stats";
 import { RTCAudioPipe, RTCConnection, RTCStatsAdapter } from "@/modules/media/composition";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import {

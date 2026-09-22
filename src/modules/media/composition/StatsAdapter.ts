@@ -1,4 +1,4 @@
-import type { CallStats } from "@/modules/call/Stats";
+import type { CallStats } from "@/domain/call/stats";
 
 /**
  * Dois métodos para separar a leitura barata do cache (`snapshot`, síncrona) da

@@ -1,213 +1,149 @@
-import type { CallActive } from "@/modules/call/CallActive";
 import { OfferProxy } from "@/modules/call/Offer";
-import { Call } from "@/modules/device/Call";
-import { describe, expect, it, vi } from "vitest";
+import { _resetDeprecationWarnings } from "@/modules/shared/deprecation";
+import { CallHarness, relayPlan, testPeer } from "@/test/support/CallHarness";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
+let harness: CallHarness;
 
-function makeCall() {
-    return Call.CreateOffer("call-1", "OFFICIAL", peer, "device-token");
+beforeEach(() => {
+    harness = new CallHarness();
+    _resetDeprecationWarnings();
+});
+
+function makeOffer(release = vi.fn()) {
+    const session = harness.incoming();
+    return { session, release, offer: OfferProxy(session, release) };
 }
 
-describe("Offer", () => {
-    describe("getters", () => {
-        it("id proxies to call.id", () => {
-            const call = makeCall();
-            
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            expect(offer.id).toBe("call-1");
+function relayOffer() {
+    const session = harness.incoming({ type: "UNOFFICIAL", remotePlan: relayPlan });
+    return { session, offer: OfferProxy(session, vi.fn()) };
+}
+
+describe("Offer — getters", () => {
+    it("reads the call's identity from the session", () => {
+        const { offer } = makeOffer();
+
+        expect(offer).toMatchObject({
+            id: "call-1",
+            type: "OFFICIAL",
+            direction: "INCOMING",
+            deviceToken: "device-token",
+            status: "CALLING",
         });
-
-        it("type proxies to call.type", () => {
-            const call = makeCall();
-            
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            expect(offer.type).toBe("OFFICIAL");
-        });
-
-        it("direction proxies to call.direction", () => {
-            const call = makeCall();
-            
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            expect(offer.direction).toBe("INCOMING");
-        });
-
-        it("deviceToken proxies to call.deviceToken", () => {
-            const call = makeCall();
-
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            expect(offer.deviceToken).toBe("device-token");
-        });
-
-        it("device_token (deprecated) warns once and forwards", async () => {
-            const { _resetDeprecationWarnings } = await import("@/modules/shared/deprecation");
-            _resetDeprecationWarnings();
-            const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-            const call = makeCall();
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-
-            expect(offer.device_token).toBe("device-token");
-            expect(offer.device_token).toBe("device-token");
-
-            const matches = warn.mock.calls.filter((c) => String(c[0]).includes("Offer.device_token"));
-            expect(matches).toHaveLength(1);
-            warn.mockRestore();
-        });
-
-        it("status proxies to call.status", () => {
-            const call = makeCall();
-            
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            expect(offer.status).toBe("CALLING");
-        });
-
-        it("peer spreads call.peer and adds muted: false", () => {
-            const call = makeCall();
-
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            expect(offer.peer).toEqual({ ...peer, muted: false });
-        });
-
-        it("status reflects later mutations of call.status", () => {
-            const call = makeCall();
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-
-            expect(offer.status).toBe("CALLING");
-            call.status = "ACTIVE";
-            expect(offer.status).toBe("ACTIVE");
-        });
+        expect(offer.peer).toEqual({ ...testPeer, muted: false });
     });
 
-    describe("accept()", () => {
-        it("calls onAccept with call and returns { call: active, err: null } on success", async () => {
-            const call = makeCall();
-            
-            const mockActive = {} as CallActive;
-            const onAccept = vi.fn().mockResolvedValue(mockActive);
-            const offer = OfferProxy(call, { onAccept, onReject: vi.fn() });
+    it("follows the status the server announces", () => {
+        const { offer, session } = makeOffer();
 
-            const result = await offer.accept();
+        harness.fromServer(session, { type: "ended", status: "CANCELLED" });
 
-            expect(onAccept).toHaveBeenCalledWith(call);
-            expect(result).toEqual({ call: mockActive, err: null });
-        });
-
-        it("returns { call: null, err: string } when onAccept throws", async () => {
-            const call = makeCall();
-            
-            const onAccept = vi.fn().mockRejectedValue(Error("WebRTC failed"));
-            const offer = OfferProxy(call, { onAccept, onReject: vi.fn() });
-
-            const result = await offer.accept();
-
-            expect(result).toEqual({ call: null, err: "Error: WebRTC failed" });
-        });
-
-        it("returns { call: null, err: string } when onAccept throws a string", async () => {
-            const call = makeCall();
-            
-            const onAccept = vi.fn().mockRejectedValue("something went wrong");
-            const offer = OfferProxy(call, { onAccept, onReject: vi.fn() });
-
-            const result = await offer.accept();
-
-            expect(result.err).toBe("something went wrong");
-            expect(result.call).toBeNull();
-        });
+        expect(offer.status).toBe("CANCELLED");
     });
 
-    describe("reject()", () => {
-        it("calls onReject with call and returns { err: null }", async () => {
-            const call = makeCall();
-            
-            const onReject = vi.fn();
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject });
+    it("device_token warns once and forwards", () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const { offer } = makeOffer();
 
-            const result = await offer.reject();
+        expect(offer.device_token).toBe("device-token");
+        expect(offer.device_token).toBe("device-token");
 
-            expect(onReject).toHaveBeenCalledWith(call);
-            expect(result).toEqual({ err: null });
-        });
+        expect(warn.mock.calls.filter((c) => String(c[0]).includes("Offer.device_token"))).toHaveLength(1);
+        warn.mockRestore();
+    });
+});
+
+describe("Offer — accept and reject", () => {
+    it("accept returns the active call", async () => {
+        const { offer } = makeOffer();
+
+        const { call, err } = await offer.accept();
+
+        expect(err).toBeNull();
+        expect(call?.id).toBe("call-1");
     });
 
-    describe("event subscriptions", () => {
-        it("onAcceptedElsewhere fires when bus emits 'accepted'", () => {
-            const call = makeCall();
-            
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            const cb = vi.fn();
-            offer.onAcceptedElsewhere(cb);
+    it("accept reports the failure instead of throwing", async () => {
+        const session = harness.incoming({ remotePlan: { type: "none" } });
+        const offer = OfferProxy(session, vi.fn());
 
-            call.emit("accepted");
+        const { call, err } = await offer.accept();
 
-            expect(cb).toHaveBeenCalledOnce();
-        });
-
-        it("onRejectedElsewhere fires when bus emits 'rejected'", () => {
-            const call = makeCall();
-            
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            const cb = vi.fn();
-            offer.onRejectedElsewhere(cb);
-
-            call.emit("rejected");
-
-            expect(cb).toHaveBeenCalledOnce();
-        });
-
-        it("onUnanswered fires when bus emits 'unanswered'", () => {
-            const call = makeCall();
-            
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            const cb = vi.fn();
-            offer.onUnanswered(cb);
-
-            call.emit("unanswered");
-
-            expect(cb).toHaveBeenCalledOnce();
-        });
-
-        it("onEnd fires when bus emits 'ended'", () => {
-            const call = makeCall();
-            
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            const cb = vi.fn();
-            offer.onEnd(cb);
-
-            call.emit("ended");
-
-            expect(cb).toHaveBeenCalledOnce();
-        });
-
-        it("onStatus fires with status value when bus emits 'status'", () => {
-            const call = makeCall();
-            
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            const cb = vi.fn();
-            offer.onStatus(cb);
-
-            call.emit("status", "ACTIVE");
-
-            expect(cb).toHaveBeenCalledWith("ACTIVE");
-        });
+        expect(call).toBeNull();
+        expect(err).toContain("Unsupported media plan type");
     });
 
-    // Regressão da ordem `status` antes de `ended` (ver o handler de `call:ended` no
-    // CallRouter).
-    describe("caller gives up before the answer", () => {
-        it("delivers the cancelled outcome before tearing the offer down", () => {
-            const call = makeCall();
-            const offer = OfferProxy(call, { onAccept: vi.fn(), onReject: vi.fn() });
-            const seen: string[] = [];
-            offer.on("status", (s) => seen.push(`status:${s}`));
-            offer.on("ended", () => seen.push("ended"));
+    it("reject tells the server and leaves the routing at once", async () => {
+        const { offer, release } = makeOffer();
 
-            // A ordem de produção, a do CallRouter.
-            call.emit("status", "CANCELLED");
-            call.emit("ended");
+        expect(await offer.reject()).toEqual({ err: null });
+        expect(harness.signaling.sent).toEqual([{ command: "reject", callId: "call-1" }]);
+        expect(release).toHaveBeenCalledOnce();
+    });
+});
 
-            expect(seen).toEqual(["status:CANCELLED", "ended"]);
-        });
+describe("Offer — what the server says", () => {
+    it.each([
+        ["acceptedElsewhere", { type: "accepted" as const }],
+        ["rejectedElsewhere", { type: "rejected" as const }],
+        ["unanswered", { type: "unanswered" as const }],
+        ["ended", { type: "ended" as const, status: "ENDED" as const }],
+    ])("emits %s", (event, serverEvent) => {
+        const { offer, session } = makeOffer();
+        const heard = vi.fn();
+        offer.on(event as "ended", heard);
+
+        harness.fromServer(session, serverEvent);
+
+        expect(heard).toHaveBeenCalledOnce();
+    });
+
+    it("delivers the cancelled outcome before tearing the offer down", () => {
+        const { offer, session } = makeOffer();
+        const seen: string[] = [];
+        offer.on("status", (status) => seen.push(`status:${status}`));
+        offer.on("ended", () => seen.push(`ended:${offer.status}`));
+
+        harness.fromServer(session, { type: "ended", status: "CANCELLED" });
+
+        expect(seen).toEqual(["status:CANCELLED", "ended:CANCELLED"]);
+    });
+
+    it("goes quiet after the offer is over", () => {
+        const { offer, session } = makeOffer();
+        harness.fromServer(session, { type: "ended", status: "ENDED" });
+        const heard = vi.fn();
+        offer.on("status", heard);
+
+        harness.fromServer(session, { type: "ringing" });
+
+        expect(heard).not.toHaveBeenCalled();
+    });
+});
+
+describe("Offer — deprecated listeners", () => {
+    it("onEnd warns once and fires on the terminal event", () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const { offer, session } = relayOffer();
+        const heard = vi.fn();
+
+        offer.onEnd(heard);
+        harness.fromServer(session, { type: "ended", status: "ENDED" });
+
+        expect(heard).toHaveBeenCalledOnce();
+        expect(warn.mock.calls.filter((c) => String(c[0]).includes("Offer.onEnd"))).toHaveLength(1);
+        warn.mockRestore();
+    });
+
+    it("onStatus fires with the new status", () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        const { offer, session } = relayOffer();
+        const heard = vi.fn();
+
+        offer.onStatus(heard);
+        harness.fromServer(session, { type: "ringing" });
+
+        expect(heard).toHaveBeenCalledWith("RINGING");
     });
 });

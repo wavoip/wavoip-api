@@ -1,4 +1,4 @@
-import type { CallStats } from "@/modules/call/Stats";
+import type { CallStats } from "@/domain/call/stats";
 import { WSAudioPipe, WSConnection, WSStatsAdapter } from "@/modules/media/composition";
 import {
     DEFAULT_STATS_TICK_MS,

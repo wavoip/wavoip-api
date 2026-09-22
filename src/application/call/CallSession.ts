@@ -40,6 +40,8 @@ export type CallSessionDeps = {
     setLocalMuted: (muted: boolean) => void;
 };
 
+export type DialParams = { to: string; type: CallType; deviceToken: string };
+
 export type CallSessionInit = {
     id: string;
     type: CallType;
@@ -48,6 +50,8 @@ export type CallSessionInit = {
     deviceToken: string;
     status: CallStatus;
     remotePlan?: MediaPlan;
+    /** A oferta WebRTC montada antes do `call.start`, que vira a mídia desta chamada. */
+    preparedMedia?: IRTCTransport;
 };
 
 /**
@@ -84,6 +88,49 @@ export class CallSession extends EventEmitter<CallSessionEvents> {
         this.deviceToken = init.deviceToken;
         this.status = init.status;
         this.remotePlan = init.remotePlan;
+        this.transport = init.preparedMedia ?? null;
+    }
+
+    /**
+     * Disca: a chamada OFFICIAL monta a oferta WebRTC antes de pedir o `call.start`, porque
+     * o servidor precisa do SDP para chamar. Se qualquer um dos dois passos falhar, a mídia
+     * já montada é liberada e ninguém fica com o microfone aberto.
+     */
+    static async dial(
+        deps: CallSessionDeps,
+        params: DialParams,
+    ): Promise<{ session: CallSession; err?: undefined } | { session?: undefined; err: string }> {
+        let plan: MediaPlan = { type: "none" };
+        let prepared: IRTCTransport | undefined;
+
+        if (params.type === "OFFICIAL") {
+            prepared = deps.transports.offerer();
+            try {
+                plan = { type: "webRTC", sdp: await prepared.createOffer() };
+            } catch (e) {
+                await prepared.stop().catch(() => {});
+                return { err: e instanceof Error ? e.message : "Failed to create WebRTC offer" };
+            }
+        }
+
+        const ack = await deps.signaling.startCall(params.to, plan, CallPolicy.ackTimeoutMs);
+        if (ack.kind !== "ok") {
+            await prepared?.stop().catch(() => {});
+            return { err: ack.kind === "timeout" ? "ACK_TIMEOUT" : ack.code };
+        }
+
+        // O tipo vem do device (`device:init`), e não da resposta do `call.start`, que já
+        // devolveu OFFICIAL para device não oficial.
+        const session = new CallSession(deps, {
+            id: ack.value.id,
+            type: params.type,
+            direction: "OUTGOING",
+            peer: ack.value.peer,
+            deviceToken: params.deviceToken,
+            status: "RINGING",
+            preparedMedia: prepared,
+        });
+        return { session };
     }
 
     get connectionStatus(): TransportStatus {
@@ -96,13 +143,6 @@ export class CallSession extends EventEmitter<CallSessionEvents> {
 
     get media(): ITransport | null {
         return this.transport;
-    }
-
-    /** A oferta pré-montada da chamada OFFICIAL que sai: o SDP vai no `call.start`. */
-    async prepareOffer(): Promise<string> {
-        const offerer = this.deps.transports.offerer();
-        this.transport = offerer;
-        return offerer.createOffer();
     }
 
     /** Atende a oferta recebida e devolve a chamada já ativa. */

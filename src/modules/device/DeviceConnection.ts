@@ -1,12 +1,12 @@
-import { type CallActive, CallActiveProxy } from "@/modules/call/CallActive";
+import { SocketIoSignaling } from "@/adapters/socketio/SocketIoSignaling";
+import { CallRegistry } from "@/application/call/CallRegistry";
+import { CallSession, type CallSessionDeps, type TransportFactory } from "@/application/call/CallSession";
+import type { MediaPlan, Peer } from "@/domain/call/types";
 import { type CallOutgoing, CallOutgoingProxy } from "@/modules/call/CallOutgoing";
 import { type Offer, OfferProxy } from "@/modules/call/Offer";
-import { Call } from "@/modules/device/Call";
-import { CallRouter } from "@/modules/device/CallRouter";
 import { DeviceModel } from "@/modules/device/Device";
 import type { ConnectionStatus, Contact, DeviceStatus } from "@/modules/device/Device";
 import { type DeviceSocket, DeviceWebSocketFactory } from "@/modules/device/WebSocket";
-import type { MediaPlan, MediaPlanRelay, MediaPlanWebRTC } from "@/modules/device/WebSocket";
 import type { TransportOptions } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/WebRTC";
@@ -54,7 +54,9 @@ export interface Device {
 export class DeviceConnection extends EventEmitter<Events> implements Device {
     private readonly wss: DeviceSocket;
     private readonly api: AxiosInstance;
-    private readonly router: CallRouter;
+    private readonly signaling: SocketIoSignaling;
+    private readonly registry: CallRegistry;
+    private readonly callDeps: CallSessionDeps;
 
     private readonly device: DeviceModel;
 
@@ -74,8 +76,15 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         this.device = new DeviceModel(token);
         this.api = axios.create({ baseURL: `https://devices.wavoip.com/${this.device.token}` });
         this.wss = DeviceWebSocketFactory(token, platform);
-        this.router = new CallRouter(this.wss);
-        this.router.start();
+        this.signaling = new SocketIoSignaling(this.wss);
+        this.registry = new CallRegistry(this.signaling);
+        this.registry.start();
+        this.callDeps = {
+            signaling: this.signaling,
+            transports: this.transportsFor(mediaManager),
+            setLocalMuted: (muted) => mediaManager.setMuted(muted),
+        };
+        this.signaling.onOffer((offer) => this.onOffer(offer));
         this.wss.on("disconnect", this.onDisconnect.bind(this));
 
         this.wss.on("device:init", (status, callType, contact, qrCode, restricted, restrictedUntil, activeCalls) => {
@@ -146,8 +155,6 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             this.emit("statusChanged", this.device.status);
         });
 
-        this.wss.on("call:offer", this.onOffer.bind(this));
-
         this.connect();
     }
 
@@ -195,48 +202,15 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         const { err } = this.device.canCall();
         if (err) return { err };
 
-        let mediaPlan: MediaPlan;
-        let preBuiltTransport: WebRTCTransport | undefined;
-        if (this.device.callType === "OFFICIAL") {
-            preBuiltTransport = new WebRTCTransport(this.mediaManager, undefined, this.transportOptions);
-            try {
-                const sdp = await preBuiltTransport.createOffer();
-                mediaPlan = { type: "webRTC", sdp };
-            } catch (e) {
-                await preBuiltTransport.stop();
-                return { err: e instanceof Error ? e.message : "Failed to create WebRTC offer" };
-            }
-        } else {
-            mediaPlan = { type: "none" };
-        }
-
-        const { promise, resolve } = Promise.withResolvers<
-            { call: CallOutgoing; err?: undefined } | { call?: undefined; err: string }
-        >();
-
-        this.wss.emit("call.start", to, mediaPlan, async (response) => {
-            if (response.type === "error") {
-                await preBuiltTransport?.stop();
-                return resolve({ err: response.result });
-            }
-
-            const { id, peer } = response.result;
-            // O tipo vem do `device:init`, e não do `type` da resposta do `call.start`, que
-            // já devolveu OFFICIAL para device não oficial — e aí a projeção `call:stats` →
-            // `stats` nunca disparava.
-            const call = new Call(id, this.device.callType, "OUTGOING", peer, this.device.token, "RINGING");
-            this.router.register(call);
-            const outgoing = CallOutgoingProxy(
-                call,
-                this.wss,
-                this.mediaManager,
-                preBuiltTransport,
-                this.transportOptions,
-            );
-            resolve({ call: outgoing });
+        const dialed = await CallSession.dial(this.callDeps, {
+            to,
+            type: this.device.callType,
+            deviceToken: this.device.token,
         });
+        if (!dialed.session) return { err: dialed.err };
 
-        return promise;
+        this.registry.register(dialed.session);
+        return { call: CallOutgoingProxy(dialed.session) };
     }
 
     onStatus(cb: (status: DeviceStatus) => void): () => void {
@@ -336,72 +310,31 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             .catch(() => null);
     }
 
-    private onOffer(
-        offerProps: {
-            id: string;
-            peer: { phone: string; displayName: string | null; profilePicture: string | null };
-            offer: MediaPlan;
-        },
-        ackOffer: () => void,
-    ) {
-        ackOffer();
-
-        const call = this.device.receiveOffer(offerProps.id, offerProps.peer);
-        const unregister = this.router.register(call);
-
-        const offer = OfferProxy(call, {
-            onAccept: (call) => {
-                const mediaPlan = offerProps.offer;
-
-                if (mediaPlan.type === "webRTC") {
-                    return this.acceptWebRTCOffer(call, mediaPlan);
-                }
-
-                if (mediaPlan.type === "relay") {
-                    return this.acceptRelayOffer(call, mediaPlan);
-                }
-
-                return Promise.reject("Unsupported media plan type");
-            },
-            // O servidor pode ou não ecoar `call:rejected`; a entrada sai do router já, para
-            // não vazar se a resposta nunca chegar.
-            onReject: (call) => {
-                this.wss.emit("call.reject", call.id, () => {});
-                unregister();
-            },
+    private onOffer(offer: { id: string; peer: Peer; plan: MediaPlan }): void {
+        const session = new CallSession(this.callDeps, {
+            id: offer.id,
+            type: this.device.callType,
+            direction: "INCOMING",
+            peer: offer.peer,
+            deviceToken: this.device.token,
+            status: "CALLING",
+            remotePlan: offer.plan,
         });
+        const release = this.registry.register(session);
 
-        this.emit("offerReceived", offer);
+        this.emit("offerReceived", OfferProxy(session, release));
     }
 
-    private async acceptWebRTCOffer(call: Call, mediaPlan: MediaPlanWebRTC): Promise<CallActive> {
-        const webRTC = new WebRTCTransport(this.mediaManager, mediaPlan.sdp, this.transportOptions);
-        await webRTC.start();
-
-        const answer = await webRTC.answer;
-        call.accept();
-        this.wss.emit("call.accept", call.id, { type: "webRTC", sdp: answer.sdp as string }, () => {});
-
-        const active = CallActiveProxy(call, webRTC, this.mediaManager, {
-            onEnd: (call) => {
-                this.wss.emit("call.end", call.id, () => {});
+    private transportsFor(mediaManager: MediaManager): TransportFactory {
+        return {
+            offerer: () => new WebRTCTransport(mediaManager, undefined, this.transportOptions),
+            forPlan: (plan, deviceToken) => {
+                if (plan.type === "webRTC") return new WebRTCTransport(mediaManager, plan.sdp, this.transportOptions);
+                if (plan.type === "relay") {
+                    return new WebsocketTransport(mediaManager, plan, deviceToken, this.transportOptions);
+                }
+                throw new Error(`Unsupported media plan type: ${plan.type}`);
             },
-        });
-        call.wireTransport(webRTC);
-        return active;
-    }
-
-    private acceptRelayOffer(call: Call, mediaPlan: MediaPlanRelay): Promise<CallActive> {
-        const wsTransport = new WebsocketTransport(this.mediaManager, mediaPlan, call.deviceToken, this.transportOptions);
-        call.accept();
-        const active = CallActiveProxy(call, wsTransport, this.mediaManager, {
-            onEnd: (call) => {
-                this.wss.emit("call.end", call.id, () => {});
-            },
-        });
-        call.wireTransport(wsTransport);
-        this.wss.emit("call.accept", call.id, { type: "none" }, () => {});
-        wsTransport.start();
-        return Promise.resolve(active);
+        };
     }
 }

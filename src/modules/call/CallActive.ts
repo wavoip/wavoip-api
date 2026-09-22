@@ -1,10 +1,9 @@
 import type { CallPeer } from "@/modules/call/Peer";
-import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
-import type { Call, CallDirection, CallStatus, CallType } from "@/modules/device/Call";
-import type { CallFailReason } from "@/modules/device/CallFailReason";
-import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
-import type { ITransport, TransportStatus } from "@/modules/media/ITransport";
-import type { MediaManager } from "@/modules/media/MediaManager";
+import type { CallSession } from "@/application/call/CallSession";
+import type { CallStats, ServerCallStats } from "@/domain/call/stats";
+import type { CallDirection, CallStatus, CallType, TransportStatus } from "@/domain/call/types";
+import type { CallFailReason } from "@/domain/call/failReason";
+import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
@@ -67,50 +66,27 @@ export interface CallActive {
     onStatus(cb: (status: CallStatus) => void): void;
 }
 
-export function CallActiveProxy(
-    call: Call,
-    transport: ITransport,
-    mediaManager: MediaManager,
-    callbacks: {
-        onEnd: (call: Call) => void;
-    },
-): CallActive {
+export function CallActiveProxy(session: CallSession): CallActive {
     const emitter = new EventEmitter<CallActiveEvents>();
 
     let lastIceDiagnostics: IceDiagnostics | undefined;
     const bufferedConnectivityIssues: ConnectivityIssue[] = [];
 
-    let disposed = false;
-    const dispose = (): Promise<void> => {
-        if (disposed) return Promise.resolve();
-        disposed = true;
-        return Promise.resolve(transport.stop()).catch(() => {});
-    };
-
-    forwardEvents(call, emitter, {
+    forwardEvents(session, emitter, {
         stats: "stats",
         serverStats: "serverStats",
         connectionStatus: "connectionStatus",
         status: "status",
     });
 
-    call.on("failed", (err) => {
-        emitter.emit("error", err);
-        void dispose();
-    });
-    call.on("peerMuted", (muted) => {
-        if (muted) emitter.emit("peerMute");
-        else emitter.emit("peerUnmute");
-    });
-    call.on("ended", () => {
-        emitter.emit("ended");
-        void dispose();
-    });
-    call.on("iceDiagnostics", (diag) => {
+    session.on("failed", (err) => emitter.emit("error", err));
+    session.on("peerMuted", (muted) => emitter.emit(muted ? "peerMute" : "peerUnmute"));
+    session.on("ended", () => emitter.emit("ended"));
+    session.on("iceDiagnostics", (diag) => {
         lastIceDiagnostics = diag;
         emitter.emit("iceDiagnostics", diag);
     });
-    call.on("connectivityIssue", (issue) => {
+    session.on("connectivityIssue", (issue) => {
         bufferedConnectivityIssues.push(issue);
         emitter.emit("connectivityIssue", issue);
     });
@@ -124,40 +100,36 @@ export function CallActiveProxy(
     let onStatusUnsub: Unsubscribe | undefined;
 
     const proxy = {
-        id: call.id,
-        type: call.type,
-        deviceToken: call.deviceToken,
-        direction: call.direction,
-        audioAnalyserIn: transport.audioAnalyserIn,
-        audioAnalyserOut: transport.audioAnalyserOut,
+        id: session.id,
+        type: session.type,
+        deviceToken: session.deviceToken,
+        direction: session.direction,
+        audioAnalyserIn: session.media?.audioAnalyserIn as Promise<AnalyserNode>,
+        audioAnalyserOut: session.media?.audioAnalyserOut as Promise<AnalyserNode>,
 
-        mute(): Promise<{ err: string | null }> {
-            mediaManager.setMuted(true);
-            return Promise.resolve({ err: null });
+        async mute(): Promise<{ err: string | null }> {
+            return { err: await session.mute(true, "active") };
         },
 
-        unmute(): Promise<{ err: string | null }> {
-            mediaManager.setMuted(false);
-            return Promise.resolve({ err: null });
+        async unmute(): Promise<{ err: string | null }> {
+            return { err: await session.mute(false, "active") };
         },
 
         async end(): Promise<{ err: string | null }> {
-            if (disposed) return { err: null };
-            callbacks.onEnd(call);
-            await dispose();
+            await session.end();
             return { err: null };
         },
 
         getStats(): Promise<CallStats> {
-            return call.getStats();
+            return session.getStats();
         },
 
         on<T extends keyof CallActiveEvents>(event: T, callback: (...args: CallActiveEvents[T]) => void): Unsubscribe {
             if (event === "stats") {
-                warnDeprecated("CallActive.stats event", 'use `active.getStats()` instead.');
+                warnDeprecated("CallActive.stats event", "use `active.getStats()` instead.");
             }
             if (event === "serverStats") {
-                warnDeprecated("CallActive.serverStats event", 'use `active.getStats()` instead.');
+                warnDeprecated("CallActive.serverStats event", "use `active.getStats()` instead.");
             }
             const unsub = emitter.on(event, callback);
             if (event === "iceDiagnostics" && lastIceDiagnostics) {
@@ -214,30 +186,30 @@ export function CallActiveProxy(
         },
     } as CallActive;
 
-    // Getters vivos: call.status, transport.status e transport.peerMuted mudam ao longo da
-    // vida do proxy, e uma cópia os congelaria no valor da construção.
+    // Getters vivos: o status da chamada, o do transporte e o mute do outro lado mudam ao
+    // longo da vida do proxy, e uma cópia os congelaria no valor da construção.
     Object.defineProperties(proxy, {
-        status: { get: () => call.status, enumerable: true },
-        connectionStatus: { get: () => transport.status, enumerable: true },
-        peer: { get: () => ({ ...call.peer, muted: transport.peerMuted }), enumerable: true },
+        status: { get: () => session.status, enumerable: true },
+        connectionStatus: { get: () => session.connectionStatus, enumerable: true },
+        peer: { get: () => ({ ...session.peer, muted: session.peerMuted }), enumerable: true },
         device_token: {
             get: () => {
                 warnDeprecated("CallActive.device_token", "use `active.deviceToken` instead.");
-                return call.deviceToken;
+                return session.deviceToken;
             },
             enumerable: true,
         },
         connection_status: {
             get: () => {
                 warnDeprecated("CallActive.connection_status", "use `active.connectionStatus` instead.");
-                return transport.status;
+                return session.connectionStatus;
             },
             enumerable: true,
         },
         audio_analyser: {
             get: () => {
                 warnDeprecated("CallActive.audio_analyser", "use `active.audioAnalyserIn` instead.");
-                return transport.audioAnalyserIn;
+                return session.media?.audioAnalyserIn;
             },
             enumerable: true,
         },
