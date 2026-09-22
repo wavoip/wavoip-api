@@ -66,7 +66,7 @@ describe("CallActive — getters", () => {
 });
 
 describe("CallActive — commands", () => {
-    it("mute and unmute apply at once, without asking the server", async () => {
+    it("mute and unmute tell the other side before cutting the microphone", async () => {
         const { active } = await makeActive();
         harness.signaling.sent.length = 0;
 
@@ -74,7 +74,7 @@ describe("CallActive — commands", () => {
         expect(await active.unmute()).toEqual({ err: null });
 
         expect(harness.muted).toEqual([true, false]);
-        expect(harness.signaling.sent).toEqual([]);
+        expect(harness.signaling.sent.map((s) => s.command)).toEqual(["mute", "mute"]);
     });
 
     it("end tells the server and stops the media, once", async () => {

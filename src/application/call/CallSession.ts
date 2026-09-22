@@ -174,6 +174,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         const ack = await this.deps.signaling.reject(this.id, CallPolicy.ackTimeoutMs);
         if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
         if (ack.kind === "refused") return Result.fail(ack.code);
+        this.status = Status.transition(this.status, "reject") ?? this.status;
         return Result.ok();
     }
 
@@ -188,6 +189,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
      * ser atendida.
      */
     async cancel(): Promise<Result<void>> {
+        if (this.stopped) return Result.ok();
         const ack = await this.deps.signaling.cancel(this.id, CallPolicy.ackTimeoutMs);
         if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
         if (ack.kind === "refused") {
@@ -217,12 +219,12 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         return Result.ok();
     }
 
-    /** O mute da chamada que sai avisa o servidor; o da chamada ativa é só local. */
-    async mute(muted: boolean, via: "outgoing" | "active"): Promise<Result<void>> {
-        if (via === "active") {
-            this.deps.setLocalMuted(muted);
-            return Result.ok();
-        }
+    /**
+     * O outro lado precisa saber do mute — é assim que ele recebe `call:peer:muted` —, e o
+     * microfone só corta depois da confirmação, para a interface não mostrar mudo enquanto
+     * o áudio ainda sai.
+     */
+    async mute(muted: boolean): Promise<Result<void>> {
         const ack = await this.deps.signaling.mute(this.id, muted, CallPolicy.ackTimeoutMs);
         if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
         if (ack.kind === "refused") return Result.fail(ack.code);

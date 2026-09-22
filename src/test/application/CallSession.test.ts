@@ -247,20 +247,37 @@ describe("CallSession — ending and muting", () => {
     it("mute from the outgoing call asks the server and applies only on success", async () => {
         const session = await dialedSession("UNOFFICIAL");
 
-        expect((await session.mute(true, "outgoing")).error).toBeNull();
+        expect((await session.mute(true)).error).toBeNull();
         expect(muted).toEqual([true]);
 
         signaling.muteAnswer = Ack.Refuse("CALL_NOT_FOUND");
-        expect((await session.mute(false, "outgoing")).error?.code).toBe("CALL_NOT_FOUND");
+        expect((await session.mute(false)).error?.code).toBe("CALL_NOT_FOUND");
         expect(muted).toEqual([true]);
     });
 
-    it("mute from the active call applies at once, without signaling", async () => {
+    it("mute tells the other side, whatever phase the call is in", async () => {
         const session = makeSession({ status: "ACTIVE" });
 
-        expect((await session.mute(true, "active")).error).toBeNull();
+        expect((await session.mute(true)).error).toBeNull();
+
         expect(muted).toEqual([true]);
+        expect(signaling.sent).toEqual([{ command: "mute", callId: "call-1", payload: true }]);
+    });
+
+    it("cancelling a call that already stopped does not ask the server again", async () => {
+        const session = await dialedSession("UNOFFICIAL");
+        await session.cancel();
+        signaling.sent.length = 0;
+
+        expect((await session.cancel()).error).toBeNull();
         expect(signaling.sent).toEqual([]);
+    });
+
+    it("rejecting moves the offer to REJECTED", async () => {
+        const session = makeSession();
+
+        expect((await session.reject()).error).toBeNull();
+        expect(session.status).toBe("REJECTED");
     });
 });
 

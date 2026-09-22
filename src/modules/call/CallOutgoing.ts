@@ -74,11 +74,11 @@ export function CallOutgoingProxy(session: CallSession): CallOutgoing {
         direction: session.direction,
 
         async mute(): Promise<{ err: string | null }> {
-            return toLegacy(await session.mute(true, "outgoing"));
+            return toLegacy(await session.mute(true));
         },
 
         async unmute(): Promise<{ err: string | null }> {
-            return toLegacy(await session.mute(false, "outgoing"));
+            return toLegacy(await session.mute(false));
         },
 
         async cancel(): Promise<{ err: string | null }> {

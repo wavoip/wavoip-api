@@ -109,11 +109,11 @@ export function CallActiveProxy(session: CallSession): CallActive {
         audioAnalyserOut: session.media?.audioAnalyserOut as Promise<AnalyserNode>,
 
         async mute(): Promise<{ err: string | null }> {
-            return toLegacy(await session.mute(true, "active"));
+            return toLegacy(await session.mute(true));
         },
 
         async unmute(): Promise<{ err: string | null }> {
-            return toLegacy(await session.mute(false, "active"));
+            return toLegacy(await session.mute(false));
         },
 
         async end(): Promise<{ err: string | null }> {
