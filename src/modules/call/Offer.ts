@@ -3,6 +3,7 @@ import type { CallPeer } from "@/modules/call/Peer";
 import type { CallSession, CallSessionEvents } from "@/application/call/CallSession";
 import type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
+import { legacyMessage } from "@/modules/call/legacyResult";
 import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
@@ -81,13 +82,10 @@ export function OfferProxy(session: CallSession, release: () => void): Offer {
         direction: session.direction,
 
         async accept(): Promise<{ call: CallActive; err: null } | { call: null; err: string }> {
-            try {
-                dispose();
-                await session.accept();
-                return { call: CallActiveProxy(session), err: null };
-            } catch (e) {
-                return { call: null, err: String(e) };
-            }
+            dispose();
+            const accepted = await session.accept();
+            if (accepted.error) return { call: null, err: legacyMessage(accepted.error) };
+            return { call: CallActiveProxy(session), err: null };
         },
 
         // O servidor pode ou não ecoar `call:rejected`; a chamada sai do roteamento já, para

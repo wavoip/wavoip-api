@@ -16,7 +16,7 @@ function makeOffer(release = vi.fn()) {
 }
 
 function relayOffer() {
-    const session = harness.incoming({ type: "UNOFFICIAL", remotePlan: relayPlan });
+    const session = harness.incoming({ type: "UNOFFICIAL", plan: relayPlan });
     return { session, offer: OfferProxy(session, vi.fn()) };
 }
 
@@ -65,13 +65,13 @@ describe("Offer — accept and reject", () => {
     });
 
     it("accept reports the failure instead of throwing", async () => {
-        const session = harness.incoming({ remotePlan: { type: "none" } });
-        const offer = OfferProxy(session, vi.fn());
+        const { offer } = makeOffer();
+        harness.transports.current.startFailure = new Error("Permission denied");
 
         const { call, err } = await offer.accept();
 
         expect(call).toBeNull();
-        expect(err).toContain("Unsupported media plan type");
+        expect(err).toBe("Permission denied");
     });
 
     it("reject tells the server and leaves the routing at once", async () => {

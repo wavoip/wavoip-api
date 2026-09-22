@@ -57,7 +57,7 @@ describe("CallOutgoing — the peer answers", () => {
         outgoing.on("ended", ended);
         const media = new FakeTransport();
         media.startFailure = new Error("no mic");
-        vi.spyOn(harness.transports, "forPlan").mockReturnValue(media);
+        vi.spyOn(harness.transports, "forCall").mockReturnValue(media);
 
         harness.fromServer(session, { type: "answered", plan: relayPlan });
         await vi.waitFor(() => expect(ended).toHaveBeenCalledOnce());

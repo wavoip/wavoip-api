@@ -49,8 +49,12 @@ describe("composition — IStatsAdapter contract", () => {
     it("snapshot() is synchronous and returns CallStats", () => {
         class Adapter implements IStatsAdapter {
             private cache = emptyStats();
-            snapshot(): CallStats { return this.cache; }
-            refresh(): Promise<void> { return Promise.resolve(); }
+            snapshot(): CallStats {
+                return this.cache;
+            }
+            refresh(): Promise<void> {
+                return Promise.resolve();
+            }
         }
         const a = new Adapter();
         const s = a.snapshot();
@@ -61,8 +65,12 @@ describe("composition — IStatsAdapter contract", () => {
     it("refresh() returns Promise that callers can await", async () => {
         let refreshed = 0;
         class Adapter implements IStatsAdapter {
-            snapshot(): CallStats { return emptyStats(); }
-            async refresh(): Promise<void> { refreshed += 1; }
+            snapshot(): CallStats {
+                return emptyStats();
+            }
+            async refresh(): Promise<void> {
+                refreshed += 1;
+            }
         }
         const a = new Adapter();
         await a.refresh();

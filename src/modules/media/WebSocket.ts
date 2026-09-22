@@ -1,5 +1,5 @@
 import type { CallStats } from "@/domain/call/stats";
-import { WSAudioPipe, WSConnection, WSStatsAdapter } from "@/modules/media/composition";
+import { type RelayAddress, WSAudioPipe, WSConnection, WSStatsAdapter } from "@/modules/media/composition";
 import {
     DEFAULT_STATS_TICK_MS,
     type Events,
@@ -31,16 +31,11 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
 
     private statsTimer: ReturnType<typeof setInterval> | null = null;
 
-    constructor(
-        mediaManager: MediaManager,
-        server: { host: string; port: string },
-        token: string,
-        options?: TransportOptions,
-    ) {
+    constructor(mediaManager: MediaManager, token: string, options?: TransportOptions) {
         super();
 
         this.statsTickMs = options?.statsTickMs ?? DEFAULT_STATS_TICK_MS;
-        this.connection = new WSConnection(server, token);
+        this.connection = new WSConnection(token);
 
         this.audioPipe = new WSAudioPipe(mediaManager, (data) => {
             this.connection.send(data);
@@ -59,6 +54,11 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
             this.statsAdapter.noteReceived(data.byteLength);
             this.audioPipe.playInbound(data);
         });
+    }
+
+    /** Onde o relay atende, conhecido só quando a chamada é aceita. */
+    useRelay(server: RelayAddress): void {
+        this.connection.useRelay(server);
     }
 
     async start(): Promise<void> {

@@ -15,9 +15,18 @@ beforeEach(() => {
 });
 
 function session(id: string): CallSession {
+    const transports = new FakeTransportFactory();
     return new CallSession(
-        { signaling, transports: new FakeTransportFactory(), setLocalMuted: () => {} },
-        { id, type: "OFFICIAL", direction: "INCOMING", peer, deviceToken: "device-token", status: "CALLING" },
+        { signaling, transports, setLocalMuted: () => {} },
+        {
+            id,
+            type: "OFFICIAL",
+            direction: "INCOMING",
+            peer,
+            deviceToken: "device-token",
+            status: "CALLING",
+            transport: transports.forCall("OFFICIAL"),
+        },
     );
 }
 

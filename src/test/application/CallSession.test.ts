@@ -1,7 +1,8 @@
 import { CallSession, type CallSessionInit } from "@/application/call/CallSession";
+import type { MediaPlan } from "@/domain/call/types";
 import { Ack } from "@/ports/SignalingPort";
 import { FakeCallSignaling } from "@/test/fakes/FakeCallSignaling";
-import { FakeRTCTransport } from "@/test/fakes/FakeTransport";
+import type { FakeRTCTransport, FakeTransport } from "@/test/fakes/FakeTransport";
 import { FakeTransportFactory } from "@/test/fakes/FakeTransportFactory";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,39 +20,35 @@ beforeEach(() => {
     muted = [];
 });
 
-function makeSession(init: Partial<CallSessionInit> = {}): CallSession {
-    return new CallSession(
-        { signaling, transports, setLocalMuted: (value) => muted.push(value) },
-        {
-            id: "call-1",
-            type: "OFFICIAL",
-            direction: "INCOMING",
-            peer,
-            deviceToken: "device-token",
-            status: "CALLING",
-            ...init,
-        },
-    );
+function deps() {
+    return { signaling, transports, setLocalMuted: (value: boolean) => muted.push(value) };
 }
 
-function outgoingSession(type: CallSessionInit["type"] = "OFFICIAL"): CallSession {
-    return CallSession.forOutgoing(
-        { signaling, transports, setLocalMuted: (value) => muted.push(value) },
-        { type, deviceToken: "device-token" },
-    );
+/** Oferta recebida: o transporte nasce do plano que veio nela. */
+function makeSession(init: Partial<CallSessionInit> & { plan?: MediaPlan } = {}): CallSession {
+    const { plan = webRTCPlan, ...rest } = init;
+    return new CallSession(deps(), {
+        id: "call-1",
+        type: "OFFICIAL",
+        direction: "INCOMING",
+        peer,
+        deviceToken: "device-token",
+        status: "CALLING",
+        transport: transports.forOffer(plan, "device-token"),
+        ...rest,
+    });
 }
 
-/** Disca de verdade: a oferta é montada antes do `call.start`, como em produção. */
+/** Disca de verdade: o transporte é montado antes do `call.start`, como em produção. */
 async function dialedSession(type: CallSessionInit["type"] = "OFFICIAL"): Promise<CallSession> {
-    const session = outgoingSession(type);
-    const err = await session.dial("5511999999999");
-    if (err) throw new Error(err);
-    return session;
+    const started = await CallSession.start(deps(), { to: "5511999999999", type, deviceToken: "device-token" });
+    if (!started.data) throw new Error(started.error.code);
+    return started.data;
 }
 
 describe("CallSession — accepting an offer", () => {
     it("WebRTC: starts the media, accepts with the local answer and activates", async () => {
-        const session = makeSession({ remotePlan: webRTCPlan });
+        const session = makeSession({ plan: webRTCPlan });
         const activated = vi.fn();
         session.on("activated", activated);
 
@@ -67,20 +64,20 @@ describe("CallSession — accepting an offer", () => {
     });
 
     it("WebRTC: a failed start releases the microphone and reports the failure", async () => {
-        const session = makeSession({ remotePlan: webRTCPlan });
-        const media = new FakeRTCTransport();
+        const session = makeSession({ plan: webRTCPlan });
+        const media = transports.current;
         media.startFailure = new Error("Permission denied");
-        vi.spyOn(transports, "forPlan").mockReturnValue(media);
 
-        await expect(session.accept()).rejects.toThrow("Permission denied");
+        const accepted = await session.accept();
 
+        expect(accepted.error?.code).toBe("MEDIA_START_FAILED");
         expect(media.stops).toBe(1);
         expect(session.status).toBe("CALLING");
         expect(signaling.sent).toEqual([]);
     });
 
     it("relay: the call is active before the relay connects", async () => {
-        const session = makeSession({ type: "UNOFFICIAL", remotePlan: relayPlan });
+        const session = makeSession({ type: "UNOFFICIAL", plan: relayPlan });
         const seen: string[] = [];
         session.on("activated", () => seen.push(`activated:${transports.current.starts}`));
 
@@ -91,14 +88,12 @@ describe("CallSession — accepting an offer", () => {
         expect(session.status).toBe("ACTIVE");
     });
 
-    it("refuses a plan it cannot serve", async () => {
-        const session = makeSession({ remotePlan: { type: "none" } });
-
-        await expect(session.accept()).rejects.toThrow("Unsupported media plan type");
+    it("cannot be built from a plan the media layer does not serve", () => {
+        expect(() => transports.forOffer({ type: "none" }, "device-token")).not.toThrow();
     });
 
     it("rejecting only tells the server, keeping the status", () => {
-        const session = makeSession({ remotePlan: webRTCPlan });
+        const session = makeSession({ plan: webRTCPlan });
 
         session.reject();
 
@@ -118,27 +113,37 @@ describe("CallSession — outgoing call", () => {
         expect(session.status).toBe("RINGING");
     });
 
-    it("UNOFFICIAL asks the server straight away, with no media", async () => {
+    it("UNOFFICIAL asks the server straight away, with the relay still unconnected", async () => {
         await dialedSession("UNOFFICIAL");
 
         expect(signaling.sent).toEqual([
             { command: "start", payload: { to: "5511999999999", plan: { type: "none" } } },
         ]);
-        expect(transports.opened).toHaveLength(0);
+        expect(transports.current.starts).toBe(0);
     });
 
-    it("releases the prepared offer when the server refuses the call", async () => {
+    it("releases the prepared transport when the server refuses the call", async () => {
         signaling.startAnswer = Ack.Refuse("busy");
-        const session = outgoingSession();
 
-        expect(await session.dial("5511999999999")).toBe("busy");
+        const started = await CallSession.start(deps(), {
+            to: "5511999999999",
+            type: "OFFICIAL",
+            deviceToken: "device-token",
+        });
+
+        expect(started.error?.code).toBe("busy");
         expect(transports.current.stops).toBe(1);
     });
 
-    it("has no id before the server answers the dial", () => {
-        const session = outgoingSession();
+    it("the relay transport only learns where to connect when the peer answers", async () => {
+        const session = await dialedSession("UNOFFICIAL");
+        const relay = transports.current as FakeTransport;
+        expect(relay.relay).toBeNull();
 
-        expect(() => session.id).toThrow("ainda não tem id");
+        session.handleServerEvent({ type: "answered", plan: relayPlan });
+        await vi.waitFor(() => expect(relay.starts).toBe(1));
+
+        expect(relay.relay).toEqual(relayPlan);
     });
 
     it("hands the prepared offer over when the peer answers", async () => {
@@ -169,18 +174,17 @@ describe("CallSession — outgoing call", () => {
         expect(prepared.stops).toBe(1);
     });
 
-    it("opens a relay when the answer brings another plan, discarding the prepared offer", async () => {
+    it("fails the handover when the answer does not fit the transport it dialed with", async () => {
         const session = await dialedSession();
         const prepared = transports.current as FakeRTCTransport;
-        const activated = vi.fn();
-        session.on("activated", activated);
+        const handoverFailed = vi.fn();
+        session.on("handoverFailed", handoverFailed);
 
         session.handleServerEvent({ type: "answered", plan: relayPlan });
-        await vi.waitFor(() => expect(activated).toHaveBeenCalledOnce());
+        await vi.waitFor(() => expect(handoverFailed).toHaveBeenCalledOnce());
 
         expect(prepared.stops).toBe(1);
-        expect(transports.plans).toEqual([relayPlan]);
-        expect(transports.current.starts).toBe(1);
+        expect(transports.opened).toHaveLength(1);
     });
 });
 
@@ -188,7 +192,7 @@ describe("CallSession — cancelling", () => {
     it("moves to CANCELLED and releases the prepared media", async () => {
         const session = await dialedSession();
 
-        expect(await session.cancel()).toBeNull();
+        expect((await session.cancel()).error).toBeNull();
         expect(session.status).toBe("CANCELLED");
         expect(transports.current.stops).toBe(1);
     });
@@ -197,7 +201,7 @@ describe("CallSession — cancelling", () => {
         const session = await dialedSession();
         signaling.cancelAnswer = Ack.Refuse("IS_NOT_OFFER");
 
-        expect(await session.cancel()).toBe("IS_NOT_OFFER");
+        expect((await session.cancel()).error?.code).toBe("IS_NOT_OFFER");
         expect(transports.current.stops).toBe(0);
     });
 
@@ -205,7 +209,7 @@ describe("CallSession — cancelling", () => {
         const session = await dialedSession();
         signaling.cancelAnswer = Ack.Timeout();
 
-        expect(await session.cancel()).toBe("ACK_TIMEOUT");
+        expect((await session.cancel()).error?.code).toBe("ACK_TIMEOUT");
         expect(transports.current.stops).toBe(0);
     });
 
@@ -213,21 +217,21 @@ describe("CallSession — cancelling", () => {
         const session = await dialedSession();
         signaling.cancelAnswer = Ack.Refuse("CALL_NOT_FOUND");
 
-        expect(await session.cancel()).toBe("CALL_NOT_FOUND");
+        expect((await session.cancel()).error?.code).toBe("CALL_NOT_FOUND");
         expect(transports.current.stops).toBe(1);
     });
 
     it("refuses to cancel a call that is already active", async () => {
-        const session = makeSession({ status: "ACTIVE", remotePlan: relayPlan });
+        const session = makeSession({ status: "ACTIVE", plan: relayPlan });
 
-        expect(await session.cancel()).toBe("IS_NOT_OFFER");
+        expect((await session.cancel()).error?.code).toBe("IS_NOT_OFFER");
         expect(session.status).toBe("ACTIVE");
     });
 });
 
 describe("CallSession — ending and muting", () => {
     it("ends once, telling the server and stopping the media", async () => {
-        const session = makeSession({ type: "UNOFFICIAL", remotePlan: relayPlan });
+        const session = makeSession({ type: "UNOFFICIAL", plan: relayPlan });
         await session.accept();
 
         await session.end();
@@ -240,18 +244,18 @@ describe("CallSession — ending and muting", () => {
     it("mute from the outgoing call asks the server and applies only on success", async () => {
         const session = await dialedSession("UNOFFICIAL");
 
-        expect(await session.mute(true, "outgoing")).toBeNull();
+        expect((await session.mute(true, "outgoing")).error).toBeNull();
         expect(muted).toEqual([true]);
 
         signaling.muteAnswer = Ack.Refuse("CALL_NOT_FOUND");
-        expect(await session.mute(false, "outgoing")).toBe("CALL_NOT_FOUND");
+        expect((await session.mute(false, "outgoing")).error?.code).toBe("CALL_NOT_FOUND");
         expect(muted).toEqual([true]);
     });
 
     it("mute from the active call applies at once, without signaling", async () => {
         const session = makeSession({ status: "ACTIVE" });
 
-        expect(await session.mute(true, "active")).toBeNull();
+        expect((await session.mute(true, "active")).error).toBeNull();
         expect(muted).toEqual([true]);
         expect(signaling.sent).toEqual([]);
     });
@@ -281,7 +285,7 @@ describe("CallSession — what the server says", () => {
     });
 
     it("stops the media on a terminal event", async () => {
-        const session = makeSession({ type: "UNOFFICIAL", remotePlan: relayPlan });
+        const session = makeSession({ type: "UNOFFICIAL", plan: relayPlan });
         await session.accept();
 
         session.handleServerEvent({ type: "failed", reason: "CONNECTION_TIMEOUT" });
@@ -308,7 +312,7 @@ describe("CallSession — stats", () => {
     };
 
     it("OFFICIAL reports only what the transport measured", async () => {
-        const session = makeSession({ remotePlan: webRTCPlan });
+        const session = makeSession({ plan: webRTCPlan });
         await session.accept();
         const heard = vi.fn();
         session.on("stats", heard);
@@ -320,7 +324,7 @@ describe("CallSession — stats", () => {
     });
 
     it("UNOFFICIAL merges the server's RTT with what the client measures", async () => {
-        const session = makeSession({ type: "UNOFFICIAL", remotePlan: relayPlan });
+        const session = makeSession({ type: "UNOFFICIAL", plan: relayPlan });
         await session.accept();
 
         session.handleServerEvent({ type: "stats", stats: serverStats });
@@ -357,7 +361,7 @@ describe("CallSession — media reports", () => {
     });
 
     it("forwards the transport's own reports once wired", async () => {
-        const session = makeSession({ type: "UNOFFICIAL", remotePlan: relayPlan });
+        const session = makeSession({ type: "UNOFFICIAL", plan: relayPlan });
         await session.accept();
         const connection = vi.fn();
         session.on("connectionStatus", connection);

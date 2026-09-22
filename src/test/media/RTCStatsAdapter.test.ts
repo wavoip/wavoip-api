@@ -37,17 +37,19 @@ describe("RTCStatsAdapter", () => {
     });
 
     it("absorbs inbound-rtp/audio into rx fields", async () => {
-        const pc = makePc([[
-            {
-                type: "inbound-rtp",
-                kind: "audio",
-                bytesReceived: 1234,
-                packetsReceived: 100,
-                packetsLost: 2,
-                audioLevel: 0.4,
-                jitter: 0.012,
-            },
-        ]]);
+        const pc = makePc([
+            [
+                {
+                    type: "inbound-rtp",
+                    kind: "audio",
+                    bytesReceived: 1234,
+                    packetsReceived: 100,
+                    packetsLost: 2,
+                    audioLevel: 0.4,
+                    jitter: 0.012,
+                },
+            ],
+        ]);
         const adapter = new RTCStatsAdapter(pc, makeAudioContext(0.03));
         await adapter.refresh();
         const s = adapter.snapshot();
@@ -74,16 +76,18 @@ describe("RTCStatsAdapter", () => {
     });
 
     it("absorbs remote-inbound-rtp/audio: tx loss/total + rolling RTT", async () => {
-        const pc = makePc([[
-            {
-                type: "remote-inbound-rtp",
-                kind: "audio",
-                packetsLost: 3,
-                packetsReceived: 200,
-                roundTripTime: 0.04,
-                roundTripTimeMeasurements: 1,
-            },
-        ]]);
+        const pc = makePc([
+            [
+                {
+                    type: "remote-inbound-rtp",
+                    kind: "audio",
+                    packetsLost: 3,
+                    packetsReceived: 200,
+                    roundTripTime: 0.04,
+                    roundTripTimeMeasurements: 1,
+                },
+            ],
+        ]);
         const adapter = new RTCStatsAdapter(pc, makeAudioContext());
         await adapter.refresh();
         const s = adapter.snapshot();

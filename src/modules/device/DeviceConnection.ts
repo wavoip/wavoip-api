@@ -201,15 +201,15 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         const { err } = this.device.canCall();
         if (err) return { err };
 
-        const session = CallSession.forOutgoing(this.callDeps, {
+        const started = await CallSession.start(this.callDeps, {
+            to,
             type: this.device.callType,
             deviceToken: this.device.token,
         });
-        const dialErr = await session.dial(to);
-        if (dialErr) return { err: dialErr };
+        if (started.error) return { err: started.error.code };
 
-        this.registry.register(session);
-        return { call: CallOutgoingProxy(session) };
+        this.registry.register(started.data);
+        return { call: CallOutgoingProxy(started.data) };
     }
 
     onStatus(cb: (status: DeviceStatus) => void): () => void {
@@ -317,20 +317,29 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             peer: offer.peer,
             deviceToken: this.device.token,
             status: "CALLING",
-            remotePlan: offer.plan,
+            transport: this.callDeps.transports.forOffer(offer.plan, this.device.token),
         });
         const release = this.registry.register(session);
 
         this.emit("offerReceived", OfferProxy(session, release));
     }
 
+    /**
+     * O device decide o transporte da chamada que sai: OFFICIAL fala WebRTC, UNOFFICIAL
+     * fala relay. Na oferta recebida, quem decide é o plano que veio nela.
+     */
     private transportsFor(mediaManager: MediaManager): TransportFactory {
         return {
-            offerer: () => new WebRTCTransport(mediaManager, undefined, this.transportOptions),
-            forPlan: (plan, deviceToken) => {
+            forCall: (type) =>
+                type === "OFFICIAL"
+                    ? new WebRTCTransport(mediaManager, undefined, this.transportOptions)
+                    : new WebsocketTransport(mediaManager, this.device.token, this.transportOptions),
+            forOffer: (plan, deviceToken) => {
                 if (plan.type === "webRTC") return new WebRTCTransport(mediaManager, plan.sdp, this.transportOptions);
                 if (plan.type === "relay") {
-                    return new WebsocketTransport(mediaManager, plan, deviceToken, this.transportOptions);
+                    const relay = new WebsocketTransport(mediaManager, deviceToken, this.transportOptions);
+                    relay.useRelay(plan);
+                    return relay;
                 }
                 throw new Error(`Unsupported media plan type: ${plan.type}`);
             },

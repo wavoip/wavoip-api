@@ -4,6 +4,7 @@ import type { CallStats, ServerCallStats } from "@/domain/call/stats";
 import type { CallDirection, CallStatus, CallType, TransportStatus } from "@/domain/call/types";
 import type { CallFailReason } from "@/domain/call/failReason";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
+import { toLegacy } from "@/modules/call/legacyResult";
 import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
@@ -108,16 +109,15 @@ export function CallActiveProxy(session: CallSession): CallActive {
         audioAnalyserOut: session.media?.audioAnalyserOut as Promise<AnalyserNode>,
 
         async mute(): Promise<{ err: string | null }> {
-            return { err: await session.mute(true, "active") };
+            return toLegacy(await session.mute(true, "active"));
         },
 
         async unmute(): Promise<{ err: string | null }> {
-            return { err: await session.mute(false, "active") };
+            return toLegacy(await session.mute(false, "active"));
         },
 
         async end(): Promise<{ err: string | null }> {
-            await session.end();
-            return { err: null };
+            return toLegacy(await session.end());
         },
 
         getStats(): Promise<CallStats> {

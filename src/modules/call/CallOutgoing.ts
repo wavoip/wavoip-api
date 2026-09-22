@@ -3,6 +3,7 @@ import type { CallPeer } from "@/modules/call/Peer";
 import type { CallSession, CallSessionEvents } from "@/application/call/CallSession";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
+import { toLegacy } from "@/modules/call/legacyResult";
 import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
@@ -73,15 +74,15 @@ export function CallOutgoingProxy(session: CallSession): CallOutgoing {
         direction: session.direction,
 
         async mute(): Promise<{ err: string | null }> {
-            return { err: await session.mute(true, "outgoing") };
+            return toLegacy(await session.mute(true, "outgoing"));
         },
 
         async unmute(): Promise<{ err: string | null }> {
-            return { err: await session.mute(false, "outgoing") };
+            return toLegacy(await session.mute(false, "outgoing"));
         },
 
         async cancel(): Promise<{ err: string | null }> {
-            return { err: await session.cancel() };
+            return toLegacy(await session.cancel());
         },
 
         end(): Promise<{ err: string | null }> {

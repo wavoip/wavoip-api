@@ -1,6 +1,7 @@
 import { CallRegistry } from "@/application/call/CallRegistry";
 import { CallSession, type CallSessionInit } from "@/application/call/CallSession";
 import type { MediaPlan } from "@/domain/call/types";
+import type { ITransport } from "@/modules/media/ITransport";
 import { FakeCallSignaling } from "@/test/fakes/FakeCallSignaling";
 import { FakeTransportFactory } from "@/test/fakes/FakeTransportFactory";
 
@@ -15,12 +16,17 @@ export class CallHarness {
     readonly muted: boolean[] = [];
     readonly registry = new CallRegistry(this.signaling);
 
-    incoming(init: Partial<CallSessionInit> = {}): CallSession {
-        return this.session({ direction: "INCOMING", status: "CALLING", remotePlan: webRTCPlan, ...init });
+    /** Oferta recebida: o transporte já nasce sabendo o plano que veio nela. */
+    incoming(init: Partial<CallSessionInit> & { plan?: MediaPlan } = {}): CallSession {
+        const { plan = webRTCPlan, ...rest } = init;
+        const transport = this.transports.forOffer(plan, "device-token");
+        return this.session({ direction: "INCOMING", status: "CALLING", transport, ...rest });
     }
 
+    /** Chamada que saiu e já foi aceita pelo servidor: o transporte veio do tipo do device. */
     outgoing(init: Partial<CallSessionInit> = {}): CallSession {
-        return this.session({ direction: "OUTGOING", status: "RINGING", ...init });
+        const transport = this.transports.forCall(init.type ?? "OFFICIAL");
+        return this.session({ direction: "OUTGOING", status: "RINGING", transport, ...init });
     }
 
     /** O que o servidor manda para a chamada, pelo caminho de verdade (porta → registry). */
@@ -28,7 +34,7 @@ export class CallHarness {
         for (const event of events) this.signaling.receiveCallEvent(session.id, event);
     }
 
-    private session(init: Partial<CallSessionInit>): CallSession {
+    private session(init: Partial<CallSessionInit> & { transport: ITransport }): CallSession {
         const session = new CallSession(
             {
                 signaling: this.signaling,

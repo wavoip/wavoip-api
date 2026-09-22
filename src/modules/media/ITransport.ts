@@ -47,6 +47,15 @@ export interface IRTCTransport extends ITransport {
     setAnswer(sdp: string): Promise<void>;
 }
 
+export interface IWSTransport extends ITransport {
+    readonly kind: "ws";
+    useRelay(server: { host: string; port: string }): void;
+}
+
 export function isRTCTransport(t: ITransport): t is IRTCTransport {
     return t.kind === "webrtc";
+}
+
+export function isWSTransport(t: ITransport): t is IWSTransport {
+    return t.kind === "ws";
 }

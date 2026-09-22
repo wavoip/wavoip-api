@@ -16,12 +16,12 @@ function outgoing() {
 }
 
 function offer() {
-    const session = harness.incoming({ type: "UNOFFICIAL", remotePlan: relayPlan });
+    const session = harness.incoming({ type: "UNOFFICIAL", plan: relayPlan });
     return { session, view: OfferProxy(session, vi.fn()) };
 }
 
 function active() {
-    const session = harness.incoming({ type: "UNOFFICIAL", remotePlan: relayPlan, status: "ACTIVE" });
+    const session = harness.incoming({ type: "UNOFFICIAL", plan: relayPlan, status: "ACTIVE" });
     return { session, view: CallActiveProxy(session) };
 }
 

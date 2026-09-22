@@ -1,7 +1,7 @@
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import { type CallStats, Stats } from "@/domain/call/stats";
 import type { TransportStatus } from "@/domain/call/types";
-import type { Events, IRTCTransport, ITransport } from "@/modules/media/ITransport";
+import type { Events, IRTCTransport, IWSTransport } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
 /** O que os dois transportes falsos têm em comum: sem rede, sem áudio, e contando chamadas. */
@@ -29,9 +29,14 @@ abstract class FakeTransportBase extends EventEmitter<Events> {
     }
 }
 
-/** Transporte de relay. */
-export class FakeTransport extends FakeTransportBase implements ITransport {
+/** Transporte de relay: só conecta quando o servidor diz onde ele atende. */
+export class FakeTransport extends FakeTransportBase implements IWSTransport {
     readonly kind = "ws" as const;
+    relay: { host: string; port: string } | null = null;
+
+    useRelay(server: { host: string; port: string }): void {
+        this.relay = server;
+    }
 }
 
 /** Transporte WebRTC: oferta, resposta e o que o ICE juntou antes de a mídia ser ligada. */

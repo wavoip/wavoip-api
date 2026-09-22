@@ -1,10 +1,11 @@
 import type { CallFailReason } from "@/domain/call/failReason";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
-import { type CallStats, type ServerCallStats, Stats } from "@/domain/call/stats";
 import { CallPolicy } from "@/domain/call/policy";
+import { type CallStats, type ServerCallStats, Stats } from "@/domain/call/stats";
 import { Status } from "@/domain/call/status";
 import type { CallDirection, CallStatus, CallType, MediaPlan, Peer, TransportStatus } from "@/domain/call/types";
-import { type IRTCTransport, type ITransport, isRTCTransport } from "@/modules/media/ITransport";
+import { Result } from "@/domain/shared/Result";
+import { type ITransport, isRTCTransport, isWSTransport } from "@/modules/media/ITransport";
 import { EventEmitter, type Subscribable, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import type { CallSignalingPort, ServerCallEvent } from "@/ports/SignalingPort";
 
@@ -18,7 +19,7 @@ export type CallSessionEvents = {
     ended: [];
     /** A mídia subiu e está ligada à chamada: é a hora de existir um CallActive. */
     activated: [];
-    /** A passagem da oferta pré-montada para a chamada ativa falhou. */
+    /** A passagem da chamada que sai para a chamada ativa falhou. */
     handoverFailed: [];
     connectionStatus: [status: TransportStatus];
     peerMuted: [muted: boolean];
@@ -28,10 +29,14 @@ export type CallSessionEvents = {
     connectivityIssue: [issue: ConnectivityIssue];
 };
 
-/** Cria o transporte que o plano de mídia pede. A mídia em si é do PR de mídia. */
+/**
+ * O transporte nasce com a chamada, como no SIP: o INVITE já leva o transporte, e só o
+ * destino se resolve na resposta. Device OFFICIAL fala WebRTC; UNOFFICIAL fala relay, que
+ * descobre host e porta quando a chamada é aceita.
+ */
 export interface TransportFactory {
-    offerer(): IRTCTransport;
-    forPlan(plan: MediaPlan, deviceToken: string): ITransport;
+    forCall(type: CallType): ITransport;
+    forOffer(plan: MediaPlan, deviceToken: string): ITransport;
 }
 
 export type CallSessionDeps = {
@@ -41,16 +46,16 @@ export type CallSessionDeps = {
 };
 
 export type CallSessionInit = {
-    /** Só a chamada que entra já nasce com id e contato; a que sai os recebe no `dial`. */
-    id?: string;
-    peer?: Peer;
+    id: string;
+    peer: Peer;
     type: CallType;
     direction: CallDirection;
     deviceToken: string;
     status: CallStatus;
-    /** O plano de mídia que veio na oferta recebida. */
-    remotePlan?: MediaPlan;
+    transport: ITransport;
 };
+
+export type StartCallParams = { to: string; type: CallType; deviceToken: string };
 
 /**
  * Dona de uma chamada, do primeiro toque ao fim: o estado, a mídia e o que o servidor
@@ -58,123 +63,101 @@ export type CallSessionInit = {
  * públicas (`Offer`, `CallOutgoing`, `CallActive`) só leem daqui e chamam estes métodos.
  */
 export class CallSession implements Subscribable<CallSessionEvents> {
+    readonly id: string;
     readonly type: CallType;
     readonly direction: CallDirection;
+    readonly peer: Peer;
     readonly deviceToken: string;
     status: CallStatus;
 
     private readonly events = new EventEmitter<CallSessionEvents>();
-    private readonly remotePlan?: MediaPlan;
-    private callId: string | null;
-    private _peer: Peer | null;
-    private transport: ITransport | null = null;
+    private readonly transport: ITransport;
     private wired = false;
     private stopped = false;
     private serverStats: CallStats | null = null;
     private transportStats: CallStats | null = null;
-    private lastDiagnostics: IceDiagnostics | null = null;
-    private readonly issues: ConnectivityIssue[] = [];
 
     constructor(
         private readonly deps: CallSessionDeps,
         init: CallSessionInit,
     ) {
-        this.callId = init.id ?? null;
+        this.id = init.id;
         this.type = init.type;
         this.direction = init.direction;
-        this._peer = init.peer ?? null;
+        this.peer = init.peer;
         this.deviceToken = init.deviceToken;
         this.status = init.status;
-        this.remotePlan = init.remotePlan;
+        this.transport = init.transport;
     }
 
-    /** Uma chamada que ainda vai sair: sem id nem contato até o servidor responder ao `dial`. */
-    static forOutgoing(deps: CallSessionDeps, params: { type: CallType; deviceToken: string }): CallSession {
-        return new CallSession(deps, {
-            type: params.type,
-            direction: "OUTGOING",
-            deviceToken: params.deviceToken,
-            status: "RINGING",
-        });
-    }
+    /**
+     * Disca. O transporte é montado antes do `call.start`, porque a chamada OFFICIAL
+     * precisa mandar o SDP junto. A sessão só existe se o servidor aceitar; se não, o
+     * transporte é liberado e ninguém fica com o microfone aberto.
+     */
+    static async start(deps: CallSessionDeps, params: StartCallParams): Promise<Result<CallSession>> {
+        const transport = deps.transports.forCall(params.type);
 
-    get id(): string {
-        if (!this.callId) throw new Error("A chamada ainda não tem id: o servidor não respondeu ao dial");
-        return this.callId;
-    }
+        let plan: MediaPlan = { type: "none" };
+        if (isRTCTransport(transport)) {
+            try {
+                plan = { type: "webRTC", sdp: await transport.createOffer() };
+            } catch (e) {
+                await transport.stop().catch(() => {});
+                return Result.fail("MEDIA_OFFER_FAILED", e);
+            }
+        }
 
-    get peer(): Peer {
-        if (!this._peer) throw new Error("A chamada ainda não tem contato: o servidor não respondeu ao dial");
-        return this._peer;
+        const ack = await deps.signaling.startCall(params.to, plan, CallPolicy.ackTimeoutMs);
+        if (ack.kind !== "ok") {
+            await transport.stop().catch(() => {});
+            return Result.fail(ack.kind === "timeout" ? "ACK_TIMEOUT" : ack.code);
+        }
+
+        // O tipo da chamada vem do device (`device:init`), e não da resposta do `call.start`,
+        // que já devolveu OFFICIAL para device não oficial.
+        return Result.ok(
+            new CallSession(deps, {
+                id: ack.value.id,
+                peer: ack.value.peer,
+                type: params.type,
+                direction: "OUTGOING",
+                deviceToken: params.deviceToken,
+                status: "RINGING",
+                transport,
+            }),
+        );
     }
 
     on<T extends keyof CallSessionEvents>(event: T, listener: (...args: CallSessionEvents[T]) => void): Unsubscribe {
         return this.events.on(event, listener);
     }
 
-    /**
-     * Disca: a chamada OFFICIAL monta a oferta WebRTC antes de pedir o `call.start`, porque
-     * o servidor precisa do SDP para chamar. Se qualquer um dos dois passos falhar, a mídia
-     * já montada é liberada e ninguém fica com o microfone aberto.
-     */
-    async dial(to: string): Promise<string | null> {
-        const plan = await this.prepareOutgoingPlan();
-        if (typeof plan === "string") return plan;
-
-        const ack = await this.deps.signaling.startCall(to, plan, CallPolicy.ackTimeoutMs);
-        if (ack.kind !== "ok") {
-            await this.stopMedia();
-            return ack.kind === "timeout" ? "ACK_TIMEOUT" : ack.code;
-        }
-
-        // O tipo da chamada vem do device (`device:init`), e não da resposta do `call.start`,
-        // que já devolveu OFFICIAL para device não oficial.
-        this.callId = ack.value.id;
-        this._peer = ack.value.peer;
-        return null;
-    }
-
-    /** O plano que vai no `call.start`, ou a mensagem de erro se a oferta não subir. */
-    private async prepareOutgoingPlan(): Promise<MediaPlan | string> {
-        if (this.type !== "OFFICIAL") return { type: "none" };
-
-        const offerer = this.deps.transports.offerer();
-        this.transport = offerer;
-        try {
-            return { type: "webRTC", sdp: await offerer.createOffer() };
-        } catch (e) {
-            await this.stopMedia();
-            return e instanceof Error ? e.message : "Failed to create WebRTC offer";
-        }
-    }
-
     get connectionStatus(): TransportStatus {
-        return this.transport?.status ?? "disconnected";
+        return this.transport.status;
     }
 
     get peerMuted(): boolean {
-        return this.transport?.peerMuted ?? false;
+        return this.transport.peerMuted;
     }
 
-    get media(): ITransport | null {
+    get media(): ITransport {
         return this.transport;
     }
 
-    /** Atende a oferta recebida e devolve a chamada já ativa. */
-    async accept(): Promise<void> {
-        const plan = this.remotePlan;
-        if (plan?.type === "webRTC") return this.acceptWebRTC(plan);
-        if (plan?.type === "relay") return this.acceptRelay(plan);
-        throw new Error(`Unsupported media plan type: ${plan?.type}`);
+    /** Atende a oferta recebida: o transporte já sabe com quem falar desde a criação. */
+    async accept(): Promise<Result<void>> {
+        return isWSTransport(this.transport) ? this.acceptRelay() : this.acceptWebRTC();
     }
 
-    reject(): void {
+    reject(): Result<void> {
         this.deps.signaling.reject(this.id);
+        return Result.ok();
     }
 
     /**
      * A mídia é liberada em todo desfecho **menos no que a chamada continua viva**
-     * (`CallPolicy.alreadyAnswered`): derrubar o transporte ali deixava uma chamada conectada
+     * (`CALL_ALREADY_ANSWERED`): derrubar o transporte ali deixava uma chamada conectada
      * muda.
      *
      * `ACK_TIMEOUT` é o "não sabemos" honesto: o socket.io descarta o pacote em buffer
@@ -182,44 +165,44 @@ export class CallSession implements Subscribable<CallSessionEvents> {
      * lado pode estar tocando ainda. A mídia fica justamente porque a chamada ainda pode
      * ser atendida.
      */
-    async cancel(): Promise<string | null> {
+    async cancel(): Promise<Result<void>> {
         const ack = await this.deps.signaling.cancel(this.id, CallPolicy.ackTimeoutMs);
-        if (ack.kind === "timeout") return "ACK_TIMEOUT";
+        if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
         if (ack.kind === "refused") {
-            if (ack.code !== CallPolicy.alreadyAnswered) await this.releasePreparedMedia();
-            return ack.code;
+            if (ack.code !== CallPolicy.alreadyAnswered && !this.wired) await this.stopMedia();
+            return Result.fail(ack.code);
         }
         // O servidor já recusa cancelar uma chamada ACTIVE; uma transição local que não se
         // aplica quer dizer que os dois discordam, e a mídia não cai com base num ack que
         // não dá para honrar.
         const cancelled = Status.transition(this.status, "cancel");
-        if (!cancelled) return CallPolicy.alreadyAnswered;
+        if (!cancelled) return Result.fail(CallPolicy.alreadyAnswered);
         this.status = cancelled;
-        await this.releasePreparedMedia();
-        return null;
+        if (!this.wired) await this.stopMedia();
+        return Result.ok();
     }
 
-    async end(): Promise<void> {
-        if (this.stopped) return;
+    async end(): Promise<Result<void>> {
+        if (this.stopped) return Result.ok();
         this.deps.signaling.end(this.id);
         await this.stopMedia();
+        return Result.ok();
     }
 
     /** O mute da chamada que sai avisa o servidor; o da chamada ativa é só local. */
-    async mute(muted: boolean, via: "outgoing" | "active"): Promise<string | null> {
+    async mute(muted: boolean, via: "outgoing" | "active"): Promise<Result<void>> {
         if (via === "active") {
             this.deps.setLocalMuted(muted);
-            return null;
+            return Result.ok();
         }
         const ack = await this.deps.signaling.mute(this.id, muted, CallPolicy.ackTimeoutMs);
-        if (ack.kind === "timeout") return "ACK_TIMEOUT";
-        if (ack.kind === "refused") return ack.code;
+        if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
+        if (ack.kind === "refused") return Result.fail(ack.code);
         this.deps.setLocalMuted(muted);
-        return null;
+        return Result.ok();
     }
 
     async getStats(): Promise<CallStats> {
-        if (!this.transport) return Stats.empty();
         this.transportStats = await this.transport.getStats();
         return this.currentStats();
     }
@@ -305,12 +288,15 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         return Stats.mergeUnofficial(this.serverStats, this.transportStats);
     }
 
-    /** O outro lado atendeu: a oferta pré-montada vira a mídia da chamada, ou dá lugar a outra. */
+    /** O outro lado atendeu a chamada que saiu: a resposta dele completa o transporte. */
     private async handleAnswered(plan: MediaPlan): Promise<void> {
         this.events.emit("status", this.status);
+        const transport = this.transport;
         try {
-            if (this.transport && plan.type === "webRTC") await this.resumePreparedOffer(plan.sdp);
-            else await this.openMediaFor(plan);
+            if (isRTCTransport(transport) && plan.type === "webRTC") await transport.setAnswer(plan.sdp);
+            else if (isWSTransport(transport) && plan.type === "relay") transport.useRelay(plan);
+            else throw new Error(`Media plan ${plan.type} does not fit a ${transport.kind} transport`);
+            await transport.start();
         } catch {
             await this.stopMedia();
             this.events.emit("handoverFailed");
@@ -319,56 +305,31 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         this.activate();
     }
 
-    private async resumePreparedOffer(sdp: string): Promise<void> {
+    private async acceptWebRTC(): Promise<Result<void>> {
         const transport = this.transport;
-        if (!transport || !isRTCTransport(transport)) throw new Error("Prepared media is not a WebRTC offer");
-        await transport.setAnswer(sdp);
-        await transport.start();
-    }
-
-    private async openMediaFor(plan: MediaPlan): Promise<void> {
-        await this.discardPreparedMedia();
-        this.transport = this.deps.transports.forPlan(plan, this.deviceToken);
-        await this.transport.start();
-        if (plan.type !== "webRTC") return;
-        const answer = await this.localAnswer();
-        this.deps.signaling.accept(this.id, { type: "webRTC", sdp: answer });
-    }
-
-    private async acceptWebRTC(plan: MediaPlan): Promise<void> {
-        this.transport = this.deps.transports.forPlan(plan, this.deviceToken);
+        if (!isRTCTransport(transport)) return Result.fail("MEDIA_START_FAILED");
         try {
-            await this.transport.start();
-            const answer = await this.localAnswer();
-            this.deps.signaling.accept(this.id, { type: "webRTC", sdp: answer });
+            await transport.start();
+            const answer = await transport.answer;
+            this.deps.signaling.accept(this.id, { type: "webRTC", sdp: answer.sdp as string });
         } catch (err) {
             // Sem isto o microfone fica aberto depois de um aceite que falhou.
             await this.stopMedia();
-            throw err;
+            return Result.fail("MEDIA_START_FAILED", err);
         }
-        this.applyLocalAccept();
+        this.status = Status.transition(this.status, "accept") ?? this.status;
         this.activate();
+        return Result.ok();
     }
 
     // A chamada ativa existe antes de o relay conectar: o `connectionStatus` dela mostra a
     // conexão subindo.
-    private async acceptRelay(plan: MediaPlan): Promise<void> {
-        this.transport = this.deps.transports.forPlan(plan, this.deviceToken);
-        this.applyLocalAccept();
+    private async acceptRelay(): Promise<Result<void>> {
+        this.status = Status.transition(this.status, "accept") ?? this.status;
         this.activate();
         this.deps.signaling.accept(this.id, { type: "none" });
         void this.transport.start();
-    }
-
-    private applyLocalAccept(): void {
-        this.status = Status.transition(this.status, "accept") ?? this.status;
-    }
-
-    private async localAnswer(): Promise<string> {
-        const transport = this.transport;
-        if (!transport || !isRTCTransport(transport)) throw new Error("Transport cannot answer a WebRTC offer");
-        const answer = await transport.answer;
-        return answer.sdp as string;
+        return Result.ok();
     }
 
     /**
@@ -377,51 +338,29 @@ export class CallSession implements Subscribable<CallSessionEvents> {
      * perder.
      */
     private activate(): void {
-        const transport = this.transport;
-        if (!transport || this.wired) return;
+        if (this.wired) return;
         this.wired = true;
 
-        transport.on("statusChanged", (status) => this.events.emit("connectionStatus", status));
-        transport.on("peerMuted", (muted) => this.events.emit("peerMuted", muted));
-        transport.on("statsChanged", (stats) => {
+        this.transport.on("statusChanged", (status) => this.events.emit("connectionStatus", status));
+        this.transport.on("peerMuted", (muted) => this.events.emit("peerMuted", muted));
+        this.transport.on("statsChanged", (stats) => {
             this.transportStats = stats;
             this.events.emit("stats", this.currentStats());
         });
-        this.wireDiagnostics(transport);
+        if (isRTCTransport(this.transport)) {
+            const rtc = this.transport;
+            rtc.on("iceDiagnostics", (diag) => this.events.emit("iceDiagnostics", diag));
+            rtc.on("connectivityIssue", (issue) => this.events.emit("connectivityIssue", issue));
+            if (rtc.lastDiagnostics) this.events.emit("iceDiagnostics", rtc.lastDiagnostics);
+            for (const issue of rtc.emittedConnectivityIssues) this.events.emit("connectivityIssue", issue);
+        }
 
         this.events.emit("activated");
-    }
-
-    private wireDiagnostics(transport: ITransport): void {
-        if (!isRTCTransport(transport)) return;
-        transport.on("iceDiagnostics", (diag) => {
-            this.lastDiagnostics = diag;
-            this.events.emit("iceDiagnostics", diag);
-        });
-        transport.on("connectivityIssue", (issue) => {
-            this.issues.push(issue);
-            this.events.emit("connectivityIssue", issue);
-        });
-
-        if (transport.lastDiagnostics) this.events.emit("iceDiagnostics", transport.lastDiagnostics);
-        for (const issue of transport.emittedConnectivityIssues) this.events.emit("connectivityIssue", issue);
-    }
-
-    /** O cancelamento só solta a mídia pré-montada; depois de ligada, quem a solta é o fim. */
-    private async releasePreparedMedia(): Promise<void> {
-        if (this.wired) return;
-        await this.stopMedia();
-    }
-
-    private async discardPreparedMedia(): Promise<void> {
-        const prepared = this.transport;
-        this.transport = null;
-        await prepared?.stop().catch(() => {});
     }
 
     private async stopMedia(): Promise<void> {
         if (this.stopped) return;
         this.stopped = true;
-        await this.transport?.stop().catch(() => {});
+        await this.transport.stop().catch(() => {});
     }
 }
