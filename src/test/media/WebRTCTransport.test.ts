@@ -18,8 +18,6 @@ let mockPcInstance: MockRTCPeerConnection;
 
 class MockRTCPeerConnection {
     _remoteTrack: MockMediaStreamTrack | null = null;
-    ontrack: ((e: RTCTrackEvent) => void) | null = null;
-    onconnectionstatechange: (() => void) | null = null;
     connectionState: RTCPeerConnectionState = "new";
     iceGatheringState: RTCIceGatheringState = "new";
 
@@ -57,17 +55,17 @@ class MockRTCPeerConnection {
         this.eventListeners.get(event)?.delete(listener);
     }
 
-    dispatchEvent(event: string) {
-        for (const listener of this.eventListeners.get(event) ?? []) listener();
+    dispatchEvent(event: string, payload?: unknown) {
+        for (const listener of this.eventListeners.get(event) ?? []) listener(payload);
     }
 
     simulateTrack(stream: MediaStream) {
-        this.ontrack?.({ streams: [stream] } as unknown as RTCTrackEvent);
+        this.dispatchEvent("track", { streams: [stream] });
     }
 
     simulateConnectionState(state: RTCPeerConnectionState) {
         this.connectionState = state;
-        this.onconnectionstatechange?.();
+        this.dispatchEvent("connectionstatechange");
     }
 }
 

@@ -1,5 +1,6 @@
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
+import type { MediaStreamLike, MediaTrackLike, PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
 import type { IAudioPipe, PipeEvents } from "./AudioPipe";
 
 /**
@@ -20,7 +21,7 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe
     private stopped = false;
 
     constructor(
-        private readonly pc: RTCPeerConnection,
+        private readonly pc: PeerConnectionLike,
         private readonly mediaManager: MediaManager,
     ) {
         super();
@@ -30,7 +31,7 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe
         this.analyserOutResolver = Promise.withResolvers<AnalyserNode>();
         this.audioAnalyserOut = this.analyserOutResolver.promise;
 
-        this.pc.ontrack = (event) => this.handleRemoteTrack(event);
+        this.pc.addEventListener("track", (event) => this.handleRemoteTrack(event));
     }
 
     async start(): Promise<void> {
@@ -39,7 +40,7 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe
         const micStream = await this.mediaManager.startMedia();
         for (const track of micStream.getTracks()) {
             track.enabled = !this.mediaManager.muted;
-            this.pc.addTrack(track, micStream);
+            this.pc.addTrack(track as unknown as MediaTrackLike, micStream as unknown as MediaStreamLike);
         }
         this.wireTxAnalyser(micStream);
     }
@@ -71,8 +72,8 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe
         this.analyserOutResolver.resolve(this.txAnalyser);
     }
 
-    private handleRemoteTrack(event: RTCTrackEvent): void {
-        const remoteStream = event.streams[0];
+    private handleRemoteTrack(event: { streams: readonly MediaStreamLike[] }): void {
+        const remoteStream = event.streams[0] as unknown as MediaStream;
 
         // Bug do Chromium (issues.chromium.org/issues/40094084): sem um HTMLAudioElement
         // segurando o MediaStream, a cadeia analyser/destination da track remota não recebe

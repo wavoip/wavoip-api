@@ -1,6 +1,7 @@
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { TransportKind, TransportStatus } from "@/modules/media/ITransport";
 import type { EventEmitter } from "@/modules/shared/EventEmitter";
+import type { PeerConnectionLike, SessionDescription } from "@/ports/runtime/PeerConnectionPort";
 
 /**
  * O `IConnection` base não é genérico no mapa de eventos: o mapa de listeners do
@@ -26,8 +27,8 @@ export type RTCConnectionEvents = ConnectionEvents & {
 
 export interface IRTCConnection extends IConnection, EventEmitter<RTCConnectionEvents> {
     readonly kind: "webrtc";
-    readonly pc: RTCPeerConnection;
-    readonly answer: Promise<RTCSessionDescriptionInit>;
+    readonly pc: PeerConnectionLike;
+    readonly answer: Promise<SessionDescription>;
     lastDiagnostics: IceDiagnostics | null;
     emittedConnectivityIssues: ReadonlySet<ConnectivityIssue>;
     createOffer(): Promise<string>;

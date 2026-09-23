@@ -11,6 +11,7 @@ import {
 } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
+import type { PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
 
 export class WebRTCTransport extends EventEmitter<Events> implements ITransport {
     readonly kind = "webrtc" as const;
@@ -34,7 +35,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         return this.audioPipe.peerMuted;
     }
 
-    get pc(): RTCPeerConnection {
+    get pc(): PeerConnectionLike {
         return this.connection.pc;
     }
 

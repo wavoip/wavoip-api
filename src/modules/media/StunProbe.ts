@@ -1,3 +1,4 @@
+import { webPeerConnection } from "@/platform/web/webPeerConnection";
 export type StunProbeResult = {
     server: string;
     reachable: boolean;
@@ -27,7 +28,7 @@ export function runStunProbe(
 function probeOne(server: string, timeoutMs: number): Promise<StunProbeResult> {
     return new Promise((resolve) => {
         const startedAt = Date.now();
-        const pc = new RTCPeerConnection({ iceServers: [{ urls: server }] });
+        const pc = webPeerConnection({ iceServers: [{ urls: server }] });
         let settled = false;
 
         const cleanup = () => {
@@ -42,11 +43,10 @@ function probeOne(server: string, timeoutMs: number): Promise<StunProbeResult> {
             resolve(result);
         };
 
-        pc.onicecandidate = (event) => {
-            if (!event.candidate) return;
-            if (event.candidate.type !== "srflx") return;
+        pc.addEventListener("icecandidate", (event) => {
+            if (event.candidate?.type !== "srflx") return;
             finish({ server, reachable: true, latencyMs: Date.now() - startedAt });
-        };
+        });
 
         const timer = setTimeout(() => {
             finish({ server, reachable: false });

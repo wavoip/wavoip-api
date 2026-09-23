@@ -22,10 +22,6 @@ export class MockRTCPeerConnection {
     _config: RTCConfiguration;
     _iceListenerCounts = { added: 0, removed: 0 };
 
-    ontrack: ((e: RTCTrackEvent) => void) | null = null;
-    onconnectionstatechange: (() => void) | null = null;
-    onicecandidate: ((e: { candidate: RTCIceCandidate | null }) => void) | null = null;
-    oniceconnectionstatechange: (() => void) | null = null;
 
     connectionState: RTCPeerConnectionState = "new";
     iceConnectionState: RTCIceConnectionState = "new";
@@ -59,8 +55,8 @@ export class MockRTCPeerConnection {
         if (event === "icegatheringstatechange") this._iceListenerCounts.removed += 1;
     }
 
-    dispatchEvent(event: string) {
-        for (const listener of this.namedListeners.get(event) ?? []) listener();
+    dispatchEvent(event: string, payload?: unknown) {
+        for (const listener of this.namedListeners.get(event) ?? []) listener(payload);
     }
 
     _completeGathering() {
@@ -69,18 +65,17 @@ export class MockRTCPeerConnection {
     }
 
     _fireIceCandidate(type: RTCIceCandidateType) {
-        this.onicecandidate?.({ candidate: { type } as RTCIceCandidate });
+        this.dispatchEvent("icecandidate", { candidate: { type } });
     }
 
     _fireIceConnectionState(state: RTCIceConnectionState) {
         this.iceConnectionState = state;
-        this.oniceconnectionstatechange?.();
         this.dispatchEvent("iceconnectionstatechange");
     }
 
     _fireConnectionState(state: RTCPeerConnectionState) {
         this.connectionState = state;
-        this.onconnectionstatechange?.();
+        this.dispatchEvent("connectionstatechange");
     }
 }
 
