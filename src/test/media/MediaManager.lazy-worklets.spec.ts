@@ -21,8 +21,16 @@ class FakeAudioContext {
     createAnalyser = vi.fn();
 }
 
+const createObjectURL = vi.fn().mockReturnValue("blob:worklet");
+const revokeObjectURL = vi.fn();
+
 beforeEach(() => {
     addModule.mockClear();
+    createObjectURL.mockClear();
+    revokeObjectURL.mockClear();
+    // Mexe nos dois métodos, e não no global inteiro: o `new URL(...)` do happy-dom
+    // continua existindo.
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
     suspend.mockClear();
     resume.mockClear();
     close.mockClear();
@@ -69,5 +77,25 @@ describe("MediaManager — lazy worklet bootstrap (D2)", () => {
         await mm.waitReady();
 
         expect(addModule).toHaveBeenCalledTimes(3);
+    });
+});
+
+describe("MediaManager — Blob URL dos worklets", () => {
+    it("não cria Blob URL nenhuma até alguém precisar dos worklets", async () => {
+        const { MediaManager } = await import("@/modules/media/MediaManager");
+        new MediaManager();
+
+        expect(createObjectURL).not.toHaveBeenCalled();
+    });
+
+    it("cria uma Blob URL por worklet e a revoga depois de carregar", async () => {
+        const { MediaManager } = await import("@/modules/media/MediaManager");
+        const manager = new MediaManager();
+
+        await manager.waitReady();
+
+        expect(createObjectURL).toHaveBeenCalledTimes(3);
+        expect(revokeObjectURL).toHaveBeenCalledTimes(3);
+        expect(addModule).toHaveBeenCalledWith("blob:worklet");
     });
 });

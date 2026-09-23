@@ -1,9 +1,9 @@
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-// Embutido no bundle pelo vite-plugin-worklet (vira Blob URL), e não puxado de CDN: a lib
-// não depende de rede nem de CDN no carregamento da página do integrador.
-import libSampleRateWorkletUrl from "@alexanderolsen/libsamplerate-js/dist/libsamplerate.worklet.js?worklet";
-import micWorkletUrl from "../worklets/AudioWorkletMic.ts?worklet";
-import outWorkletUrl from "../worklets/AudioWorkletOut.ts?worklet";
+// Embutido no bundle pelo vite-plugin-worklet, e não puxado de CDN: a lib não depende de
+// rede nem de CDN no carregamento da página do integrador.
+import libSampleRateWorkletSource from "@alexanderolsen/libsamplerate-js/dist/libsamplerate.worklet.js?worklet";
+import micWorkletSource from "../worklets/AudioWorkletMic.ts?worklet";
+import outWorkletSource from "../worklets/AudioWorkletOut.ts?worklet";
 
 export type MediaManagerEvents = {
     devicesChanged: [devices: MediaDeviceInfo[]];
@@ -47,14 +47,27 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
         return this.loadWorklets();
     }
 
+    /**
+     * A Blob URL nasce aqui, e não no import do módulo: criá-la no import faz `import
+     * "@wavoip/wavoip-api"` já depender de `URL.createObjectURL`, que o React Native não
+     * tem — e contradiz o `sideEffects: false` do pacote.
+     */
     private loadWorklets(): Promise<void> {
         if (this._workletReady) return this._workletReady;
-        this._workletReady = Promise.all([
-            this.audioContext.audioWorklet.addModule(libSampleRateWorkletUrl),
-            this.audioContext.audioWorklet.addModule(micWorkletUrl),
-            this.audioContext.audioWorklet.addModule(outWorkletUrl),
-        ]).then(() => this.audioContext.suspend());
+        const sources = [libSampleRateWorkletSource, micWorkletSource, outWorkletSource];
+        this._workletReady = Promise.all(sources.map((source) => this.addWorklet(source))).then(() =>
+            this.audioContext.suspend(),
+        );
         return this._workletReady;
+    }
+
+    private async addWorklet(source: string): Promise<void> {
+        const url = URL.createObjectURL(new Blob([source], { type: "application/javascript" }));
+        try {
+            await this.audioContext.audioWorklet.addModule(url);
+        } finally {
+            URL.revokeObjectURL(url);
+        }
     }
 
     haveMedia(): boolean {
