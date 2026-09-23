@@ -23,12 +23,6 @@ export class Wavoip extends EventEmitter<Events> {
         platform?: string;
         language?: Language;
         iceConfig?: IceConfig;
-        /**
-         * Throttle for the deprecated `stats` / `serverStats` event tick (ms).
-         * Defaults to 200ms. Has no effect on `Call.getStats()` — that is a
-         * pull API and runs at the caller's chosen cadence.
-         */
-        statsTickMs?: number;
     }) {
         super();
 
@@ -215,10 +209,8 @@ export class Wavoip extends EventEmitter<Events> {
 
 function collectTransportOptions(params: {
     iceConfig?: IceConfig;
-    statsTickMs?: number;
 }): TransportOptions | undefined {
     const out: TransportOptions = {};
     if (params.iceConfig) out.iceConfig = params.iceConfig;
-    if (params.statsTickMs !== undefined) out.statsTickMs = params.statsTickMs;
     return Object.keys(out).length ? out : undefined;
 }

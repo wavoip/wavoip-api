@@ -379,15 +379,9 @@ describe("WebRTCTransport", () => {
             await startTransport(transport);
             origGetStats;
 
-            const cb = vi.fn();
-            transport.on("statsChanged", cb);
+            const stats = await transport.getStats();
 
-            // Bem além do intervalo de stats (200ms por padrão).
-            await vi.advanceTimersByTimeAsync(5_000);
-
-            expect(cb).toHaveBeenCalled();
-            const emittedStats = cb.mock.calls[0][0];
-            expect(emittedStats.rx.total).toBeGreaterThan(0);
+            expect(stats.rx.total).toBeGreaterThan(0);
         });
 
         it("updates stats.rtt with remote-inbound-rtp stats", async () => {
@@ -413,14 +407,9 @@ describe("WebRTCTransport", () => {
 
             await startTransport(transport);
 
-            const cb = vi.fn();
-            transport.on("statsChanged", cb);
+            const stats = await transport.getStats();
 
-            await vi.advanceTimersByTimeAsync(5_000);
-
-            expect(cb).toHaveBeenCalled();
-            const emittedStats = cb.mock.calls[0][0];
-            expect(emittedStats.rtt.avg).toBeGreaterThan(0);
+            expect(stats.rtt.avg).toBeGreaterThan(0);
         });
 
         it("captures rx jitter and audio levels from getStats", async () => {
@@ -448,35 +437,12 @@ describe("WebRTCTransport", () => {
 
             await startTransport(transport);
 
-            const cb = vi.fn();
-            transport.on("statsChanged", cb);
+            const stats = await transport.getStats();
 
-            await vi.advanceTimersByTimeAsync(5_000);
-
-            expect(cb).toHaveBeenCalled();
-            const emitted = cb.mock.calls[0][0];
-            expect(emitted.rx.jitter_ms).toBeCloseTo(15, 5);
-            expect(emitted.rx.audio_level).toBe(0.42);
-            expect(emitted.tx.audio_level).toBe(0.7);
+            expect(stats.rx.jitter_ms).toBeCloseTo(15, 5);
+            expect(stats.rx.audio_level).toBe(0.42);
+            expect(stats.tx.audio_level).toBe(0.7);
         });
 
-        it("uses options.statsTickMs as the interval cadence", async () => {
-            vi.useFakeTimers();
-            const audio = new FakeAudioRuntime();
-            const transport = new WebRTCTransport(audio, "offer-sdp", { statsTickMs: 1_000 });
-            await startTransport(transport);
-
-            const cb = vi.fn();
-            transport.on("statsChanged", cb);
-
-            await vi.advanceTimersByTimeAsync(500);
-            expect(cb).not.toHaveBeenCalled();
-
-            await vi.advanceTimersByTimeAsync(600);
-            expect(cb).toHaveBeenCalledTimes(1);
-
-            await vi.advanceTimersByTimeAsync(1_000);
-            expect(cb).toHaveBeenCalledTimes(2);
-        });
     });
 });

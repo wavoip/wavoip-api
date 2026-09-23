@@ -154,11 +154,11 @@ function transportsFor(audio: AudioRuntime, token: string, options?: TransportOp
         forCall: (type) =>
             type === "OFFICIAL"
                 ? new WebRTCTransport(audio, undefined, options)
-                : new WebsocketTransport(audio, token, options),
+                : new WebsocketTransport(audio, token),
         forOffer: (plan, deviceToken) => {
             if (plan.type === "webRTC") return new WebRTCTransport(audio, plan.sdp, options);
             if (plan.type === "relay") {
-                const relay = new WebsocketTransport(audio, deviceToken, options);
+                const relay = new WebsocketTransport(audio, deviceToken);
                 relay.useRelay(plan);
                 return relay;
             }

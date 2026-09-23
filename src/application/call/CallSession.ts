@@ -25,8 +25,6 @@ export type CallSessionEvents = {
     closed: [];
     connectionStatus: [status: TransportStatus];
     peerMuted: [muted: boolean];
-    stats: [stats: CallStats];
-    serverStats: [stats: ServerCallStats];
     iceDiagnostics: [diag: IceDiagnostics];
     connectivityIssue: [issue: ConnectivityIssue];
 };
@@ -312,10 +310,8 @@ export class CallSession implements Subscribable<CallSessionEvents> {
     // Na chamada UNOFFICIAL nenhum dos lados tem o quadro inteiro, e o `call:stats` do
     // servidor entra na junção.
     private absorbServerStats(stats: ServerCallStats): void {
-        this.events.emit("serverStats", stats);
         if (this.type !== "UNOFFICIAL") return;
         this.serverStats = Stats.fromServer(stats);
-        this.events.emit("stats", this.currentStats());
     }
 
     private currentStats(): CallStats {
@@ -342,10 +338,6 @@ export class CallSession implements Subscribable<CallSessionEvents> {
 
         this.transport.on("statusChanged", (status) => this.events.emit("connectionStatus", status));
         this.transport.on("peerMuted", (muted) => this.events.emit("peerMuted", muted));
-        this.transport.on("statsChanged", (stats) => {
-            this.transportStats = stats;
-            this.events.emit("stats", this.currentStats());
-        });
         if (isRTCTransport(this.transport)) {
             const rtc = this.transport;
             rtc.on("iceDiagnostics", (diag) => this.events.emit("iceDiagnostics", diag));

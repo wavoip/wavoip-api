@@ -334,12 +334,9 @@ describe("CallSession — stats", () => {
     it("OFFICIAL reports only what the transport measured", async () => {
         const session = makeSession({ plan: webRTCPlan });
         await session.accept();
-        const heard = vi.fn();
-        session.on("stats", heard);
 
         session.handleServerEvent({ type: "stats", stats: serverStats });
 
-        expect(heard).not.toHaveBeenCalled();
         expect((await session.getStats()).rtt).toEqual({ min: 0, max: 0, avg: 0 });
     });
 

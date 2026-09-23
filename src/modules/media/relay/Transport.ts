@@ -4,14 +4,7 @@ import type { RelayAddress } from "@/modules/media/ITransport";
 import { WSAudioPipe } from "@/modules/media/relay/AudioPipe";
 import { WSConnection } from "@/modules/media/relay/Connection";
 import { WSStatsAdapter } from "@/modules/media/relay/StatsAdapter";
-import {
-    type AudioRuntime,
-    DEFAULT_STATS_TICK_MS,
-    type Events,
-    type ITransport,
-    type TransportOptions,
-    type TransportStatus,
-} from "@/modules/media/ITransport";
+import type { AudioRuntime, Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { AudioMeter } from "@/ports/runtime/AudioEnginePort";
 
@@ -32,14 +25,10 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     private readonly connection: WSConnection;
     private readonly audioPipe: WSAudioPipe;
     private readonly statsAdapter: WSStatsAdapter;
-    private readonly statsTickMs: number;
 
-    private statsTimer: ReturnType<typeof setInterval> | null = null;
-
-    constructor(audio: AudioRuntime, token: string, options?: TransportOptions) {
+    constructor(audio: AudioRuntime, token: string) {
         super();
 
-        this.statsTickMs = options?.statsTickMs ?? DEFAULT_STATS_TICK_MS;
         this.connection = new WSConnection(token);
 
         this.audioPipe = new WSAudioPipe(audio, (data) => {
@@ -85,33 +74,15 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     private async start(): Promise<void> {
         await this.audioPipe.start();
         await this.connection.start();
-        this.startStatsLoop();
     }
 
     async stop(): Promise<void> {
-        this.stopStatsLoop();
         await this.connection.stop();
         await this.audioPipe.stop();
-    }
-
-    private startStatsLoop(): void {
-        this.statsTimer = setInterval(() => void this.tickStats(), this.statsTickMs);
-    }
-
-    private stopStatsLoop(): void {
-        if (this.statsTimer) {
-            clearInterval(this.statsTimer);
-            this.statsTimer = null;
-        }
     }
 
     async getStats(): Promise<CallStats> {
         await this.statsAdapter.refresh();
         return this.statsAdapter.snapshot();
-    }
-
-    private async tickStats(): Promise<void> {
-        await this.statsAdapter.refresh();
-        this.emit("statsChanged", this.statsAdapter.snapshot());
     }
 }

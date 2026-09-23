@@ -76,13 +76,4 @@ describe("Wavoip iceConfig", () => {
         expect(deviceConnectionInstances[0].platform).toBe("web");
         expect(deviceConnectionInstances[0].transportOptions).toEqual({ iceConfig: { gatheringTimeoutMs: 1000 } });
     });
-
-    it("bundles statsTickMs into transportOptions alongside iceConfig", () => {
-        new Wavoip({ tokens: ["a"], iceConfig: { gatheringTimeoutMs: 800 }, statsTickMs: 1000 });
-
-        expect(deviceConnectionInstances[0].transportOptions).toEqual({
-            iceConfig: { gatheringTimeoutMs: 800 },
-            statsTickMs: 1000,
-        });
-    });
 });

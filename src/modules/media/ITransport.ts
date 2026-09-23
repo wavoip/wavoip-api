@@ -9,25 +9,19 @@ import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 export type { TransportStatus } from "@/domain/call/types";
 export type TransportKind = "webrtc" | "ws";
 
-export const DEFAULT_STATS_TICK_MS = 200;
-
 /** O áudio da plataforma como o transporte o usa. */
 export type AudioRuntime = {
     readonly engine: AudioEnginePort;
     readonly microphone: MicrophonePort;
 };
 
-/**
- * `iceConfig` só vale para o WebRTC; o transporte WS o ignora.
- */
+/** Só o WebRTC tem opção; o relay não recebe nenhuma. */
 export type TransportOptions = {
     iceConfig?: IceConfig;
-    statsTickMs?: number;
 };
 
 export type Events = {
     statusChanged: [status: TransportStatus];
-    statsChanged: [stats: CallStats];
     peerMuted: [muted: boolean];
     iceDiagnostics: [diag: IceDiagnostics];
     connectivityIssue: [issue: ConnectivityIssue];

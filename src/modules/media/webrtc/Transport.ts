@@ -4,13 +4,12 @@ import { RTCAudioPipe } from "@/modules/media/webrtc/AudioPipe";
 import { RTCConnection } from "@/modules/media/webrtc/Connection";
 import { RTCStatsAdapter } from "@/modules/media/webrtc/StatsAdapter";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
-import {
-    type AudioRuntime,
-    DEFAULT_STATS_TICK_MS,
-    type Events,
-    type ITransport,
-    type TransportOptions,
-    type TransportStatus,
+import type {
+    AudioRuntime,
+    Events,
+    ITransport,
+    TransportOptions,
+    TransportStatus,
 } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { AudioMeter } from "@/ports/runtime/AudioEnginePort";
@@ -25,8 +24,6 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     private readonly audioPipe: RTCAudioPipe;
     private readonly statsAdapter: RTCStatsAdapter;
     private readonly hasRemoteOffer: boolean;
-    private readonly statsTickMs: number;
-    private statsJob = 0;
     private startedOnce = false;
     private stoppedOnce = false;
 
@@ -58,7 +55,6 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         super();
 
         this.hasRemoteOffer = !!offer;
-        this.statsTickMs = options?.statsTickMs ?? DEFAULT_STATS_TICK_MS;
         this.connection = new RTCConnection(offer, options?.iceConfig);
         this.audioPipe = new RTCAudioPipe(this.connection.pc, audio);
         this.statsAdapter = new RTCStatsAdapter(this.connection.pc, audio.engine);
@@ -96,9 +92,6 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
 
         if (this.hasRemoteOffer) await this.audioPipe.start();
         await this.connection.start();
-
-        await this.tickStats();
-        this.statsJob = setInterval(() => void this.tickStats(), this.statsTickMs) as unknown as number;
     }
 
     async createOffer(): Promise<string> {
@@ -109,7 +102,6 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     async stop(): Promise<void> {
         if (this.stoppedOnce) return;
         this.stoppedOnce = true;
-        clearInterval(this.statsJob);
         await this.connection.stop();
         await this.audioPipe.stop();
     }
@@ -117,10 +109,5 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     async getStats(): Promise<CallStats> {
         await this.statsAdapter.refresh();
         return this.statsAdapter.snapshot();
-    }
-
-    private async tickStats(): Promise<void> {
-        await this.statsAdapter.refresh();
-        this.emit("statsChanged", this.statsAdapter.snapshot());
     }
 }
