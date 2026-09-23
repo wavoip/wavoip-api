@@ -2,7 +2,7 @@ import { CallActiveProxy } from "@/modules/call/CallActive";
 import { CallOutgoingProxy } from "@/modules/call/CallOutgoing";
 import { OfferProxy } from "@/modules/call/Offer";
 import { CallHarness, relayPlan } from "@/test/support/CallHarness";
-import { beforeEach, describe, expect, it, } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 let harness: CallHarness;
 

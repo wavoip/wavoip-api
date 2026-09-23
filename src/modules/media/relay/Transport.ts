@@ -1,6 +1,9 @@
 import type { CallStats } from "@/domain/call/stats";
 import type { MediaPlan } from "@/domain/call/types";
-import { type RelayAddress, WSAudioPipe, WSConnection, WSStatsAdapter } from "@/modules/media/composition";
+import type { RelayAddress } from "@/modules/media/ITransport";
+import { WSAudioPipe } from "@/modules/media/relay/AudioPipe";
+import { WSConnection } from "@/modules/media/relay/Connection";
+import { WSStatsAdapter } from "@/modules/media/relay/StatsAdapter";
 import {
     DEFAULT_STATS_TICK_MS,
     type Events,

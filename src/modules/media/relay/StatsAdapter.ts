@@ -1,15 +1,10 @@
 import type { CallStats } from "@/domain/call/stats";
 import { Stats } from "@/domain/call/stats";
-import type { IStatsAdapter } from "@/modules/media/composition/StatsAdapter";
+import type { AudioLevelProvider, IStatsAdapter } from "@/modules/media/ITransport";
 
 // Cadência esperada de chegada dos frames do relay, para o estimador de jitter da
 // RFC 3550.
 const RX_EXPECTED_INTERVAL_MS = 20;
-
-export interface AudioLevelProvider {
-    readTxLevel(): number;
-    readRxLevel(): number;
-}
 
 /**
  * Só o que o servidor não tem como medir. RTT e perda vêm do `call:stats` e são

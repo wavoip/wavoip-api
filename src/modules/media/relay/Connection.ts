@@ -2,7 +2,7 @@ import type { TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import { webMediaSocket } from "@/platform/web/webMediaSocket";
 import { SOCKET_OPEN, type MediaSocketFactory, type MediaSocketLike } from "@/ports/runtime/MediaSocketPort";
-import type { IWSConnection, RelayAddress, WSConnectionEvents } from "./Connection";
+import type { RelayAddress } from "@/modules/media/ITransport";
 
 // 1000 = o servidor encerrou de propósito; 1008 = o servidor recusou (ex.: token
 // inválido). Reconectar entraria em loop ou desfaria um fim intencional.
@@ -14,7 +14,12 @@ const RECONNECT_TIMEOUT_MS = 30_000;
 // `message` só entregar frames de áudio.
 const PING_BYTE_LENGTH = 4;
 
-export class WSConnection extends EventEmitter<WSConnectionEvents> implements IWSConnection {
+export type WSConnectionEvents = {
+    statusChanged: [status: TransportStatus];
+    message: [data: ArrayBuffer];
+};
+
+export class WSConnection extends EventEmitter<WSConnectionEvents> {
     readonly kind = "ws" as const;
     status: TransportStatus = "connecting";
 

@@ -1,7 +1,6 @@
 import { rmsInt16 } from "@/modules/media/audio-level";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { IAudioPipe, PipeEvents } from "./AudioPipe";
 
 type AudioDataCallback = (data: ArrayBuffer) => void;
 
@@ -9,7 +8,12 @@ type AudioDataCallback = (data: ArrayBuffer) => void;
  * `peerMuted` é sempre `false`: o relay não expõe o mute da track remota. Na chamada
  * UNOFFICIAL o mute do outro lado chega pela sinalização (`call:peer:muted`).
  */
-export class WSAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe {
+/** `peerMuted` mora aqui porque, no WebRTC, vem dos eventos de mute da track remota. */
+export type PipeEvents = {
+    peerMuted: [muted: boolean];
+};
+
+export class WSAudioPipe extends EventEmitter<PipeEvents> {
     peerMuted = false;
     readonly audioAnalyserIn: Promise<AnalyserNode>;
     readonly audioAnalyserOut: Promise<AnalyserNode>;

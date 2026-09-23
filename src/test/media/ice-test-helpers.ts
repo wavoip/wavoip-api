@@ -22,7 +22,6 @@ export class MockRTCPeerConnection {
     _config: RTCConfiguration;
     _iceListenerCounts = { added: 0, removed: 0 };
 
-
     connectionState: RTCPeerConnectionState = "new";
     iceConnectionState: RTCIceConnectionState = "new";
     iceGatheringState: RTCIceGatheringState = "new";

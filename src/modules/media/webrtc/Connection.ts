@@ -10,7 +10,6 @@ import type { TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import { webPeerConnection } from "@/platform/web/webPeerConnection";
 import type { PeerConnectionFactory, PeerConnectionLike, SessionDescription } from "@/ports/runtime/PeerConnectionPort";
-import type { IRTCConnection, RTCConnectionEvents } from "./Connection";
 
 const SYMMETRIC_NAT_DETECTION_WINDOW_MS = 10_000;
 
@@ -20,7 +19,13 @@ const SYMMETRIC_NAT_DETECTION_WINDOW_MS = 10_000;
  * Duas entradas: `createOffer()` + `setAnswer()` na chamada que sai, `start()` com a
  * oferta remota passada no construtor na chamada que entra.
  */
-export class RTCConnection extends EventEmitter<RTCConnectionEvents> implements IRTCConnection {
+export type RTCConnectionEvents = {
+    statusChanged: [status: TransportStatus];
+    iceDiagnostics: [diag: IceDiagnostics];
+    connectivityIssue: [issue: ConnectivityIssue];
+};
+
+export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
     readonly kind = "webrtc" as const;
     status: TransportStatus = "disconnected";
     readonly pc: PeerConnectionLike;

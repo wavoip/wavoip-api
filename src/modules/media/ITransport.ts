@@ -53,6 +53,24 @@ export interface IRTCTransport extends ITransport {
     createOffer(): Promise<string>;
 }
 
+/** O endereço que o relay informa quando a chamada é aceita. */
+export type RelayAddress = { host: string; port: string };
+
+/** Lê o nível do áudio que passa, para as stats do relay (ver `relay/StatsAdapter`). */
+export interface AudioLevelProvider {
+    readTxLevel(): number;
+    readRxLevel(): number;
+}
+
+/**
+ * Dois métodos para separar a leitura barata do cache (`snapshot`, síncrona) da absorção
+ * que pode ser assíncrona (`refresh`, que no WebRTC é o `pc.getStats()`).
+ */
+export interface IStatsAdapter {
+    snapshot(): CallStats;
+    refresh(): Promise<void>;
+}
+
 export interface IWSTransport extends ITransport {
     readonly kind: "ws";
     /** Onde o relay atende, conhecido só quando a chamada é aceita. */

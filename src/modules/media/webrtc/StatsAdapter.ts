@@ -1,6 +1,6 @@
 import type { CallStats } from "@/domain/call/stats";
 import { Stats } from "@/domain/call/stats";
-import type { IStatsAdapter } from "@/modules/media/composition/StatsAdapter";
+import type { IStatsAdapter } from "@/modules/media/ITransport";
 import type { PeerConnectionLike, StatEntry } from "@/ports/runtime/PeerConnectionPort";
 
 /**

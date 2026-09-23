@@ -1,13 +1,17 @@
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { MediaStreamLike, MediaTrackLike, PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
-import type { IAudioPipe, PipeEvents } from "./AudioPipe";
 
 /**
  * `stop()` é idempotente porque dois caminhos o chamam: o desmonte explícito do
  * transporte e o `pc.connectionState === "closed"`.
  */
-export class RTCAudioPipe extends EventEmitter<PipeEvents> implements IAudioPipe {
+/** `peerMuted` mora aqui porque, no WebRTC, vem dos eventos de mute da track remota. */
+export type PipeEvents = {
+    peerMuted: [muted: boolean];
+};
+
+export class RTCAudioPipe extends EventEmitter<PipeEvents> {
     peerMuted = false;
     readonly audioAnalyserIn: Promise<AnalyserNode>;
     readonly audioAnalyserOut: Promise<AnalyserNode>;

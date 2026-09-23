@@ -1,4 +1,4 @@
-import { WebRTCTransport } from "@/modules/media/WebRTC";
+import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 class MockMediaStreamTrack {

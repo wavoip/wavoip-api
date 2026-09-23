@@ -1,4 +1,5 @@
-import { type AudioLevelProvider, WSStatsAdapter } from "@/modules/media/composition";
+import { WSStatsAdapter } from "@/modules/media/relay/StatsAdapter";
+import type { AudioLevelProvider } from "@/modules/media/ITransport";
 import { describe, expect, it, vi } from "vitest";
 
 function makeAudioContext(outputLatency = 0): AudioContext {

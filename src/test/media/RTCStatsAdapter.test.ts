@@ -1,4 +1,4 @@
-import { RTCStatsAdapter } from "@/modules/media/composition";
+import { RTCStatsAdapter } from "@/modules/media/webrtc/StatsAdapter";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type StatLike = Record<string, unknown> & { type: string; kind?: string };

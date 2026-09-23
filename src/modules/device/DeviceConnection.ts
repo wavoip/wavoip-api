@@ -7,8 +7,8 @@ import type { ConnectionStatus, Contact, DeviceStatus } from "@/modules/device/D
 import { DeviceWebSocketFactory } from "@/modules/device/WebSocket";
 import type { TransportOptions } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
-import { WebRTCTransport } from "@/modules/media/WebRTC";
-import { WebsocketTransport } from "@/modules/media/WebSocket";
+import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
+import { WebsocketTransport } from "@/modules/media/relay/Transport";
 import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";

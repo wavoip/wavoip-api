@@ -1,6 +1,8 @@
 import type { CallStats } from "@/domain/call/stats";
 import type { MediaPlan } from "@/domain/call/types";
-import { RTCAudioPipe, RTCConnection, RTCStatsAdapter } from "@/modules/media/composition";
+import { RTCAudioPipe } from "@/modules/media/webrtc/AudioPipe";
+import { RTCConnection } from "@/modules/media/webrtc/Connection";
+import { RTCStatsAdapter } from "@/modules/media/webrtc/StatsAdapter";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import {
     DEFAULT_STATS_TICK_MS,

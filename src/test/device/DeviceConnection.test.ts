@@ -65,7 +65,7 @@ vi.mock("@/adapters/http/FetchDeviceApi", () => ({
     },
 }));
 
-vi.mock("@/modules/media/WebRTC", () => ({
+vi.mock("@/modules/media/webrtc/Transport", () => ({
     WebRTCTransport: class {
         kind = "webrtc" as const;
         status = "connected" as const;
