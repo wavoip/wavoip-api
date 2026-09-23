@@ -3,7 +3,8 @@ import type { CallPeer } from "@/modules/call/Peer";
 import type { CallSession, CallSessionEvents } from "@/application/call/CallSession";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
-import { toLegacy } from "@/modules/call/legacyResult";
+import type { CommandFailure } from "@/domain/shared/errors";
+import type { Result } from "@/domain/shared/Result";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
 
@@ -24,10 +25,10 @@ export interface CallOutgoing {
     peer: CallPeer;
     deviceToken: string;
     status: CallStatus;
-    mute(): Promise<{ err: string | null }>;
-    unmute(): Promise<{ err: string | null }>;
+    mute(): Promise<Result<void, CommandFailure>>;
+    unmute(): Promise<Result<void, CommandFailure>>;
     /** Gives up the call before the peer answers. */
-    cancel(): Promise<{ err: string | null }>;
+    cancel(): Promise<Result<void, CommandFailure>>;
     on<T extends keyof CallOutgoingEvents>(event: T, callback: (...args: CallOutgoingEvents[T]) => void): Unsubscribe;
 }
 
@@ -52,16 +53,16 @@ export function CallOutgoingProxy(session: CallSession): CallOutgoing {
         deviceToken: session.deviceToken,
         direction: session.direction,
 
-        async mute(): Promise<{ err: string | null }> {
-            return toLegacy(await session.mute(true));
+        mute(): Promise<Result<void, CommandFailure>> {
+            return session.mute(true);
         },
 
-        async unmute(): Promise<{ err: string | null }> {
-            return toLegacy(await session.mute(false));
+        unmute(): Promise<Result<void, CommandFailure>> {
+            return session.mute(false);
         },
 
-        async cancel(): Promise<{ err: string | null }> {
-            return toLegacy(await session.cancel());
+        cancel(): Promise<Result<void, CommandFailure>> {
+            return session.cancel();
         },
 
         on<T extends keyof CallOutgoingEvents>(

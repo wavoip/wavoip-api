@@ -8,9 +8,11 @@ export type Result<T, E extends WavoipError = WavoipError> =
     | { readonly data: T; readonly error: null }
     | { readonly data: null; readonly error: E };
 
-function ok(): Result<void>;
-function ok<T>(data: T): Result<T>;
-function ok<T>(data?: T): Result<T> {
+// `never` no lugar do erro: um sucesso cabe em qualquer `Result`, seja qual for o
+// subconjunto de códigos que o método declara poder falhar.
+function ok(): Result<void, never>;
+function ok<T>(data: T): Result<T, never>;
+function ok<T>(data?: T): Result<T, never> {
     return { data: data as T, error: null };
 }
 

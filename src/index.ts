@@ -1,7 +1,11 @@
 export type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 export type { CallEndOutcome } from "@/modules/device/WebSocket";
+export type { Result } from "@/domain/shared/Result";
 export type {
+    AcceptFailure,
     CallFailureCode,
+    CommandFailure,
+    DeviceApiFailure,
     CommandErrorCode,
     DeviceErrorCode,
     ErrorCode,

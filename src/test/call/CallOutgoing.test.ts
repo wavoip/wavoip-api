@@ -63,7 +63,7 @@ describe("CallOutgoing — commands", () => {
     it("mute asks the server and applies only on success", async () => {
         const { outgoing } = makeOutgoing();
 
-        expect(await outgoing.mute()).toEqual({ err: null });
+        expect(await outgoing.mute()).toEqual({ data: undefined, error: null });
         expect(harness.muted).toEqual([true]);
         expect(harness.signaling.sent).toEqual([{ command: "mute", callId: "call-1", payload: true }]);
     });
@@ -72,25 +72,25 @@ describe("CallOutgoing — commands", () => {
         const { outgoing } = makeOutgoing();
         harness.signaling.muteAnswer = Ack.Refuse("CALL_NOT_FOUND");
 
-        expect(await outgoing.unmute()).toEqual({ err: "CALL_NOT_FOUND" });
+        expect(await outgoing.unmute()).toEqual({ data: null, error: { code: "CALL_NOT_FOUND", cause: undefined } });
         expect(harness.muted).toEqual([]);
     });
 
     it("cancel moves the call to CANCELLED", async () => {
         const { outgoing } = makeOutgoing();
 
-        expect(await outgoing.cancel()).toEqual({ err: null });
+        expect(await outgoing.cancel()).toEqual({ data: undefined, error: null });
         expect(outgoing.status).toBe("CANCELLED");
     });
 
     it.each([
         [Ack.Refuse("CALL_ALREADY_ANSWERED"), "CALL_ALREADY_ANSWERED"],
         [Ack.Timeout(), "ACK_TIMEOUT"],
-    ])("cancel reports %o as %s", async (answer, err) => {
+    ])("cancel reports %o as %s", async (answer, code) => {
         const { outgoing } = makeOutgoing();
         harness.signaling.cancelAnswer = answer;
 
-        expect(await outgoing.cancel()).toEqual({ err });
+        expect((await outgoing.cancel()).error?.code).toBe(code);
         expect(outgoing.status).toBe("RINGING");
     });
 });

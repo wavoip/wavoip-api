@@ -65,3 +65,12 @@ export type WavoipError<C extends ErrorCode = ErrorCode> = {
     /** O valor bruto do protocolo ou da plataforma, só para diagnóstico. */
     readonly cause?: unknown;
 };
+
+/** A falha de um comando que espera ack: ou ele não veio, ou o servidor recusou. */
+export type CommandFailure = WavoipError<CommandErrorCode | "UNKNOWN">;
+
+/** Atender soma a isso a mídia local, que sobe antes de o comando sair. */
+export type AcceptFailure = WavoipError<CommandErrorCode | "MEDIA_NEGOTIATION_FAILED" | "UNKNOWN">;
+
+/** A falha de uma rota HTTP do device. */
+export type DeviceApiFailure = WavoipError<DeviceErrorCode | "NETWORK_ERROR" | "UNKNOWN">;

@@ -32,7 +32,7 @@ Um objeto `CallActive` é fornecido quando uma oferta recebida é aceita ou quan
 Alterna o mudo do microfone. Opera na faixa de áudio — sem interrupção do stream, sem renegociação.
 
 ```typescript
-await call.mute()    // { err: string | null }
+await call.mute()    // Result<void, CommandFailure>
 await call.unmute()
 ```
 
@@ -40,10 +40,11 @@ await call.unmute()
 
 ### `end()`
 
-Encerra a chamada e libera todos os recursos de mídia.
+Encerra a chamada e libera todos os recursos de mídia. O outro lado desligando não passa por
+aqui: isso chega como o evento `ended`.
 
 ```typescript
-await call.end()
+const { error } = await call.end()
 ```
 
 ---

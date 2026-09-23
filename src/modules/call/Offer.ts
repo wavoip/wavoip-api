@@ -3,7 +3,8 @@ import type { CallPeer } from "@/modules/call/Peer";
 import type { CallSession, CallSessionEvents } from "@/application/call/CallSession";
 import type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
-import { legacyMessage } from "@/modules/call/legacyResult";
+import type { AcceptFailure, CommandFailure } from "@/domain/shared/errors";
+import { Result } from "@/domain/shared/Result";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
 
@@ -24,8 +25,8 @@ export interface Offer {
     peer: CallPeer;
     deviceToken: string;
     status: CallStatus;
-    accept(): Promise<{ call: CallActive; err: null } | { call: null; err: string }>;
-    reject(): Promise<{ err: null | string }>;
+    accept(): Promise<Result<CallActive, AcceptFailure>>;
+    reject(): Promise<Result<void, CommandFailure>>;
     on<T extends keyof OfferEvents>(event: T, callback: (...args: OfferEvents[T]) => void): Unsubscribe;
 }
 
@@ -62,20 +63,20 @@ export function OfferProxy(session: CallSession): Offer {
         deviceToken: session.deviceToken,
         direction: session.direction,
 
-        async accept(): Promise<{ call: CallActive; err: null } | { call: null; err: string }> {
+        async accept(): Promise<Result<CallActive, AcceptFailure>> {
             dispose();
             const accepted = await session.accept();
-            if (accepted.error) return { call: null, err: legacyMessage(accepted.error) };
-            return { call: CallActiveProxy(session), err: null };
+            if (accepted.error) return accepted;
+            return Result.ok(CallActiveProxy(session));
         },
 
         // A oferta só está recusada quando o servidor confirma; se ele não confirmar, ela
         // continua tocando e o integrador fica sabendo.
-        async reject(): Promise<{ err: string | null }> {
+        async reject(): Promise<Result<void, CommandFailure>> {
             const rejected = await session.reject();
-            if (rejected.error) return { err: rejected.error.code };
+            if (rejected.error) return rejected;
             dispose();
-            return { err: null };
+            return Result.ok();
         },
 
         on<T extends keyof OfferEvents>(event: T, callback: (...args: OfferEvents[T]) => void): Unsubscribe {

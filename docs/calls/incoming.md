@@ -15,9 +15,9 @@ Quando uma chamada chega em qualquer dispositivo conectado, a instância `Wavoip
 wavoip.on("offer", async (offer) => {
     console.log("Chamada recebida de", offer.peer.phone)
 
-    const { call, err } = await offer.accept()
-    if (err) {
-        console.error("Falha ao aceitar:", err)
+    const { data: call, error } = await offer.accept()
+    if (error) {
+        console.error("Falha ao aceitar:", error.code)
         return
     }
 
@@ -48,10 +48,14 @@ wavoip.on("offer", async (offer) => {
 Aceita a chamada. Inicia a captura de áudio e retorna um objeto de chamada ativa.
 
 ```typescript
-const { call, err } = await offer.accept()
-// call: CallActive | null
-// err:  string | null
+const { data, error } = await offer.accept()
+// data:  CallActive | null
+// error: WavoipError<AcceptFailure> | null
 ```
+
+Os códigos possíveis aqui são os de comando (`ACK_TIMEOUT`, `CALL_ALREADY_ANSWERED`,
+`CALL_NOT_FOUND`, `UNKNOWN`) mais `MEDIA_NEGOTIATION_FAILED`, que é a mídia local falhando
+antes de o aceite sair — a exceção original vem em `error.cause`.
 
 {% hint style="warning" %}
 `accept()` solicita permissão de microfone se ainda não concedida. Certifique-se de chamá-la a partir de um contexto de gesto do usuário (clique em botão, etc.) para evitar restrições de política de autoplay do navegador.
@@ -64,7 +68,7 @@ const { call, err } = await offer.accept()
 Rejeita a chamada.
 
 ```typescript
-const { err } = await offer.reject()
+const { error } = await offer.reject()
 ```
 
 ---
@@ -118,8 +122,8 @@ wavoip.on("offer", async (offer) => {
         name: peer.displayName ?? peer.phone,
         avatar: peer.profilePicture ?? undefined,
         onAccept: async () => {
-            const { call, err } = await offer.accept()
-            if (err) return showError(err)
+            const { data: call, error } = await offer.accept()
+            if (error) return showError(messages[error.code])
 
             handleActiveCall(call)
         },

@@ -271,10 +271,10 @@ describe("DeviceConnection — calls map cleanup", () => {
             dc.on("offerReceived", (offer) => received.push(offer));
             socket.receive("call:offer", offerProps("call-1"), vi.fn());
 
-            const { call, err } = await received[0].accept();
+            const { data, error } = await received[0].accept();
 
-            expect(err).toBeNull();
-            expect(call?.status).toBe("ACTIVE");
+            expect(error).toBeNull();
+            expect(data?.status).toBe("ACTIVE");
             const accepted = socket.withAck.find((s) => s.event === "call.accept");
             expect(accepted?.args).toEqual(["call-1", { type: "webRTC", sdp: "v=0\r\nfake-answer-sdp" }]);
         });

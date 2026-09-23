@@ -46,26 +46,27 @@ describe("Offer — accept and reject", () => {
     it("accept returns the active call", async () => {
         const { offer } = makeOffer();
 
-        const { call, err } = await offer.accept();
+        const { data, error } = await offer.accept();
 
-        expect(err).toBeNull();
-        expect(call?.id).toBe("call-1");
+        expect(error).toBeNull();
+        expect(data?.id).toBe("call-1");
     });
 
     it("accept reports the failure instead of throwing", async () => {
         const { offer } = makeOffer();
         harness.transports.current.startFailure = new Error("Permission denied");
 
-        const { call, err } = await offer.accept();
+        const { data, error } = await offer.accept();
 
-        expect(call).toBeNull();
-        expect(err).toBe("Permission denied");
+        expect(data).toBeNull();
+        expect(error?.code).toBe("MEDIA_NEGOTIATION_FAILED");
+        expect((error?.cause as Error).message).toBe("Permission denied");
     });
 
     it("reject tells the server and leaves the routing", async () => {
         const { offer, session } = makeOffer();
 
-        expect(await offer.reject()).toEqual({ err: null });
+        expect(await offer.reject()).toEqual({ data: undefined, error: null });
         expect(harness.signaling.sent).toEqual([{ command: "reject", callId: "call-1" }]);
         expect(harness.registry.has(session.id)).toBe(false);
     });
@@ -74,7 +75,7 @@ describe("Offer — accept and reject", () => {
         const { offer, session } = makeOffer();
         harness.signaling.rejectAnswer = Ack.Refuse("CALL_NOT_FOUND");
 
-        expect(await offer.reject()).toEqual({ err: "CALL_NOT_FOUND" });
+        expect(await offer.reject()).toEqual({ data: null, error: { code: "CALL_NOT_FOUND", cause: undefined } });
         expect(harness.registry.has(session.id)).toBe(true);
     });
 });

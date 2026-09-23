@@ -116,3 +116,39 @@ toast(messages[error.code])
 `language`, `setLanguage` e a dependência `a18n` saíram. A biblioteca não é interface: ela
 não tem como saber o tom, o idioma nem o contexto da sua aplicação, e uma frase pronta em
 três idiomas atendia mal os três.
+
+---
+
+## 4. Todo método devolve `Result`
+
+Os cinco formatos de retorno viraram um:
+
+```typescript
+type Result<T, E> = { data: T; error: null } | { data: null; error: E }
+```
+
+```typescript
+// v2
+const { call, err } = await offer.accept()
+if (err) return showError(err)
+
+// v3
+const { data: call, error } = await offer.accept()
+if (error) return showError(messages[error.code])
+```
+
+| v2 | v3 |
+| --- | --- |
+| `offer.accept()` → `{ call, err }` | `Result<ActiveCall, AcceptFailure>` |
+| `offer.reject()` → `{ err }` | `Result<void, CommandFailure>` |
+| `call.mute()` / `unmute()` / `end()` → `{ err }` | `Result<void, CommandFailure>` |
+| `outgoing.mute()` / `unmute()` / `cancel()` → `{ err }` | `Result<void, CommandFailure>` |
+
+**Desestruturar continua sendo o jeito curto**, só mudam os nomes: `data` no lugar de `call` /
+`pairingCode`, e `error` (um objeto) no lugar de `err` (uma string). Se você só quer saber se
+deu certo, `if (error)` responde igual ao `if (err)` de antes.
+
+O tipo do erro é o subconjunto que aquele método pode devolver, então o autocomplete não
+oferece código que não pode acontecer ali. `CommandFailure` são os códigos de comando; o
+`AcceptFailure` soma a eles o `MEDIA_NEGOTIATION_FAILED`, porque atender sobe a mídia local
+antes de o comando sair.

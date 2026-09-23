@@ -1,9 +1,9 @@
 import type { CallSession, CallSessionEvents } from "@/application/call/CallSession";
-import type { CallFailureCode, WavoipError } from "@/domain/shared/errors";
+import type { CallFailureCode, CommandFailure, WavoipError } from "@/domain/shared/errors";
+import type { Result } from "@/domain/shared/Result";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import type { CallStats } from "@/domain/call/stats";
 import type { CallDirection, CallStatus, CallType, TransportStatus } from "@/domain/call/types";
-import { toLegacy } from "@/modules/call/legacyResult";
 import type { CallPeer } from "@/modules/call/Peer";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
@@ -31,9 +31,10 @@ export interface CallActive {
     audioAnalyserIn: Promise<AnalyserNode>;
     /** Outbound (local mic → peer) AnalyserNode. */
     audioAnalyserOut: Promise<AnalyserNode>;
-    mute(): Promise<{ err: string | null }>;
-    unmute(): Promise<{ err: string | null }>;
-    end(): Promise<{ err: string | null }>;
+    mute(): Promise<Result<void, CommandFailure>>;
+    unmute(): Promise<Result<void, CommandFailure>>;
+    /** Hangs up. The peer hanging up arrives as the `ended` event instead. */
+    end(): Promise<Result<void, CommandFailure>>;
     /**
      * Pull the most recent CallStats snapshot. The consumer drives the cadence:
      * paint a waveform per animation frame, or refresh a dashboard once a second.
@@ -73,16 +74,16 @@ export function CallActiveProxy(session: CallSession): CallActive {
         audioAnalyserIn: session.media?.meterIn as Promise<AnalyserNode>,
         audioAnalyserOut: session.media?.meterOut as Promise<AnalyserNode>,
 
-        async mute(): Promise<{ err: string | null }> {
-            return toLegacy(await session.mute(true));
+        mute(): Promise<Result<void, CommandFailure>> {
+            return session.mute(true);
         },
 
-        async unmute(): Promise<{ err: string | null }> {
-            return toLegacy(await session.mute(false));
+        unmute(): Promise<Result<void, CommandFailure>> {
+            return session.mute(false);
         },
 
-        async end(): Promise<{ err: string | null }> {
-            return toLegacy(await session.end());
+        end(): Promise<Result<void, CommandFailure>> {
+            return session.end();
         },
 
         getStats(): Promise<CallStats> {

@@ -13,9 +13,9 @@ beforeEach(() => {
 async function makeActive(plan = relayPlan): Promise<{ session: CallSession; active: CallActive }> {
     const type = plan === relayPlan ? "UNOFFICIAL" : "OFFICIAL";
     const session = harness.incoming({ type, plan });
-    const { call } = await OfferProxy(session).accept();
-    if (!call) throw new Error("accept failed");
-    return { session, active: call };
+    const { data } = await OfferProxy(session).accept();
+    if (!data) throw new Error("accept failed");
+    return { session, active: data };
 }
 
 const serverStats = {
@@ -68,8 +68,8 @@ describe("CallActive — commands", () => {
         const { active } = await makeActive();
         harness.signaling.sent.length = 0;
 
-        expect(await active.mute()).toEqual({ err: null });
-        expect(await active.unmute()).toEqual({ err: null });
+        expect(await active.mute()).toEqual({ data: undefined, error: null });
+        expect(await active.unmute()).toEqual({ data: undefined, error: null });
 
         expect(harness.muted).toEqual([true, false]);
         expect(harness.signaling.sent.map((s) => s.command)).toEqual(["mute", "mute"]);
@@ -79,8 +79,8 @@ describe("CallActive — commands", () => {
         const { active } = await makeActive();
         harness.signaling.sent.length = 0;
 
-        expect(await active.end()).toEqual({ err: null });
-        expect(await active.end()).toEqual({ err: null });
+        expect(await active.end()).toEqual({ data: undefined, error: null });
+        expect(await active.end()).toEqual({ data: undefined, error: null });
 
         expect(harness.signaling.sent.map((s) => s.command)).toEqual(["end"]);
         expect(harness.transports.current.stops).toBe(1);

@@ -120,7 +120,7 @@ call.on("unanswered", () => showNotification("Sem resposta"))
 Silencia ou ativa o microfone para esta chamada.
 
 ```typescript
-await call.mute()    // { err: string | null }
+await call.mute()    // Result<void, CommandFailure>
 await call.unmute()
 ```
 
@@ -131,15 +131,15 @@ await call.unmute()
 Desiste da chamada antes de o destinatário atender — é o equivalente ao CANCEL do SIP.
 
 ```typescript
-const { err } = await call.cancel()
-if (err) console.error("Não foi possível cancelar:", err)
+const { error } = await call.cancel()
+if (error) console.error("Não foi possível cancelar:", error.code)
 ```
 
 Só encerra a chamada e libera o microfone **quando o servidor confirma**. Se o
 destinatário atender no exato instante do clique, o servidor recusa com `CALL_ALREADY_ANSWERED`
 e a chamada continua viva e com áudio — cabe à sua interface reabilitar o botão.
 
-Se o ack não chegar em 10s, resolve com `err: "ACK_TIMEOUT"` em vez de ficar pendente
+Se o ack não chegar em 10s, resolve com `error.code === "ACK_TIMEOUT"` em vez de ficar pendente
 para sempre.
 
 {% hint style="warning" %}

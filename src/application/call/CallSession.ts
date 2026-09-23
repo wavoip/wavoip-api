@@ -3,7 +3,7 @@ import { CallPolicy } from "@/domain/call/policy";
 import { type CallStats, type ServerCallStats, Stats } from "@/domain/call/stats";
 import { Status } from "@/domain/call/status";
 import type { CallDirection, CallStatus, CallType, MediaPlan, Peer, TransportStatus } from "@/domain/call/types";
-import type { CallFailureCode, WavoipError } from "@/domain/shared/errors";
+import type { AcceptFailure, CallFailureCode, CommandFailure, WavoipError } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
 import { type ITransport, isRTCTransport } from "@/modules/media/ITransport";
 import { EventEmitter, type Subscribable, type Unsubscribe } from "@/modules/shared/EventEmitter";
@@ -95,7 +95,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
      * precisa mandar o SDP junto. A sessão só existe se o servidor aceitar; se não, o
      * transporte é liberado e ninguém fica com o microfone aberto.
      */
-    static async Start(deps: CallSessionDeps, params: StartCallParams): Promise<Result<CallSession>> {
+    static async Start(deps: CallSessionDeps, params: StartCallParams): Promise<Result<CallSession, AcceptFailure>> {
         const transport = deps.transports.forCall(params.type);
 
         let plan: MediaPlan = { type: "none" };
@@ -146,7 +146,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
     }
 
     /** Atende a oferta recebida: o transporte já sabe com quem falar desde a criação. */
-    async accept(): Promise<Result<void>> {
+    async accept(): Promise<Result<void, AcceptFailure>> {
         let answer: MediaPlan;
         try {
             answer = await this.transport.accept();
@@ -170,7 +170,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
     }
 
     /** A oferta só está recusada quando o servidor confirma; até lá, ela continua tocando. */
-    async reject(): Promise<Result<void>> {
+    async reject(): Promise<Result<void, CommandFailure>> {
         const ack = await this.deps.signaling.reject(this.id, CallPolicy.ackTimeoutMs);
         if (ack.kind !== "ok") return ackFailure(ack);
         this.status = Status.transition(this.status, "reject") ?? this.status;
@@ -190,7 +190,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
      * lado pode estar tocando ainda. A mídia fica justamente porque a chamada ainda pode
      * ser atendida.
      */
-    async cancel(): Promise<Result<void>> {
+    async cancel(): Promise<Result<void, CommandFailure>> {
         if (this.stopped) return Result.ok();
         const ack = await this.deps.signaling.cancel(this.id, CallPolicy.ackTimeoutMs);
         if (ack.kind !== "ok") {
@@ -213,7 +213,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
      * A mídia só cai quando o servidor confirma o fim. Derrubá-la antes deixaria o
      * integrador anunciando chamada encerrada enquanto o outro lado continua falando.
      */
-    async end(): Promise<Result<void>> {
+    async end(): Promise<Result<void, CommandFailure>> {
         if (this.stopped) return Result.ok();
         const ack = await this.deps.signaling.end(this.id, CallPolicy.ackTimeoutMs);
         if (ack.kind !== "ok") return ackFailure(ack);
@@ -226,7 +226,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
      * microfone só corta depois da confirmação, para a interface não mostrar mudo enquanto
      * o áudio ainda sai.
      */
-    async mute(muted: boolean): Promise<Result<void>> {
+    async mute(muted: boolean): Promise<Result<void, CommandFailure>> {
         const ack = await this.deps.signaling.mute(this.id, muted, CallPolicy.ackTimeoutMs);
         if (ack.kind !== "ok") return ackFailure(ack);
         this.deps.setLocalMuted(muted);
@@ -355,7 +355,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
 }
 
 /** O ack que não veio é ACK_TIMEOUT; o recusado já chega traduzido pelo adaptador. */
-function ackFailure(ack: Exclude<SignalAck<unknown>, { kind: "ok" }>): Result<never> {
+function ackFailure(ack: Exclude<SignalAck<unknown>, { kind: "ok" }>): Result<never, CommandFailure> {
     if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
     return Result.fail(ack.code, { cause: ack.cause });
 }
