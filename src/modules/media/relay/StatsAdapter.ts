@@ -1,15 +1,11 @@
 import type { CallStats } from "@/domain/call/stats";
 import { Stats } from "@/domain/call/stats";
-import type { IStatsAdapter } from "@/modules/media/composition/StatsAdapter";
+import type { AudioLevelProvider, IStatsAdapter } from "@/modules/media/ITransport";
+import type { AudioEnginePort } from "@/ports/runtime/AudioEnginePort";
 
 // Cadência esperada de chegada dos frames do relay, para o estimador de jitter da
 // RFC 3550.
 const RX_EXPECTED_INTERVAL_MS = 20;
-
-export interface AudioLevelProvider {
-    readTxLevel(): number;
-    readRxLevel(): number;
-}
 
 /**
  * Só o que o servidor não tem como medir. RTT e perda vêm do `call:stats` e são
@@ -23,7 +19,7 @@ export class WSStatsAdapter implements IStatsAdapter {
     private lastRxArrivalTs = 0;
 
     constructor(
-        private readonly audioContext: AudioContext,
+        private readonly engine: AudioEnginePort,
         private readonly levels: AudioLevelProvider,
     ) {}
 
@@ -73,6 +69,6 @@ export class WSStatsAdapter implements IStatsAdapter {
 
         this.cache.tx.audio_level = this.levels.readTxLevel();
         this.cache.rx.audio_level = this.levels.readRxLevel();
-        this.cache.audio_context.output_latency_ms = this.audioContext.outputLatency * 1000;
+        this.cache.audio_context.output_latency_ms = this.engine.outputLatency * 1000;
     }
 }

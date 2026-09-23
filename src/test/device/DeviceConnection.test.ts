@@ -65,15 +65,15 @@ vi.mock("@/adapters/http/FetchDeviceApi", () => ({
     },
 }));
 
-vi.mock("@/modules/media/WebRTC", () => ({
+vi.mock("@/modules/media/webrtc/Transport", () => ({
     WebRTCTransport: class {
         kind = "webrtc" as const;
         status = "connected" as const;
         peerMuted = false;
         lastDiagnostics = null;
         emittedConnectivityIssues = new Set();
-        audioAnalyserIn = Promise.resolve({});
-        audioAnalyserOut = Promise.resolve({});
+        meterIn = Promise.resolve({});
+        meterOut = Promise.resolve({});
         createOffer = vi.fn().mockResolvedValue("v=0\r\nfake-offer-sdp");
         accept = vi.fn().mockResolvedValue({ type: "webRTC", sdp: "v=0\r\nfake-answer-sdp" });
         connect = vi.fn().mockResolvedValue(undefined);

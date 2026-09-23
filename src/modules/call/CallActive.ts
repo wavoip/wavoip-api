@@ -105,8 +105,8 @@ export function CallActiveProxy(session: CallSession): CallActive {
         type: session.type,
         deviceToken: session.deviceToken,
         direction: session.direction,
-        audioAnalyserIn: session.media?.audioAnalyserIn as Promise<AnalyserNode>,
-        audioAnalyserOut: session.media?.audioAnalyserOut as Promise<AnalyserNode>,
+        audioAnalyserIn: session.media?.meterIn as Promise<AnalyserNode>,
+        audioAnalyserOut: session.media?.meterOut as Promise<AnalyserNode>,
 
         async mute(): Promise<{ err: string | null }> {
             return toLegacy(await session.mute(true));
@@ -209,7 +209,7 @@ export function CallActiveProxy(session: CallSession): CallActive {
         audio_analyser: {
             get: () => {
                 warnDeprecated("CallActive.audio_analyser", "use `active.audioAnalyserIn` instead.");
-                return session.media?.audioAnalyserIn;
+                return session.media?.meterIn as Promise<AnalyserNode> | undefined;
             },
             enumerable: true,
         },

@@ -1,21 +1,25 @@
 import type { CallStats } from "@/domain/call/stats";
 import type { MediaPlan } from "@/domain/call/types";
-import { type RelayAddress, WSAudioPipe, WSConnection, WSStatsAdapter } from "@/modules/media/composition";
+import type { RelayAddress } from "@/modules/media/ITransport";
+import { WSAudioPipe } from "@/modules/media/relay/AudioPipe";
+import { WSConnection } from "@/modules/media/relay/Connection";
+import { WSStatsAdapter } from "@/modules/media/relay/StatsAdapter";
 import {
+    type AudioRuntime,
     DEFAULT_STATS_TICK_MS,
     type Events,
     type ITransport,
     type TransportOptions,
     type TransportStatus,
 } from "@/modules/media/ITransport";
-import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
+import type { AudioMeter } from "@/ports/runtime/AudioEnginePort";
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
     public readonly kind = "ws" as const;
     public peerMuted = false;
-    public audioAnalyserIn: Promise<AnalyserNode>;
-    public audioAnalyserOut: Promise<AnalyserNode>;
+    public meterIn: Promise<AudioMeter>;
+    public meterOut: Promise<AudioMeter>;
 
     get status(): TransportStatus {
         return this.connection.status;
@@ -32,20 +36,20 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
 
     private statsTimer: ReturnType<typeof setInterval> | null = null;
 
-    constructor(mediaManager: MediaManager, token: string, options?: TransportOptions) {
+    constructor(audio: AudioRuntime, token: string, options?: TransportOptions) {
         super();
 
         this.statsTickMs = options?.statsTickMs ?? DEFAULT_STATS_TICK_MS;
         this.connection = new WSConnection(token);
 
-        this.audioPipe = new WSAudioPipe(mediaManager, (data) => {
+        this.audioPipe = new WSAudioPipe(audio, (data) => {
             this.connection.send(data);
             this.statsAdapter.noteSent(data.byteLength);
         });
-        this.audioAnalyserIn = this.audioPipe.audioAnalyserIn;
-        this.audioAnalyserOut = this.audioPipe.audioAnalyserOut;
+        this.meterIn = this.audioPipe.meterIn;
+        this.meterOut = this.audioPipe.meterOut;
 
-        this.statsAdapter = new WSStatsAdapter(mediaManager.audioContext, {
+        this.statsAdapter = new WSStatsAdapter(audio.engine, {
             readTxLevel: () => this.audioPipe.readTxLevel(),
             readRxLevel: () => this.audioPipe.readRxLevel(),
         });

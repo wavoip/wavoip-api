@@ -1,10 +1,12 @@
 import type { CallStats } from "@/domain/call/stats";
 import { Stats } from "@/domain/call/stats";
-import type { IStatsAdapter } from "@/modules/media/composition/StatsAdapter";
+import type { IStatsAdapter } from "@/modules/media/ITransport";
+import type { AudioEnginePort } from "@/ports/runtime/AudioEnginePort";
+import type { PeerConnectionLike, StatEntry } from "@/ports/runtime/PeerConnectionPort";
 
 /**
- * Tudo medido no peer local, sem nada do servidor. A latência de saída vem do
- * `AudioContext.outputLatency` porque o `pc.getStats` não a expõe.
+ * Tudo medido no peer local, sem nada do servidor. A latência de saída vem do motor de
+ * áudio porque o `pc.getStats` não a expõe.
  */
 export class RTCStatsAdapter implements IStatsAdapter {
     private cache: CallStats = Stats.empty();
@@ -13,8 +15,8 @@ export class RTCStatsAdapter implements IStatsAdapter {
     private prevSampleTs = 0;
 
     constructor(
-        private readonly pc: RTCPeerConnection,
-        private readonly audioContext: AudioContext,
+        private readonly pc: PeerConnectionLike,
+        private readonly engine: AudioEnginePort,
     ) {}
 
     snapshot(): CallStats {
@@ -34,10 +36,10 @@ export class RTCStatsAdapter implements IStatsAdapter {
         }
 
         this.updateBitrateSample(curBytesReceived, curBytesSent);
-        this.cache.audio_context.output_latency_ms = this.audioContext.outputLatency * 1000;
+        this.cache.audio_context.output_latency_ms = this.engine.outputLatency * 1000;
     }
 
-    private absorbInbound(stat: RTCInboundRtpStreamStats & { audioLevel?: number; jitter?: number }): number {
+    private absorbInbound(stat: AudioInboundStat): number {
         if (stat.bytesReceived) this.cache.rx.total_bytes += stat.bytesReceived;
         if (stat.packetsLost) this.cache.rx.loss = stat.packetsLost;
         if (stat.packetsReceived) this.cache.rx.total = stat.packetsReceived;
@@ -46,12 +48,12 @@ export class RTCStatsAdapter implements IStatsAdapter {
         return stat.bytesReceived ?? 0;
     }
 
-    private absorbOutbound(stat: RTCOutboundRtpStreamStats): number {
+    private absorbOutbound(stat: AudioOutboundStat): number {
         if (stat.bytesSent) this.cache.tx.total_bytes += stat.bytesSent;
         return stat.bytesSent ?? 0;
     }
 
-    private absorbMediaSource(stat: { audioLevel?: number }): void {
+    private absorbMediaSource(stat: AudioMediaSourceStat): void {
         if (typeof stat.audioLevel === "number") this.cache.tx.audio_level = stat.audioLevel;
     }
 
@@ -83,7 +85,20 @@ export class RTCStatsAdapter implements IStatsAdapter {
     }
 }
 
-type RemoteInboundAudioStat = RTCStats & {
+/** O que cada linha do `getStats` traz, do jeito que a porta a entrega. */
+type AudioInboundStat = StatEntry & {
+    bytesReceived?: number;
+    packetsLost?: number;
+    packetsReceived?: number;
+    audioLevel?: number;
+    jitter?: number;
+};
+
+type AudioOutboundStat = StatEntry & { bytesSent?: number };
+
+type AudioMediaSourceStat = StatEntry & { audioLevel?: number };
+
+type RemoteInboundAudioStat = StatEntry & {
     kind: "audio";
     packetsLost?: number;
     packetsReceived?: number;
@@ -91,18 +106,18 @@ type RemoteInboundAudioStat = RTCStats & {
     roundTripTimeMeasurements?: number;
 };
 
-function isAudioInbound(s: RTCStats): s is RTCInboundRtpStreamStats & { audioLevel?: number; jitter?: number } {
-    return s.type === "inbound-rtp" && (s as RTCInboundRtpStreamStats).kind === "audio";
+function isAudioInbound(s: StatEntry): s is AudioInboundStat {
+    return s.type === "inbound-rtp" && s.kind === "audio";
 }
 
-function isAudioOutbound(s: RTCStats): s is RTCOutboundRtpStreamStats {
-    return s.type === "outbound-rtp" && (s as RTCOutboundRtpStreamStats).kind === "audio";
+function isAudioOutbound(s: StatEntry): s is AudioOutboundStat {
+    return s.type === "outbound-rtp" && s.kind === "audio";
 }
 
-function isAudioMediaSource(s: RTCStats): s is RTCStats & { audioLevel?: number } {
-    return s.type === "media-source" && (s as { kind?: string }).kind === "audio";
+function isAudioMediaSource(s: StatEntry): s is AudioMediaSourceStat {
+    return s.type === "media-source" && s.kind === "audio";
 }
 
-function isAudioRemoteInbound(s: RTCStats): s is RemoteInboundAudioStat {
-    return s.type === "remote-inbound-rtp" && (s as RemoteInboundAudioStat).kind === "audio";
+function isAudioRemoteInbound(s: StatEntry): s is RemoteInboundAudioStat {
+    return s.type === "remote-inbound-rtp" && s.kind === "audio";
 }

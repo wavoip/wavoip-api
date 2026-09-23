@@ -8,7 +8,8 @@ import {
 } from "@/modules/media/ICEDiagnostics";
 import type { TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { IRTCConnection, RTCConnectionEvents } from "./Connection";
+import { webPeerConnection } from "@/platform/web/webPeerConnection";
+import type { PeerConnectionFactory, PeerConnectionLike, SessionDescription } from "@/ports/runtime/PeerConnectionPort";
 
 const SYMMETRIC_NAT_DETECTION_WINDOW_MS = 10_000;
 
@@ -18,15 +19,21 @@ const SYMMETRIC_NAT_DETECTION_WINDOW_MS = 10_000;
  * Duas entradas: `createOffer()` + `setAnswer()` na chamada que sai, `start()` com a
  * oferta remota passada no construtor na chamada que entra.
  */
-export class RTCConnection extends EventEmitter<RTCConnectionEvents> implements IRTCConnection {
+export type RTCConnectionEvents = {
+    statusChanged: [status: TransportStatus];
+    iceDiagnostics: [diag: IceDiagnostics];
+    connectivityIssue: [issue: ConnectivityIssue];
+};
+
+export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
     readonly kind = "webrtc" as const;
     status: TransportStatus = "disconnected";
-    readonly pc: RTCPeerConnection;
-    readonly answer: Promise<RTCSessionDescriptionInit>;
+    readonly pc: PeerConnectionLike;
+    readonly answer: Promise<SessionDescription>;
     lastDiagnostics: IceDiagnostics | null = null;
 
-    private readonly answerResolver: PromiseWithResolvers<RTCSessionDescriptionInit>;
-    private readonly remoteOffer?: RTCSessionDescriptionInit;
+    private readonly answerResolver: PromiseWithResolvers<SessionDescription>;
+    private readonly remoteOffer?: SessionDescription;
     private started = false;
     private offerCreated = false;
     private stopped = false;
@@ -46,41 +53,41 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> implements 
         return this._emittedConnectivityIssues;
     }
 
-    constructor(offer?: string, iceConfig?: IceConfig) {
+    constructor(offer?: string, iceConfig?: IceConfig, createPeer: PeerConnectionFactory = webPeerConnection) {
         super();
 
         this.gatheringTimeoutMs = iceConfig?.gatheringTimeoutMs ?? DEFAULT_ICE_GATHERING_TIMEOUT_MS;
         const iceServers = iceConfig?.iceServers ?? DEFAULT_ICE_SERVERS;
 
-        this.pc = new RTCPeerConnection({ iceServers });
+        this.pc = createPeer({ iceServers });
         if (offer) this.remoteOffer = { type: "offer", sdp: offer };
 
-        this.answerResolver = Promise.withResolvers<RTCSessionDescriptionInit>();
+        this.answerResolver = Promise.withResolvers<SessionDescription>();
         this.answer = this.answerResolver.promise;
 
-        this.pc.onicecandidate = (event) => {
+        this.pc.addEventListener("icecandidate", (event) => {
             const candidate = event.candidate;
             if (!candidate) return;
             const kind = candidate.type as IceCandidateKind | undefined;
             if (kind && kind in this.candidatesByType) this.candidatesByType[kind] += 1;
-        };
+        });
 
-        this.pc.oniceconnectionstatechange = () => {
+        this.pc.addEventListener("iceconnectionstatechange", () => {
             if (this.pc.iceConnectionState === "failed") {
                 this.emitIssue("ICE_CONNECTION_FAILED");
             }
             if (this.pc.iceConnectionState === "connected" || this.pc.iceConnectionState === "completed") {
                 if (this.symmetricNatTimer) clearTimeout(this.symmetricNatTimer);
             }
-        };
+        });
 
-        this.pc.onconnectionstatechange = () => {
+        this.pc.addEventListener("connectionstatechange", () => {
             if (this.pc.connectionState === "connecting") this.setStatus("connecting");
             if (this.pc.connectionState === "disconnected" || this.pc.connectionState === "closed") {
                 this.setStatus("disconnected");
             }
             if (this.pc.connectionState === "connected") this.setStatus("connected");
-        };
+        });
     }
 
     async start(): Promise<void> {
@@ -95,7 +102,7 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> implements 
 
         await this.waitForIceGathering();
 
-        this.answerResolver.resolve(this.pc.localDescription as RTCSessionDescription);
+        this.answerResolver.resolve(this.pc.localDescription as SessionDescription);
     }
 
     async createOffer(): Promise<string> {

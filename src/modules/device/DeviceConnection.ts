@@ -5,10 +5,10 @@ import { type CallOutgoing, CallOutgoingProxy } from "@/modules/call/CallOutgoin
 import { type Offer, OfferProxy } from "@/modules/call/Offer";
 import type { ConnectionStatus, Contact, DeviceStatus } from "@/modules/device/Device";
 import { DeviceWebSocketFactory } from "@/modules/device/WebSocket";
-import type { TransportOptions } from "@/modules/media/ITransport";
+import type { AudioRuntime, TransportOptions } from "@/modules/media/ITransport";
 import type { MediaManager } from "@/modules/media/MediaManager";
-import { WebRTCTransport } from "@/modules/media/WebRTC";
-import { WebsocketTransport } from "@/modules/media/WebSocket";
+import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
+import { WebsocketTransport } from "@/modules/media/relay/Transport";
 import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
@@ -64,7 +64,11 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             {
                 signaling,
                 api: new FetchDeviceApi(token),
-                transports: transportsFor(mediaManager, token, transportOptions),
+                transports: transportsFor(
+                    { engine: mediaManager.engine, microphone: mediaManager },
+                    token,
+                    transportOptions,
+                ),
                 setLocalMuted: (muted) => mediaManager.setMuted(muted),
             },
             token,
@@ -177,16 +181,16 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
  * O device decide o transporte da chamada que sai: OFFICIAL fala WebRTC, UNOFFICIAL fala
  * relay. Na oferta recebida, quem decide é o plano que veio nela.
  */
-function transportsFor(mediaManager: MediaManager, token: string, options?: TransportOptions): TransportFactory {
+function transportsFor(audio: AudioRuntime, token: string, options?: TransportOptions): TransportFactory {
     return {
         forCall: (type) =>
             type === "OFFICIAL"
-                ? new WebRTCTransport(mediaManager, undefined, options)
-                : new WebsocketTransport(mediaManager, token, options),
+                ? new WebRTCTransport(audio, undefined, options)
+                : new WebsocketTransport(audio, token, options),
         forOffer: (plan, deviceToken) => {
-            if (plan.type === "webRTC") return new WebRTCTransport(mediaManager, plan.sdp, options);
+            if (plan.type === "webRTC") return new WebRTCTransport(audio, plan.sdp, options);
             if (plan.type === "relay") {
-                const relay = new WebsocketTransport(mediaManager, deviceToken, options);
+                const relay = new WebsocketTransport(audio, deviceToken, options);
                 relay.useRelay(plan);
                 return relay;
             }

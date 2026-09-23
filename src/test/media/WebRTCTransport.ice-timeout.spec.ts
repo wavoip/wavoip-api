@@ -1,6 +1,7 @@
-import { WebRTCTransport } from "@/modules/media/WebRTC";
+import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MockAudio, buildMockPeerConnection, makeMockMediaManager } from "./ice-test-helpers";
+import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
+import { buildMockPeerConnection } from "./ice-test-helpers";
 
 describe("WebRTCTransport ICE gathering timeout", () => {
     const pcFactory = buildMockPeerConnection();
@@ -8,7 +9,6 @@ describe("WebRTCTransport ICE gathering timeout", () => {
     beforeEach(() => {
         pcFactory.reset();
         vi.stubGlobal("RTCPeerConnection", pcFactory.MockRTCPeerConnection);
-        vi.stubGlobal("Audio", MockAudio);
         vi.useFakeTimers();
     });
 
@@ -19,8 +19,8 @@ describe("WebRTCTransport ICE gathering timeout", () => {
 
     describe("createOffer (outgoing)", () => {
         it("resolves immediately when gathering completes before the timeout", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never);
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
 
             const offerPromise = transport.createOffer();
 
@@ -32,8 +32,8 @@ describe("WebRTCTransport ICE gathering timeout", () => {
         });
 
         it("resolves at the configured timeout when gathering never completes", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, undefined, { iceConfig: { gatheringTimeoutMs: 800 } });
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio, undefined, { iceConfig: { gatheringTimeoutMs: 800 } });
 
             const offerPromise = transport.createOffer();
 
@@ -51,8 +51,8 @@ describe("WebRTCTransport ICE gathering timeout", () => {
         });
 
         it("uses the 2500ms default timeout when none is configured", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never);
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
 
             const offerPromise = transport.createOffer();
 
@@ -70,8 +70,8 @@ describe("WebRTCTransport ICE gathering timeout", () => {
         });
 
         it("removes the icegatheringstatechange listener after resolving on completion", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never);
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
 
             const offerPromise = transport.createOffer();
             await vi.advanceTimersByTimeAsync(5);
@@ -84,8 +84,8 @@ describe("WebRTCTransport ICE gathering timeout", () => {
         });
 
         it("removes the icegatheringstatechange listener after timing out", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, undefined, { iceConfig: { gatheringTimeoutMs: 500 } });
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio, undefined, { iceConfig: { gatheringTimeoutMs: 500 } });
 
             const offerPromise = transport.createOffer();
             await vi.advanceTimersByTimeAsync(600);
@@ -97,8 +97,8 @@ describe("WebRTCTransport ICE gathering timeout", () => {
         });
 
         it("returns immediately when gathering is already complete before waitForIceGathering attaches", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never);
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
             pcFactory.last().iceGatheringState = "complete";
 
             const sdp = await transport.createOffer();
@@ -108,8 +108,8 @@ describe("WebRTCTransport ICE gathering timeout", () => {
 
     describe("accept (incoming) honors the same timeout cap", () => {
         it("resolves the answer at the configured timeout when gathering hangs", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, "offer-sdp", { iceConfig: { gatheringTimeoutMs: 400 } });
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio, "offer-sdp", { iceConfig: { gatheringTimeoutMs: 400 } });
 
             const accepting = transport.accept();
 

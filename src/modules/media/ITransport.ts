@@ -3,11 +3,19 @@ import type { MediaPlan } from "@/domain/call/types";
 import type { TransportStatus } from "@/domain/call/types";
 import type { ConnectivityIssue, IceConfig, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { EventEmitter } from "@/modules/shared/EventEmitter";
+import type { AudioEnginePort, AudioMeter } from "@/ports/runtime/AudioEnginePort";
+import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 
 export type { TransportStatus } from "@/domain/call/types";
 export type TransportKind = "webrtc" | "ws";
 
 export const DEFAULT_STATS_TICK_MS = 200;
+
+/** O áudio da plataforma como o transporte o usa. */
+export type AudioRuntime = {
+    readonly engine: AudioEnginePort;
+    readonly microphone: MicrophonePort;
+};
 
 /**
  * `iceConfig` só vale para o WebRTC; o transporte WS o ignora.
@@ -29,8 +37,9 @@ export interface ITransport extends EventEmitter<Events> {
     readonly kind: TransportKind;
     status: TransportStatus;
     peerMuted: boolean;
-    audioAnalyserIn: Promise<AnalyserNode>;
-    audioAnalyserOut: Promise<AnalyserNode>;
+    /** O que mede o que chega e o que sai; vira `audioAnalyserIn`/`Out` na API pública. */
+    meterIn: Promise<AudioMeter>;
+    meterOut: Promise<AudioMeter>;
     stats: CallStats;
 
     /**
@@ -51,6 +60,24 @@ export interface IRTCTransport extends ITransport {
     emittedConnectivityIssues: ReadonlySet<ConnectivityIssue>;
     /** O SDP da oferta que a chamada que sai manda no `call.start`. */
     createOffer(): Promise<string>;
+}
+
+/** O endereço que o relay informa quando a chamada é aceita. */
+export type RelayAddress = { host: string; port: string };
+
+/** Lê o nível do áudio que passa, para as stats do relay (ver `relay/StatsAdapter`). */
+export interface AudioLevelProvider {
+    readTxLevel(): number;
+    readRxLevel(): number;
+}
+
+/**
+ * Dois métodos para separar a leitura barata do cache (`snapshot`, síncrona) da absorção
+ * que pode ser assíncrona (`refresh`, que no WebRTC é o `pc.getStats()`).
+ */
+export interface IStatsAdapter {
+    snapshot(): CallStats;
+    refresh(): Promise<void>;
 }
 
 export interface IWSTransport extends ITransport {

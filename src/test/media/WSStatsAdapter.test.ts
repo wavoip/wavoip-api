@@ -1,15 +1,17 @@
-import { type AudioLevelProvider, WSStatsAdapter } from "@/modules/media/composition";
+import { WSStatsAdapter } from "@/modules/media/relay/StatsAdapter";
+import type { AudioLevelProvider } from "@/modules/media/ITransport";
+import type { AudioEnginePort } from "@/ports/runtime/AudioEnginePort";
 import { describe, expect, it, vi } from "vitest";
 
-function makeAudioContext(outputLatency = 0): AudioContext {
-    return { outputLatency } as AudioContext;
+function makeEngine(outputLatency = 0): AudioEnginePort {
+    return { outputLatency } as AudioEnginePort;
 }
 
 const zeroLevels: AudioLevelProvider = { readTxLevel: () => 0, readRxLevel: () => 0 };
 
 describe("WSStatsAdapter", () => {
     it("snapshot() returns empty CallStats before any note/refresh", () => {
-        const adapter = new WSStatsAdapter(makeAudioContext(), zeroLevels);
+        const adapter = new WSStatsAdapter(makeEngine(), zeroLevels);
         const s = adapter.snapshot();
         expect(s.tx.total_bytes).toBe(0);
         expect(s.rx.total_bytes).toBe(0);
@@ -17,7 +19,7 @@ describe("WSStatsAdapter", () => {
     });
 
     it("noteSent accumulates tx bytes and frame count", () => {
-        const adapter = new WSStatsAdapter(makeAudioContext(), zeroLevels);
+        const adapter = new WSStatsAdapter(makeEngine(), zeroLevels);
         adapter.noteSent(160);
         adapter.noteSent(160);
         const s = adapter.snapshot();
@@ -29,7 +31,7 @@ describe("WSStatsAdapter", () => {
         let t = 1000;
         const spy = vi.spyOn(performance, "now").mockImplementation(() => t);
 
-        const adapter = new WSStatsAdapter(makeAudioContext(), zeroLevels);
+        const adapter = new WSStatsAdapter(makeEngine(), zeroLevels);
         adapter.noteReceived(160);
         t = 1040;
         adapter.noteReceived(160);
@@ -51,7 +53,7 @@ describe("WSStatsAdapter", () => {
         let t = 5000;
         const spy = vi.spyOn(performance, "now").mockImplementation(() => t);
 
-        const adapter = new WSStatsAdapter(makeAudioContext(), zeroLevels);
+        const adapter = new WSStatsAdapter(makeEngine(), zeroLevels);
         adapter.noteSent(1000);
         await adapter.refresh();
 
@@ -64,8 +66,8 @@ describe("WSStatsAdapter", () => {
         spy.mockRestore();
     });
 
-    it("refresh() pulls audio levels from the provider and outputLatency from context", async () => {
-        const adapter = new WSStatsAdapter(makeAudioContext(0.042), {
+    it("refresh() pulls audio levels from the provider and outputLatency from the engine", async () => {
+        const adapter = new WSStatsAdapter(makeEngine(0.042), {
             readTxLevel: () => 0.5,
             readRxLevel: () => 0.7,
         });

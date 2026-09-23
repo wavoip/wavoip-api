@@ -1,21 +1,25 @@
 import type { CallStats } from "@/domain/call/stats";
 import type { MediaPlan } from "@/domain/call/types";
-import { RTCAudioPipe, RTCConnection, RTCStatsAdapter } from "@/modules/media/composition";
+import { RTCAudioPipe } from "@/modules/media/webrtc/AudioPipe";
+import { RTCConnection } from "@/modules/media/webrtc/Connection";
+import { RTCStatsAdapter } from "@/modules/media/webrtc/StatsAdapter";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import {
+    type AudioRuntime,
     DEFAULT_STATS_TICK_MS,
     type Events,
     type ITransport,
     type TransportOptions,
     type TransportStatus,
 } from "@/modules/media/ITransport";
-import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
+import type { AudioMeter } from "@/ports/runtime/AudioEnginePort";
+import type { PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
 
 export class WebRTCTransport extends EventEmitter<Events> implements ITransport {
     readonly kind = "webrtc" as const;
-    audioAnalyserIn: Promise<AnalyserNode>;
-    audioAnalyserOut: Promise<AnalyserNode>;
+    meterIn: Promise<AudioMeter>;
+    meterOut: Promise<AudioMeter>;
 
     private readonly connection: RTCConnection;
     private readonly audioPipe: RTCAudioPipe;
@@ -34,7 +38,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         return this.audioPipe.peerMuted;
     }
 
-    get pc(): RTCPeerConnection {
+    get pc(): PeerConnectionLike {
         return this.connection.pc;
     }
 
@@ -50,16 +54,16 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         return this.statsAdapter.snapshot();
     }
 
-    constructor(mediaManager: MediaManager, offer?: string, options?: TransportOptions) {
+    constructor(audio: AudioRuntime, offer?: string, options?: TransportOptions) {
         super();
 
         this.hasRemoteOffer = !!offer;
         this.statsTickMs = options?.statsTickMs ?? DEFAULT_STATS_TICK_MS;
         this.connection = new RTCConnection(offer, options?.iceConfig);
-        this.audioPipe = new RTCAudioPipe(this.connection.pc, mediaManager);
-        this.statsAdapter = new RTCStatsAdapter(this.connection.pc, mediaManager.audioContext);
-        this.audioAnalyserIn = this.audioPipe.audioAnalyserIn;
-        this.audioAnalyserOut = this.audioPipe.audioAnalyserOut;
+        this.audioPipe = new RTCAudioPipe(this.connection.pc, audio);
+        this.statsAdapter = new RTCStatsAdapter(this.connection.pc, audio.engine);
+        this.meterIn = this.audioPipe.meterIn;
+        this.meterOut = this.audioPipe.meterOut;
 
         this.audioPipe.on("peerMuted", (m) => this.emit("peerMuted", m));
         this.connection.on("iceDiagnostics", (d) => this.emit("iceDiagnostics", d));
