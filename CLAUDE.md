@@ -56,7 +56,7 @@ Para saber de que lado um comentário está: ele aparece no `dist/index.d.ts` de
   e deve dizer o que a função faz; o que não pode é ficar errado.
 - **A decisão mora aqui; a investigação mora na issue.** Cite a issue ou o PR e siga.
 - **Cada regra tem um dono só.** A regra de reconexão mora no `WSConnection`, o formato
-  do áudio no `AudioWorkletOut`, o bug do Chromium no `RTCAudioPipe`. Os outros lugares
+  do áudio no `AudioWorkletOut`, o bug do Chromium no `WebAudioEngine`. Os outros lugares
   no máximo apontam para ele.
 - **Releia o comentário e o `.md` que a sua mudança tocou.** Não "preserve" nem
   "atualize se mudou o comportamento": releia. Documentação errada é pior que ausente,

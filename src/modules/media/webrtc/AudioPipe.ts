@@ -1,6 +1,7 @@
-import type { MediaManager } from "@/modules/media/MediaManager";
+import type { AudioRuntime } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { MediaStreamLike, MediaTrackLike, PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
+import type { WebAudioHandle } from "@/platform/web/WebAudioEngine";
+import type { MediaStreamLike, PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
 
 /**
  * `stop()` é idempotente porque dois caminhos o chamam: o desmonte explícito do
@@ -16,24 +17,23 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> {
     readonly audioAnalyserIn: Promise<AnalyserNode>;
     readonly audioAnalyserOut: Promise<AnalyserNode>;
 
-    private readonly analyserInResolver: PromiseWithResolvers<AnalyserNode>;
-    private readonly analyserOutResolver: PromiseWithResolvers<AnalyserNode>;
-    private txSource: MediaStreamAudioSourceNode | null = null;
-    private txAnalyser: AnalyserNode | null = null;
-    private txSilentGain: GainNode | null = null;
+    private readonly meterInResolver: PromiseWithResolvers<AnalyserNode>;
+    private readonly meterOutResolver: PromiseWithResolvers<AnalyserNode>;
+    private micMeter: WebAudioHandle | null = null;
+    private remotePlayback: WebAudioHandle | null = null;
     private started = false;
     private stopped = false;
 
     constructor(
         private readonly pc: PeerConnectionLike,
-        private readonly mediaManager: MediaManager,
+        private readonly audio: AudioRuntime,
     ) {
         super();
 
-        this.analyserInResolver = Promise.withResolvers<AnalyserNode>();
-        this.audioAnalyserIn = this.analyserInResolver.promise;
-        this.analyserOutResolver = Promise.withResolvers<AnalyserNode>();
-        this.audioAnalyserOut = this.analyserOutResolver.promise;
+        this.meterInResolver = Promise.withResolvers<AnalyserNode>();
+        this.audioAnalyserIn = this.meterInResolver.promise;
+        this.meterOutResolver = Promise.withResolvers<AnalyserNode>();
+        this.audioAnalyserOut = this.meterOutResolver.promise;
 
         this.pc.addEventListener("track", (event) => this.handleRemoteTrack(event));
     }
@@ -41,73 +41,44 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> {
     async start(): Promise<void> {
         if (this.started) return;
         this.started = true;
-        const micStream = await this.mediaManager.startMedia();
+        const micStream = await this.audio.microphone.open();
         for (const track of micStream.getTracks()) {
-            track.enabled = !this.mediaManager.muted;
-            this.pc.addTrack(track as unknown as MediaTrackLike, micStream as unknown as MediaStreamLike);
+            track.enabled = !this.audio.microphone.muted;
+            this.pc.addTrack(track, micStream);
         }
-        this.wireTxAnalyser(micStream);
+
+        // O microfone alimenta o RTCPeerConnection direto, sem passar pelo motor de áudio:
+        // medir o que sai pede uma derivação só para isso.
+        this.micMeter = this.audio.engine.monitorStream(micStream);
+        this.meterOutResolver.resolve(this.micMeter.analyser);
     }
 
     async stop(): Promise<void> {
         if (this.stopped) return;
         this.stopped = true;
-        if (this.txSource && this.txAnalyser) this.txSource.disconnect(this.txAnalyser);
-        this.txAnalyser?.disconnect();
-        this.txSilentGain?.disconnect();
-        this.txSource = null;
-        this.txAnalyser = null;
-        this.txSilentGain = null;
-        await this.mediaManager.stopMedia();
-    }
-
-    private wireTxAnalyser(micStream: MediaStream): void {
-        // O microfone alimenta o RTCPeerConnection direto, fora do grafo do AudioContext;
-        // o analyser precisa de fonte própria e de âncora no destination (ver WSAudioPipe).
-        const ctx = this.mediaManager.audioContext;
-        this.txSource = ctx.createMediaStreamSource(micStream);
-        this.txAnalyser = ctx.createAnalyser();
-        this.txAnalyser.fftSize = 256;
-        this.txSilentGain = ctx.createGain();
-        this.txSilentGain.gain.value = 0;
-        this.txSource.connect(this.txAnalyser);
-        this.txAnalyser.connect(this.txSilentGain);
-        this.txSilentGain.connect(ctx.destination);
-        this.analyserOutResolver.resolve(this.txAnalyser);
+        this.micMeter?.stop();
+        this.remotePlayback?.stop();
+        this.micMeter = null;
+        this.remotePlayback = null;
+        await this.audio.microphone.close();
     }
 
     private handleRemoteTrack(event: { streams: readonly MediaStreamLike[] }): void {
-        const remoteStream = event.streams[0] as unknown as MediaStream;
-
-        // Bug do Chromium (issues.chromium.org/issues/40094084): sem um HTMLAudioElement
-        // segurando o MediaStream, a cadeia analyser/destination da track remota não recebe
-        // áudio. O elemento fica mudo.
-        const audio = new Audio();
-        audio.muted = true;
-        audio.srcObject = remoteStream;
+        const remoteStream = event.streams[0];
 
         const remoteTrack = remoteStream.getAudioTracks()[0];
         if (remoteTrack) {
-            remoteTrack.addEventListener("mute", () => {
-                if (this.peerMuted) return;
-                this.peerMuted = true;
-                this.emit("peerMuted", true);
-            });
-            remoteTrack.addEventListener("unmute", () => {
-                if (!this.peerMuted) return;
-                this.peerMuted = false;
-                this.emit("peerMuted", false);
-            });
+            remoteTrack.addEventListener("mute", () => this.announcePeerMuted(true));
+            remoteTrack.addEventListener("unmute", () => this.announcePeerMuted(false));
         }
 
-        const ctx = this.mediaManager.audioContext;
-        const source = ctx.createMediaStreamSource(remoteStream);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
+        this.remotePlayback = this.audio.engine.playStream(remoteStream);
+        this.meterInResolver.resolve(this.remotePlayback.analyser);
+    }
 
-        source.connect(analyser);
-        analyser.connect(ctx.destination);
-
-        this.analyserInResolver.resolve(analyser);
+    private announcePeerMuted(muted: boolean): void {
+        if (this.peerMuted === muted) return;
+        this.peerMuted = muted;
+        this.emit("peerMuted", muted);
     }
 }

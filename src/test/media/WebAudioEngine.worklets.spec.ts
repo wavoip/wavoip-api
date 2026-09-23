@@ -35,64 +35,55 @@ beforeEach(() => {
     resume.mockClear();
     close.mockClear();
     vi.stubGlobal("AudioContext", FakeAudioContext);
-    Object.defineProperty(navigator, "mediaDevices", {
-        configurable: true,
-        value: {
-            enumerateDevices: vi.fn().mockResolvedValue([]),
-            addEventListener: vi.fn(),
-            removeEventListener: vi.fn(),
-            getUserMedia: vi.fn(),
-        },
-    });
 });
 
 afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-describe("MediaManager — lazy worklet bootstrap (D2)", () => {
+describe("WebAudioEngine — lazy worklet bootstrap (D2)", () => {
     it("does not call audioWorklet.addModule in the constructor", async () => {
-        const { MediaManager } = await import("@/modules/media/MediaManager");
-        new MediaManager();
+        const { WebAudioEngine } = await import("@/platform/web/WebAudioEngine");
+        new WebAudioEngine();
         expect(addModule).not.toHaveBeenCalled();
     });
 
-    it("loads worklets on first waitReady()", async () => {
-        const { MediaManager } = await import("@/modules/media/MediaManager");
-        const mm = new MediaManager();
+    it("loads worklets on first prepare()", async () => {
+        const { WebAudioEngine } = await import("@/platform/web/WebAudioEngine");
+        const engine = new WebAudioEngine();
 
-        await mm.waitReady();
+        await engine.prepare();
 
         // libsamplerate + mic + out
         expect(addModule).toHaveBeenCalledTimes(3);
         expect(suspend).toHaveBeenCalledTimes(1);
     });
 
-    it("memoises the worklet load (second waitReady reuses the same promise)", async () => {
-        const { MediaManager } = await import("@/modules/media/MediaManager");
-        const mm = new MediaManager();
+    it("memoises the worklet load (second prepare reuses the same promise)", async () => {
+        const { WebAudioEngine } = await import("@/platform/web/WebAudioEngine");
+        const engine = new WebAudioEngine();
 
-        await mm.waitReady();
-        await mm.waitReady();
-        await mm.waitReady();
+        await engine.prepare();
+        await engine.prepare();
+        await engine.prepare();
 
         expect(addModule).toHaveBeenCalledTimes(3);
     });
 });
 
-describe("MediaManager — Blob URL dos worklets", () => {
+describe("WebAudioEngine — Blob URL dos worklets", () => {
     it("não cria Blob URL nenhuma até alguém precisar dos worklets", async () => {
-        const { MediaManager } = await import("@/modules/media/MediaManager");
-        new MediaManager();
+        const { WebAudioEngine } = await import("@/platform/web/WebAudioEngine");
+        new WebAudioEngine();
 
         expect(createObjectURL).not.toHaveBeenCalled();
     });
 
     it("cria uma Blob URL por worklet e a revoga depois de carregar", async () => {
-        const { MediaManager } = await import("@/modules/media/MediaManager");
-        const manager = new MediaManager();
+        const { WebAudioEngine } = await import("@/platform/web/WebAudioEngine");
+        const engine = new WebAudioEngine();
 
-        await manager.waitReady();
+        await engine.prepare();
 
         expect(createObjectURL).toHaveBeenCalledTimes(3);
         expect(revokeObjectURL).toHaveBeenCalledTimes(3);

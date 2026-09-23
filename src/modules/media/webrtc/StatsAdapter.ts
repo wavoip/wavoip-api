@@ -1,11 +1,12 @@
 import type { CallStats } from "@/domain/call/stats";
 import { Stats } from "@/domain/call/stats";
 import type { IStatsAdapter } from "@/modules/media/ITransport";
+import type { AudioEnginePort } from "@/ports/runtime/AudioEnginePort";
 import type { PeerConnectionLike, StatEntry } from "@/ports/runtime/PeerConnectionPort";
 
 /**
- * Tudo medido no peer local, sem nada do servidor. A latência de saída vem do
- * `AudioContext.outputLatency` porque o `pc.getStats` não a expõe.
+ * Tudo medido no peer local, sem nada do servidor. A latência de saída vem do motor de
+ * áudio porque o `pc.getStats` não a expõe.
  */
 export class RTCStatsAdapter implements IStatsAdapter {
     private cache: CallStats = Stats.empty();
@@ -15,7 +16,7 @@ export class RTCStatsAdapter implements IStatsAdapter {
 
     constructor(
         private readonly pc: PeerConnectionLike,
-        private readonly audioContext: AudioContext,
+        private readonly engine: AudioEnginePort,
     ) {}
 
     snapshot(): CallStats {
@@ -35,7 +36,7 @@ export class RTCStatsAdapter implements IStatsAdapter {
         }
 
         this.updateBitrateSample(curBytesReceived, curBytesSent);
-        this.cache.audio_context.output_latency_ms = this.audioContext.outputLatency * 1000;
+        this.cache.audio_context.output_latency_ms = this.engine.outputLatency * 1000;
     }
 
     private absorbInbound(stat: AudioInboundStat): number {

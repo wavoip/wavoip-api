@@ -1,6 +1,7 @@
 import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MockAudio, buildMockPeerConnection, makeMockMediaManager } from "./ice-test-helpers";
+import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
+import { buildMockPeerConnection } from "./ice-test-helpers";
 
 describe("WebRTCTransport ICE server config", () => {
     const pcFactory = buildMockPeerConnection();
@@ -8,7 +9,6 @@ describe("WebRTCTransport ICE server config", () => {
     beforeEach(() => {
         pcFactory.reset();
         vi.stubGlobal("RTCPeerConnection", pcFactory.MockRTCPeerConnection);
-        vi.stubGlobal("Audio", MockAudio);
     });
 
     afterEach(() => {
@@ -16,8 +16,8 @@ describe("WebRTCTransport ICE server config", () => {
     });
 
     it("uses multiple default STUN servers when no iceServers configured", () => {
-        const mm = makeMockMediaManager();
-        new WebRTCTransport(mm as never);
+        const audio = new FakeAudioRuntime().asRuntime();
+        new WebRTCTransport(audio);
 
         const config = pcFactory.last()._config;
         expect(config.iceServers).toBeDefined();
@@ -30,12 +30,12 @@ describe("WebRTCTransport ICE server config", () => {
     });
 
     it("uses iceServers from config when provided", () => {
-        const mm = makeMockMediaManager();
+        const audio = new FakeAudioRuntime().asRuntime();
         const custom: RTCIceServer[] = [
             { urls: "stun:my-stun.example.com:3478" },
             { urls: ["turn:my-turn.example.com:3478"], username: "u", credential: "c" },
         ];
-        new WebRTCTransport(mm as never, undefined, { iceConfig: { iceServers: custom } });
+        new WebRTCTransport(audio, undefined, { iceConfig: { iceServers: custom } });
 
         expect(pcFactory.last()._config.iceServers).toEqual(custom);
     });

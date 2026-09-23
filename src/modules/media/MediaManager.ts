@@ -1,9 +1,6 @@
+import { WebAudioEngine } from "@/platform/web/WebAudioEngine";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-// Embutido no bundle pelo vite-plugin-worklet, e não puxado de CDN: a lib não depende de
-// rede nem de CDN no carregamento da página do integrador.
-import libSampleRateWorkletSource from "@alexanderolsen/libsamplerate-js/dist/libsamplerate.worklet.js?worklet";
-import micWorkletSource from "../worklets/AudioWorkletMic.ts?worklet";
-import outWorkletSource from "../worklets/AudioWorkletOut.ts?worklet";
+import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 
 export type MediaManagerEvents = {
     devicesChanged: [devices: MediaDeviceInfo[]];
@@ -20,54 +17,23 @@ export interface MediaManagerState {
     muted: boolean;
 }
 
-export class MediaManager extends EventEmitter<MediaManagerEvents> {
+/** O microfone e a lista de aparelhos do navegador. O áudio em si é do `WebAudioEngine`. */
+export class MediaManager extends EventEmitter<MediaManagerEvents> implements MicrophonePort {
     public devices: MediaDeviceInfo[] = [];
     public activeMic?: MediaDeviceInfo;
     public activeSpeaker?: MediaDeviceInfo;
     public stream?: MediaStream;
     public muted = false;
-    public readonly audioContext: AudioContext;
+    public readonly engine = new WebAudioEngine();
 
     private attachedElements: Set<HTMLAudioElement> = new Set();
     private activeSpeakerId?: string;
     private permissionGranted = false;
-    // Preguiçoso para um MediaManager construído e nunca usado não pagar o custo de
-    // addModule dos três worklets.
-    private _workletReady: Promise<void> | null = null;
 
     constructor() {
         super();
-        this.audioContext = new AudioContext({ latencyHint: 0 });
-
         this.enumerateDevices();
         navigator.mediaDevices.addEventListener("devicechange", this.handleDeviceChange);
-    }
-
-    waitReady(): Promise<void> {
-        return this.loadWorklets();
-    }
-
-    /**
-     * A Blob URL nasce aqui, e não no import do módulo: criá-la no import faz `import
-     * "@wavoip/wavoip-api"` já depender de `URL.createObjectURL`, que o React Native não
-     * tem — e contradiz o `sideEffects: false` do pacote.
-     */
-    private loadWorklets(): Promise<void> {
-        if (this._workletReady) return this._workletReady;
-        const sources = [libSampleRateWorkletSource, micWorkletSource, outWorkletSource];
-        this._workletReady = Promise.all(sources.map((source) => this.addWorklet(source))).then(() =>
-            this.audioContext.suspend(),
-        );
-        return this._workletReady;
-    }
-
-    private async addWorklet(source: string): Promise<void> {
-        const url = URL.createObjectURL(new Blob([source], { type: "application/javascript" }));
-        try {
-            await this.audioContext.audioWorklet.addModule(url);
-        } finally {
-            URL.revokeObjectURL(url);
-        }
     }
 
     haveMedia(): boolean {
@@ -76,10 +42,10 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
         return hasMic && hasSpeaker;
     }
 
-    async startMedia(): Promise<MediaStream> {
+    async open(): Promise<MediaStream> {
         if (this.stream) return this.stream;
 
-        await this.loadWorklets();
+        await this.engine.prepare();
 
         const mic = this.activeMic ?? this.devices.find((d) => d.kind === "audioinput");
         const pinned = this.permissionGranted ? mic?.deviceId : undefined;
@@ -97,14 +63,12 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
                 this.activeMic;
         }
 
-        if (this.audioContext.state === "suspended") {
-            await this.audioContext.resume();
-        }
+        await this.engine.resume();
 
         return stream;
     }
 
-    async stopMedia(): Promise<void> {
+    async close(): Promise<void> {
         if (this.stream) {
             for (const track of this.stream.getTracks()) {
                 track.stop();
@@ -112,17 +76,15 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> {
             this.stream = undefined;
         }
 
-        if (this.audioContext.state === "running") {
-            await this.audioContext.suspend();
-        }
+        await this.engine.suspend();
     }
 
     async destroy(): Promise<void> {
-        await this.stopMedia();
+        await this.close();
 
         navigator.mediaDevices.removeEventListener("devicechange", this.handleDeviceChange);
 
-        await this.audioContext.close();
+        await this.engine.close();
         this.removeAllListeners();
     }
 

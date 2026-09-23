@@ -1,19 +1,5 @@
 import { type Mock, vi } from "vitest";
 
-export class MockMediaStreamTrack {
-    private listeners = new Map<string, Set<() => void>>();
-    enabled = false;
-
-    addEventListener(event: string, listener: () => void) {
-        if (!this.listeners.has(event)) this.listeners.set(event, new Set());
-        this.listeners.get(event)?.add(listener);
-    }
-
-    dispatchEvent(event: string) {
-        for (const listener of this.listeners.get(event) ?? []) listener();
-    }
-}
-
 /**
  * Diferente de um PC de verdade, nada completa sozinho: o teste conduz o fim da coleta e
  * as transições de ICE pelos helpers `_*`.
@@ -100,56 +86,4 @@ export function buildMockPeerConnection(): PcFactory {
             instances.length = 0;
         },
     };
-}
-
-export interface MockMediaManager {
-    setMuted: Mock;
-    startMedia: Mock;
-    stopMedia: Mock;
-    audioContext: {
-        createMediaStreamSource: Mock;
-        createAnalyser: Mock;
-        createGain: Mock;
-        destination: object;
-    };
-    _analyser: { fftSize: number; getByteTimeDomainData: Mock; connect: Mock };
-    _stream: MediaStream;
-    _track: MockMediaStreamTrack;
-}
-
-export function makeMockMediaManager(): MockMediaManager {
-    const analyser = {
-        fftSize: 256,
-        getByteTimeDomainData: vi.fn((arr: Uint8Array) => arr.fill(128)),
-        connect: vi.fn(),
-        disconnect: vi.fn(),
-    };
-    const source = { connect: vi.fn(), disconnect: vi.fn() };
-    const audioContext = {
-        createMediaStreamSource: vi.fn().mockReturnValue(source),
-        createAnalyser: vi.fn().mockReturnValue(analyser),
-        createGain: vi.fn().mockReturnValue({ gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() }),
-        destination: {},
-    };
-    const mockTrack = new MockMediaStreamTrack();
-    const mockStream = {
-        getTracks: vi.fn().mockReturnValue([mockTrack]),
-        getAudioTracks: vi.fn().mockReturnValue([mockTrack]),
-        id: "mic-stream",
-    } as unknown as MediaStream;
-
-    return {
-        setMuted: vi.fn(),
-        startMedia: vi.fn().mockResolvedValue(mockStream),
-        stopMedia: vi.fn().mockResolvedValue(undefined),
-        audioContext,
-        _analyser: analyser,
-        _stream: mockStream,
-        _track: mockTrack,
-    };
-}
-
-export class MockAudio {
-    muted = false;
-    srcObject: MediaStream | null = null;
 }

@@ -3,11 +3,22 @@ import type { MediaPlan } from "@/domain/call/types";
 import type { TransportStatus } from "@/domain/call/types";
 import type { ConnectivityIssue, IceConfig, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { EventEmitter } from "@/modules/shared/EventEmitter";
+import type { WebAudioEngine } from "@/platform/web/WebAudioEngine";
+import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 
 export type { TransportStatus } from "@/domain/call/types";
 export type TransportKind = "webrtc" | "ws";
 
 export const DEFAULT_STATS_TICK_MS = 200;
+
+/**
+ * O áudio da plataforma como o transporte o usa. O motor é o da web enquanto a API pública
+ * entregar `AnalyserNode` em `audioAnalyserIn`/`Out`; a v3 troca pelo `AudioEnginePort`.
+ */
+export type AudioRuntime = {
+    readonly engine: WebAudioEngine;
+    readonly microphone: MicrophonePort;
+};
 
 /**
  * `iceConfig` só vale para o WebRTC; o transporte WS o ignora.

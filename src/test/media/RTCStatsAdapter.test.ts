@@ -1,4 +1,5 @@
 import { RTCStatsAdapter } from "@/modules/media/webrtc/StatsAdapter";
+import type { AudioEnginePort } from "@/ports/runtime/AudioEnginePort";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type StatLike = Record<string, unknown> & { type: string; kind?: string };
@@ -18,8 +19,8 @@ function makePc(reports: StatLike[][]): RTCPeerConnection {
     return { getStats } as unknown as RTCPeerConnection;
 }
 
-function makeAudioContext(outputLatency = 0): AudioContext {
-    return { outputLatency } as AudioContext;
+function makeEngine(outputLatency = 0): AudioEnginePort {
+    return { outputLatency } as AudioEnginePort;
 }
 
 describe("RTCStatsAdapter", () => {
@@ -29,7 +30,7 @@ describe("RTCStatsAdapter", () => {
     });
 
     it("snapshot() returns empty CallStats before refresh", () => {
-        const adapter = new RTCStatsAdapter(makePc([[]]), makeAudioContext());
+        const adapter = new RTCStatsAdapter(makePc([[]]), makeEngine());
         const s = adapter.snapshot();
         expect(s.rtt).toEqual({ min: 0, max: 0, avg: 0 });
         expect(s.rx.total_bytes).toBe(0);
@@ -50,7 +51,7 @@ describe("RTCStatsAdapter", () => {
                 },
             ],
         ]);
-        const adapter = new RTCStatsAdapter(pc, makeAudioContext(0.03));
+        const adapter = new RTCStatsAdapter(pc, makeEngine(0.03));
         await adapter.refresh();
         const s = adapter.snapshot();
         expect(s.rx.total_bytes).toBe(1234);
@@ -63,14 +64,14 @@ describe("RTCStatsAdapter", () => {
 
     it("absorbs outbound-rtp/audio bytes into tx.total_bytes", async () => {
         const pc = makePc([[{ type: "outbound-rtp", kind: "audio", bytesSent: 500 }]]);
-        const adapter = new RTCStatsAdapter(pc, makeAudioContext());
+        const adapter = new RTCStatsAdapter(pc, makeEngine());
         await adapter.refresh();
         expect(adapter.snapshot().tx.total_bytes).toBe(500);
     });
 
     it("absorbs media-source/audio into tx.audio_level", async () => {
         const pc = makePc([[{ type: "media-source", kind: "audio", audioLevel: 0.7 }]]);
-        const adapter = new RTCStatsAdapter(pc, makeAudioContext());
+        const adapter = new RTCStatsAdapter(pc, makeEngine());
         await adapter.refresh();
         expect(adapter.snapshot().tx.audio_level).toBe(0.7);
     });
@@ -88,7 +89,7 @@ describe("RTCStatsAdapter", () => {
                 },
             ],
         ]);
-        const adapter = new RTCStatsAdapter(pc, makeAudioContext());
+        const adapter = new RTCStatsAdapter(pc, makeEngine());
         await adapter.refresh();
         const s = adapter.snapshot();
         expect(s.tx.loss).toBe(3);
@@ -103,7 +104,7 @@ describe("RTCStatsAdapter", () => {
             [{ type: "inbound-rtp", kind: "audio", bytesReceived: 1000 }],
             [{ type: "inbound-rtp", kind: "audio", bytesReceived: 3000 }],
         ]);
-        const adapter = new RTCStatsAdapter(pc, makeAudioContext());
+        const adapter = new RTCStatsAdapter(pc, makeEngine());
 
         const baseNow = 1_000;
         const spy = vi.spyOn(performance, "now");

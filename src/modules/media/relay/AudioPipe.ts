@@ -1,6 +1,8 @@
 import { rmsInt16 } from "@/modules/media/audio-level";
-import type { MediaManager } from "@/modules/media/MediaManager";
+import type { AudioRuntime } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
+import type { WebAudioHandle } from "@/platform/web/WebAudioEngine";
+import type { PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 
 type AudioDataCallback = (data: ArrayBuffer) => void;
 
@@ -8,7 +10,6 @@ type AudioDataCallback = (data: ArrayBuffer) => void;
  * `peerMuted` é sempre `false`: o relay não expõe o mute da track remota. Na chamada
  * UNOFFICIAL o mute do outro lado chega pela sinalização (`call:peer:muted`).
  */
-/** `peerMuted` mora aqui porque, no WebRTC, vem dos eventos de mute da track remota. */
 export type PipeEvents = {
     peerMuted: [muted: boolean];
 };
@@ -18,172 +19,65 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> {
     readonly audioAnalyserIn: Promise<AnalyserNode>;
     readonly audioAnalyserOut: Promise<AnalyserNode>;
 
-    private readonly audioIn: AudioInput;
-    private readonly audioOut: AudioOutput;
+    private readonly meterInResolver: PromiseWithResolvers<AnalyserNode>;
+    private readonly meterOutResolver: PromiseWithResolvers<AnalyserNode>;
+    private capture: WebAudioHandle | null = null;
+    private playback: (PcmPlayback & WebAudioHandle) | null = null;
+    private txLevel = 0;
+    private rxLevel = 0;
     private started = false;
     private stopped = false;
 
     constructor(
-        private readonly mediaManager: MediaManager,
-        onMicData: AudioDataCallback,
+        private readonly audio: AudioRuntime,
+        private readonly onMicData: AudioDataCallback,
     ) {
         super();
-        const ctx = mediaManager.audioContext;
-        this.audioIn = new AudioInput(ctx, onMicData);
-        this.audioOut = new AudioOutput(ctx);
-        this.audioAnalyserIn = this.audioOut.audioAnalyser;
-        this.audioAnalyserOut = this.audioIn.audioAnalyser;
+
+        this.meterInResolver = Promise.withResolvers<AnalyserNode>();
+        this.audioAnalyserIn = this.meterInResolver.promise;
+        this.meterOutResolver = Promise.withResolvers<AnalyserNode>();
+        this.audioAnalyserOut = this.meterOutResolver.promise;
     }
 
     async start(): Promise<void> {
         if (this.started) return;
         this.started = true;
-        await this.mediaManager.waitReady();
-        const stream = await this.mediaManager.startMedia();
-        this.audioIn.start(stream);
-        this.audioOut.start();
+        const micStream = await this.audio.microphone.open();
+
+        this.capture = this.audio.engine.capturePcm(micStream, (pcm) => {
+            this.txLevel = rmsInt16(pcm);
+            this.onMicData(pcm);
+        });
+        this.playback = this.audio.engine.playPcm();
+
+        this.meterOutResolver.resolve(this.capture.analyser);
+        this.meterInResolver.resolve(this.playback.analyser);
     }
 
     async stop(): Promise<void> {
         if (this.stopped) return;
         this.stopped = true;
-        this.audioIn.stop();
-        this.audioOut.stop();
-        await this.mediaManager.stopMedia();
+        this.capture?.stop();
+        this.playback?.stop();
+        this.capture = null;
+        this.playback = null;
+        this.txLevel = 0;
+        this.rxLevel = 0;
+        await this.audio.microphone.close();
     }
 
     playInbound(data: ArrayBuffer): void {
-        this.audioOut.sendAudioData(data);
+        if (!this.playback) return;
+        this.rxLevel = rmsInt16(data);
+        this.playback.write(data);
     }
 
     readTxLevel(): number {
-        return this.audioIn.readLevel();
+        return this.txLevel;
     }
 
     readRxLevel(): number {
-        return this.audioOut.readLevel();
-    }
-}
-
-class AudioInput {
-    private source: MediaStreamAudioSourceNode | null = null;
-    private resampleNode: AudioWorkletNode | null = null;
-    private analyserNode: AnalyserNode | null = null;
-    private silentGain: GainNode | null = null;
-    private lastLevel = 0;
-
-    public readonly audioAnalyser: Promise<AnalyserNode>;
-    private readonly analyserResolver: PromiseWithResolvers<AnalyserNode>;
-
-    constructor(
-        private readonly audioContext: AudioContext,
-        private readonly onAudioData: AudioDataCallback,
-    ) {
-        this.analyserResolver = Promise.withResolvers<AnalyserNode>();
-        this.audioAnalyser = this.analyserResolver.promise;
-    }
-
-    start(stream: MediaStream): void {
-        this.resampleNode = new AudioWorkletNode(this.audioContext, "resample-processor", {
-            numberOfInputs: 1,
-            numberOfOutputs: 1,
-            channelCount: 1,
-        });
-
-        this.resampleNode.port.onmessage = (event) => {
-            const data = event.data as ArrayBuffer;
-            this.lastLevel = rmsInt16(data);
-            this.onAudioData(data);
-        };
-
-        this.source = this.audioContext.createMediaStreamSource(stream);
-        this.source.connect(this.resampleNode);
-
-        // O AnalyserNode lê vazio sem caminho até o destination; o ganho zero mantém o
-        // grafo renderizando sem devolver o microfone no alto-falante.
-        this.analyserNode = this.audioContext.createAnalyser();
-        this.analyserNode.fftSize = 256;
-        this.silentGain = this.audioContext.createGain();
-        this.silentGain.gain.value = 0;
-        this.source.connect(this.analyserNode);
-        this.analyserNode.connect(this.silentGain);
-        this.silentGain.connect(this.audioContext.destination);
-
-        this.analyserResolver.resolve(this.analyserNode);
-    }
-
-    readLevel(): number {
-        return this.lastLevel;
-    }
-
-    stop(): void {
-        if (this.source && this.resampleNode) {
-            this.source.disconnect(this.resampleNode);
-        }
-        if (this.source && this.analyserNode) {
-            this.source.disconnect(this.analyserNode);
-        }
-        if (this.resampleNode) {
-            this.resampleNode.port.onmessage = null;
-            this.resampleNode.disconnect();
-            this.resampleNode = null;
-        }
-        this.analyserNode?.disconnect();
-        this.analyserNode = null;
-        this.silentGain?.disconnect();
-        this.silentGain = null;
-        this.source = null;
-        this.lastLevel = 0;
-    }
-}
-
-class AudioOutput {
-    private playbackNode: AudioWorkletNode | null = null;
-    private analyserNode: AnalyserNode | null = null;
-    private lastLevel = 0;
-
-    public readonly audioAnalyser: Promise<AnalyserNode>;
-    private readonly analyserResolver: PromiseWithResolvers<AnalyserNode>;
-
-    constructor(private readonly audioContext: AudioContext) {
-        this.analyserResolver = Promise.withResolvers<AnalyserNode>();
-        this.audioAnalyser = this.analyserResolver.promise;
-    }
-
-    readLevel(): number {
-        return this.lastLevel;
-    }
-
-    start(): void {
-        this.playbackNode = new AudioWorkletNode(this.audioContext, "audio-data-worklet-stream", {
-            numberOfInputs: 0,
-            numberOfOutputs: 1,
-            channelCount: 1,
-        });
-
-        this.analyserNode = this.audioContext.createAnalyser();
-        this.analyserNode.fftSize = 256;
-
-        this.playbackNode.connect(this.analyserNode);
-        this.analyserNode.connect(this.audioContext.destination);
-
-        this.analyserResolver.resolve(this.analyserNode);
-    }
-
-    sendAudioData(data: ArrayBuffer): void {
-        if (!this.playbackNode) return;
-        this.lastLevel = rmsInt16(data);
-        // Copia antes de transferir: o event.data do WebSocket pode ser reutilizado.
-        const copy = data.slice(0);
-        this.playbackNode.port.postMessage(copy, [copy]);
-    }
-
-    stop(): void {
-        this.playbackNode?.port.postMessage({ type: "clear" });
-        this.playbackNode?.disconnect();
-        this.playbackNode = null;
-        this.analyserNode?.disconnect();
-        this.analyserNode = null;
-        this.lastLevel = 0;
+        return this.rxLevel;
     }
 }

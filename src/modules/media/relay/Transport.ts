@@ -5,13 +5,13 @@ import { WSAudioPipe } from "@/modules/media/relay/AudioPipe";
 import { WSConnection } from "@/modules/media/relay/Connection";
 import { WSStatsAdapter } from "@/modules/media/relay/StatsAdapter";
 import {
+    type AudioRuntime,
     DEFAULT_STATS_TICK_MS,
     type Events,
     type ITransport,
     type TransportOptions,
     type TransportStatus,
 } from "@/modules/media/ITransport";
-import type { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
@@ -35,20 +35,20 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
 
     private statsTimer: ReturnType<typeof setInterval> | null = null;
 
-    constructor(mediaManager: MediaManager, token: string, options?: TransportOptions) {
+    constructor(audio: AudioRuntime, token: string, options?: TransportOptions) {
         super();
 
         this.statsTickMs = options?.statsTickMs ?? DEFAULT_STATS_TICK_MS;
         this.connection = new WSConnection(token);
 
-        this.audioPipe = new WSAudioPipe(mediaManager, (data) => {
+        this.audioPipe = new WSAudioPipe(audio, (data) => {
             this.connection.send(data);
             this.statsAdapter.noteSent(data.byteLength);
         });
         this.audioAnalyserIn = this.audioPipe.audioAnalyserIn;
         this.audioAnalyserOut = this.audioPipe.audioAnalyserOut;
 
-        this.statsAdapter = new WSStatsAdapter(mediaManager.audioContext, {
+        this.statsAdapter = new WSStatsAdapter(audio.engine, {
             readTxLevel: () => this.audioPipe.readTxLevel(),
             readRxLevel: () => this.audioPipe.readRxLevel(),
         });
