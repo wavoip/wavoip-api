@@ -234,3 +234,50 @@ call.on("connectionChanged", (connection) => { … })
 
 Qualquer perna caindo de forma recuperável deixa a chamada em `"reconnecting"`, e o evento sai
 só quando o estado somado muda — não repete.
+
+---
+
+## 6. `CallStats` tem a latência decomposta
+
+```typescript
+// v2
+const { rtt, rx, audio_context } = await call.getStats()
+render(rtt.avg, rx.audio_level, audio_context.output_latency_ms)
+
+// v3
+const { rtt, audio, latency } = await call.getStats()
+render(rtt.avg, audio.rx.level, latency.total_ms)
+```
+
+| v2 | v3 |
+| --- | --- |
+| `tx.audio_level` / `rx.audio_level` | `audio.tx.level` / `audio.rx.level` |
+| `tx.bitrate_kbps` / `rx.bitrate_kbps` | `audio.tx.bitrate_kbps` / `audio.rx.bitrate_kbps` |
+| `rx.jitter_ms` | `audio.rx.jitter_ms` |
+| `tx.total` / `rx.total` | `packets.tx.sent` / `packets.rx.received` |
+| `tx.loss` / `rx.loss` | `packets.tx.lost` / `packets.rx.lost` |
+| `tx.total_bytes` / `rx.total_bytes` | `packets.tx.bytes` / `packets.rx.bytes` |
+| `audio_context.output_latency_ms` | `latency.playout_ms` |
+| — | `latency.network_ms`, `whatsapp_ms`, `jitter_buffer_ms`, `total_ms` |
+
+### Três correções que vêm junto
+
+**O RTT de chamada oficial estava em segundos.** O `getStats()` do WebRTC devolve
+`roundTripTime` em segundos, e a biblioteca publicava o valor cru num campo documentado como
+milissegundos: um RTT de 40ms aparecia como `0.04`. Se a sua interface multiplicava por 1000
+para compensar, **tire a multiplicação**.
+
+**A latência de saída era só metade da história — e nem sempre existia.** O `output_latency_ms`
+vinha do `AudioContext.outputLatency`, que conta do grafo de áudio até o alto-falante e mais
+nada. O que espera na fila de reprodução não entrava, e numa chamada por relay essa fila é o
+maior termo: ela segura até cerca de 780ms antes de descartar. Agora ela é medida
+(`jitter_buffer_ms`), e o `playout_ms` passou a somar o `baseLatency`. No Safari, que não
+implementa `outputLatency`, o campo agora é `null` em vez de `NaN`.
+
+**`null` no lugar de zero.** Todo campo de `latency` é `number | null`, e `null` quer dizer "não
+medido aqui". Um zero afirmava latência nula, o que é bem diferente de não ter medida.
+
+{% hint style="info" %}
+O `whatsapp_ms` é informação que a v2 recebia e jogava fora: o `call:stats` sempre trouxe o RTT
+da perna servidor ⇔ WhatsApp, e a projeção interna só aproveitava a perna do cliente.
+{% endhint %}

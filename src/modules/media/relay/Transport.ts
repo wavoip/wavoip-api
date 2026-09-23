@@ -41,6 +41,7 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         this.statsAdapter = new WSStatsAdapter(audio.engine, {
             readTxLevel: () => this.audioPipe.readTxLevel(),
             readRxLevel: () => this.audioPipe.readRxLevel(),
+            readBufferedMs: () => this.audioPipe.readBufferedMs(),
         });
 
         this.connection.on("statusChanged", (s) => this.emit("statusChanged", s));

@@ -1,6 +1,10 @@
 const INPUT_RATE = 16_000;
 const JITTER_MAX_BYTES = 25_000;
 const JITTER_DROP_BYTES = 10_000;
+const BYTES_PER_MS = (INPUT_RATE * 2) / 1000;
+// A cada 10 frames, ou seja ~200ms: o `getStats` é puxado por quem consome, e avisar a
+// cada frame só gastaria postMessage.
+const REPORT_EVERY_FRAMES = 10;
 
 class AudioDataWorkletStream extends AudioWorkletProcessor {
     private src: { full: (input: Float32Array) => Float32Array } | null = null;
@@ -13,6 +17,7 @@ class AudioDataWorkletStream extends AudioWorkletProcessor {
 
     private outBuffer = new Float32Array(0);
     private outOffset = 0;
+    private framesSinceReport = 0;
 
     constructor(options: AudioWorkletNodeOptions) {
         super(options);
@@ -31,6 +36,7 @@ class AudioDataWorkletStream extends AudioWorkletProcessor {
 
     private onMessage(event: MessageEvent): void {
         if (event.data?.type === "clear") {
+            this.framesSinceReport = 0;
             this.chunks = [];
             this.current = null;
             this.currentOffset = 0;
@@ -51,6 +57,19 @@ class AudioDataWorkletStream extends AudioWorkletProcessor {
         }
 
         this.drainAndResample();
+        this.reportBuffered();
+    }
+
+    /**
+     * Quanto áudio já chegou e ainda não tocou. É a maior parcela da latência de recepção
+     * e nenhuma API do navegador a expõe: o `AudioContext.outputLatency` começa a contar
+     * só quando o quadro sai do grafo.
+     */
+    private reportBuffered(): void {
+        this.framesSinceReport += 1;
+        if (this.framesSinceReport < REPORT_EVERY_FRAMES) return;
+        this.framesSinceReport = 0;
+        this.port.postMessage({ type: "buffered", ms: this.remainingBytes() / BYTES_PER_MS });
     }
 
     /**

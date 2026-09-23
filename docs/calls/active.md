@@ -55,13 +55,13 @@ Retorna um snapshot fresco de `CallStats`. Você controla a cadência — chame 
 
 ```typescript
 const stats = await call.getStats()
-console.log(`RTT médio: ${stats.rtt.avg}ms | bitrate RX: ${stats.rx.bitrate_kbps}kbps`)
+console.log(`RTT médio: ${stats.rtt.avg}ms | bitrate RX: ${stats.audio.rx.bitrate_kbps}kbps`)
 ```
 
 Comportamento por tipo de chamada:
 
 - **`official`**: dispara `pc.getStats()` no transporte WebRTC e retorna o snapshot resultante (RTT par-a-par, perda, bitrate, audio level, jitter).
-- **`unofficial`** (relay): mescla os campos do lado cliente medidos pelo transporte WebSocket (bitrate, audio level, jitter RX, latência de saída) com a última projeção recebida no push `call:stats` do servidor (RTT, perda, totais). Apenas a combinação tem a imagem completa — nenhum lado sozinho a possui.
+- **`unofficial`** (relay): mescla o que o cliente mede (bitrate, níveis, jitter de chegada, fila de reprodução e latência de saída) com a última projeção recebida no push `call:stats` do servidor (RTT das duas pernas, perda, totais). Só a combinação tem a imagem completa.
 
 Antes do transporte ser conectado (raro, apenas durante a transição `RINGING` → `ACTIVE`), retorna um snapshot vazio com zeros.
 
@@ -149,36 +149,54 @@ O formato completo de `CallStats`:
 
 ```typescript
 type CallStats = {
-    rtt: {
-        min: number  // ms
-        max: number
-        avg: number
+    // RTT da perna cliente ⇔ servidor, acumulado ao longo da chamada, em ms
+    rtt: { min: number; max: number; avg: number }
+
+    latency: {
+        total_ms:         number | null  // a soma do que foi medido
+        network_ms:       number | null  // metade do RTT mais recente, cliente ⇔ servidor
+        whatsapp_ms:      number | null  // metade do RTT servidor ⇔ WhatsApp
+        jitter_buffer_ms: number | null  // áudio que chegou e ainda não tocou
+        playout_ms:       number | null  // do motor de áudio até sair no aparelho
     }
-    tx: {
-        total:        number  // pacotes enviados
-        total_bytes:  number
-        loss:         number  // perda de pacotes (0–1 ou contagem)
-        bitrate_kbps: number  // janela do último tick
-        audio_level:  number  // RMS do microfone (0–1)
+
+    audio: {
+        tx: { level: number; bitrate_kbps: number }
+        rx: { level: number; bitrate_kbps: number; jitter_ms: number }
     }
-    rx: {
-        total:        number
-        total_bytes:  number
-        loss:         number
-        bitrate_kbps: number
-        audio_level:  number  // RMS do alto-falante (0–1)
-        jitter_ms:    number  // jitter de chegada estimado (RFC 3550)
-    }
-    audio_context: {
-        output_latency_ms: number  // AudioContext.outputLatency × 1000
+
+    packets: {
+        tx: { sent: number; lost: number; bytes: number }
+        rx: { received: number; lost: number; bytes: number }
     }
 }
 ```
 
-A origem dos campos depende do tipo da chamada:
+{% hint style="warning" %}
+`null` quer dizer **não medido** nesta plataforma ou neste tipo de chamada — não zero. Um zero
+diria que a latência é nula, que é diferente de não saber. O `total_ms` soma só o que foi
+medido, e por isso é uma estimativa, não uma medida de ponta a ponta.
+{% endhint %}
 
-- **Chamada oficial**: tudo medido localmente pelo `RTCPeerConnection.getStats()` (RTT par-a-par, perda, bitrate, audio levels, jitter).
-- **Chamada não oficial (relay)**: o servidor envia `RTT` / `loss` / totais via `call:stats`; o transporte WebSocket mede `bitrate_kbps`, `audio_level` (tx/rx), `rx.jitter_ms` e `audio_context.output_latency_ms`. `getStats()` retorna a mescla.
+### De onde vem cada latência
+
+| Campo | Chamada oficial (WebRTC) | Chamada não oficial (relay) |
+| --- | --- | --- |
+| `network_ms` | `roundTripTime` do `getStats`, dividido por 2 | RTT que o servidor informa no `call:stats`, dividido por 2 |
+| `whatsapp_ms` | `null` — a chamada é direta, não passa por essa perna | RTT servidor ⇔ WhatsApp, que só o servidor mede |
+| `jitter_buffer_ms` | `jitterBufferDelay / jitterBufferEmittedCount` | medido dentro do worklet de reprodução |
+| `playout_ms` | `baseLatency + outputLatency` do `AudioContext` | igual |
+
+{% hint style="info" %}
+O `playout_ms` cobre só do motor de áudio até o alto-falante. O que está **esperando na fila**
+para tocar é o `jitter_buffer_ms`, e numa chamada por relay ele costuma ser o maior dos dois:
+a fila de reprodução segura até cerca de 780ms de áudio antes de começar a descartar.
+{% endhint %}
+
+A origem dos demais campos depende do tipo da chamada:
+
+- **Chamada oficial**: tudo medido localmente pelo `RTCPeerConnection.getStats()`.
+- **Chamada não oficial (relay)**: o servidor envia RTT, perda e totais via `call:stats`; o transporte WebSocket mede bitrate, níveis de áudio, jitter de chegada e as duas latências locais. `getStats()` devolve a mescla.
 
 `ServerCallStats` permanece exposto para quem precisa do RTT separado servidor↔cliente / servidor↔WhatsApp em chamadas não oficiais:
 
@@ -265,8 +283,13 @@ wavoip.on("offer", async (offer) => {
     })
 
     const statsTimer = setInterval(async () => {
-        const { rtt, rx } = await call.getStats()
-        updateStatsDisplay({ rtt: rtt.avg, loss: rx.loss, jitter: rx.jitter_ms })
+        const { rtt, audio, packets, latency } = await call.getStats()
+        updateStatsDisplay({
+            rtt: rtt.avg,
+            loss: packets.rx.lost,
+            jitter: audio.rx.jitter_ms,
+            latency: latency.total_ms,
+        })
     }, 500)
 
     call.on("ended", () => {

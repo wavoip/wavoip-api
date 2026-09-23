@@ -17,6 +17,11 @@ export interface AudioHandle {
 /** A reprodução do PCM que chega pelo relay. */
 export interface PcmPlayback extends AudioHandle {
     write(pcm: ArrayBuffer): void;
+    /**
+     * Quanto áudio já chegou e ainda não tocou, em milissegundos. `null` até a primeira
+     * medida, ou onde a plataforma não mede.
+     */
+    bufferedMs(): number | null;
 }
 
 /**
@@ -28,8 +33,13 @@ export interface PcmPlayback extends AudioHandle {
  * `AudioWorkletOut`).
  */
 export interface AudioEnginePort {
-    /** Segundos entre o motor e o alto-falante; vira `output_latency_ms` nas stats. */
-    readonly outputLatency: number;
+    /**
+     * Segundos entre o motor de áudio e o alto-falante, ou `null` onde a plataforma não
+     * informa (o Safari não implementa `outputLatency`). Vira `latency.playout_ms`.
+     *
+     * Não inclui o que espera na fila de reprodução: isso é o `bufferedMs` do `PcmPlayback`.
+     */
+    readonly outputLatency: number | null;
     /** Deixa pronto o que precisa carregar antes de tocar; na web, os worklets. */
     prepare(): Promise<void>;
     resume(): Promise<void>;

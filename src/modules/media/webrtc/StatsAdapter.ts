@@ -36,32 +36,45 @@ export class RTCStatsAdapter implements IStatsAdapter {
         }
 
         this.updateBitrateSample(curBytesReceived, curBytesSent);
-        this.cache.audio_context.output_latency_ms = this.engine.outputLatency * 1000;
+        this.cache.latency.playout_ms = this.engine.outputLatency === null ? null : this.engine.outputLatency * 1000;
+        this.cache.latency.total_ms = Stats.totalOf(this.cache.latency);
     }
 
     private absorbInbound(stat: AudioInboundStat): number {
-        if (stat.bytesReceived) this.cache.rx.total_bytes += stat.bytesReceived;
-        if (stat.packetsLost) this.cache.rx.loss = stat.packetsLost;
-        if (stat.packetsReceived) this.cache.rx.total = stat.packetsReceived;
-        if (typeof stat.audioLevel === "number") this.cache.rx.audio_level = stat.audioLevel;
-        if (typeof stat.jitter === "number") this.cache.rx.jitter_ms = stat.jitter * 1000;
+        if (stat.bytesReceived) this.cache.packets.rx.bytes += stat.bytesReceived;
+        if (stat.packetsLost) this.cache.packets.rx.lost = stat.packetsLost;
+        if (stat.packetsReceived) this.cache.packets.rx.received = stat.packetsReceived;
+        if (typeof stat.audioLevel === "number") this.cache.audio.rx.level = stat.audioLevel;
+        if (typeof stat.jitter === "number") this.cache.audio.rx.jitter_ms = stat.jitter * 1000;
+        this.absorbJitterBuffer(stat);
         return stat.bytesReceived ?? 0;
     }
 
     private absorbOutbound(stat: AudioOutboundStat): number {
-        if (stat.bytesSent) this.cache.tx.total_bytes += stat.bytesSent;
+        if (stat.bytesSent) this.cache.packets.tx.bytes += stat.bytesSent;
         return stat.bytesSent ?? 0;
     }
 
+    /**
+     * O atraso acumulado do jitter buffer dividido pelo que ele já entregou dá o atraso
+     * médio por pacote, que é a forma padrão de ler esses dois campos do `getStats`.
+     */
+    private absorbJitterBuffer(stat: AudioInboundStat): void {
+        if (!stat.jitterBufferDelay || !stat.jitterBufferEmittedCount) return;
+        this.cache.latency.jitter_buffer_ms = (stat.jitterBufferDelay / stat.jitterBufferEmittedCount) * 1000;
+    }
+
     private absorbMediaSource(stat: AudioMediaSourceStat): void {
-        if (typeof stat.audioLevel === "number") this.cache.tx.audio_level = stat.audioLevel;
+        if (typeof stat.audioLevel === "number") this.cache.audio.tx.level = stat.audioLevel;
     }
 
     private absorbRemoteInbound(stat: RemoteInboundAudioStat): void {
-        if (stat.packetsLost) this.cache.tx.loss = stat.packetsLost;
-        if (stat.packetsReceived) this.cache.tx.total = stat.packetsReceived;
+        if (stat.packetsLost) this.cache.packets.tx.lost = stat.packetsLost;
+        if (stat.packetsReceived) this.cache.packets.tx.sent = stat.packetsReceived;
         if (!stat.roundTripTime || !stat.roundTripTimeMeasurements) return;
-        this.foldRtt(stat.roundTripTime, stat.roundTripTimeMeasurements);
+        // O `getStats` dá o RTT em segundos; daqui para cima tudo é milissegundo.
+        this.foldRtt(stat.roundTripTime * 1000, stat.roundTripTimeMeasurements);
+        this.cache.latency.network_ms = (stat.roundTripTime * 1000) / 2;
     }
 
     private foldRtt(rtt: number, measurements: number): void {
@@ -75,8 +88,8 @@ export class RTCStatsAdapter implements IStatsAdapter {
         if (this.prevSampleTs > 0) {
             const dtSec = (now - this.prevSampleTs) / 1000;
             if (dtSec > 0) {
-                this.cache.rx.bitrate_kbps = ((curBytesReceived - this.prevBytesReceived) * 8) / dtSec / 1000;
-                this.cache.tx.bitrate_kbps = ((curBytesSent - this.prevBytesSent) * 8) / dtSec / 1000;
+                this.cache.audio.rx.bitrate_kbps = ((curBytesReceived - this.prevBytesReceived) * 8) / dtSec / 1000;
+                this.cache.audio.tx.bitrate_kbps = ((curBytesSent - this.prevBytesSent) * 8) / dtSec / 1000;
             }
         }
         this.prevBytesReceived = curBytesReceived;
@@ -87,6 +100,8 @@ export class RTCStatsAdapter implements IStatsAdapter {
 
 /** O que cada linha do `getStats` traz, do jeito que a porta a entrega. */
 type AudioInboundStat = StatEntry & {
+    jitterBufferDelay?: number;
+    jitterBufferEmittedCount?: number;
     bytesReceived?: number;
     packetsLost?: number;
     packetsReceived?: number;

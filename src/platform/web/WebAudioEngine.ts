@@ -12,8 +12,13 @@ export class WebAudioEngine implements AudioEnginePort {
     // Preguiçoso para um motor construído e nunca usado não pagar o addModule dos worklets.
     private worklets: Promise<void> | null = null;
 
-    get outputLatency(): number {
-        return this.context.outputLatency;
+    /**
+     * `baseLatency` é o quantum do grafo e `outputLatency` é o buffer do aparelho: o que sai
+     * daqui até virar som são os dois. O Safari não implementa o segundo, e aí não há medida.
+     */
+    get outputLatency(): number | null {
+        const total = this.context.baseLatency + this.context.outputLatency;
+        return Number.isFinite(total) ? total : null;
     }
 
     prepare(): Promise<void> {
@@ -118,8 +123,15 @@ export class WebAudioEngine implements AudioEnginePort {
         playback.connect(analyser);
         analyser.connect(this.context.destination);
 
+        let buffered: number | null = null;
+        playback.port.onmessage = (event) => {
+            const report = event.data as { type?: string; ms?: number };
+            if (report?.type === "buffered" && typeof report.ms === "number") buffered = report.ms;
+        };
+
         return {
             meter: analyser,
+            bufferedMs: () => buffered,
             write: (pcm) => {
                 // Copia antes de transferir: o event.data do WebSocket pode ser reutilizado.
                 const copy = pcm.slice(0);
@@ -127,6 +139,7 @@ export class WebAudioEngine implements AudioEnginePort {
             },
             stop: () => {
                 playback.port.postMessage({ type: "clear" });
+                playback.port.onmessage = null;
                 playback.disconnect();
                 analyser.disconnect();
             },

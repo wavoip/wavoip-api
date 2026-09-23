@@ -59,10 +59,12 @@ export interface IRTCTransport extends ITransport {
 /** O endereço que o relay informa quando a chamada é aceita. */
 export type RelayAddress = { host: string; port: string };
 
-/** Lê o nível do áudio que passa, para as stats do relay (ver `relay/StatsAdapter`). */
-export interface AudioLevelProvider {
+/** O que só o lado cliente do relay mede (ver `relay/StatsAdapter`). */
+export interface RelayMeasurements {
     readTxLevel(): number;
     readRxLevel(): number;
+    /** O áudio que chegou e ainda não tocou; `null` antes da primeira medida. */
+    readBufferedMs(): number | null;
 }
 
 /**

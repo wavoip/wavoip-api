@@ -79,4 +79,8 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> {
     readRxLevel(): number {
         return this.rxLevel;
     }
+
+    readBufferedMs(): number | null {
+        return this.playback?.bufferedMs() ?? null;
+    }
 }

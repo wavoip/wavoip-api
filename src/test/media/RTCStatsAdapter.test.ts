@@ -33,8 +33,8 @@ describe("RTCStatsAdapter", () => {
         const adapter = new RTCStatsAdapter(makePc([[]]), makeEngine());
         const s = adapter.snapshot();
         expect(s.rtt).toEqual({ min: 0, max: 0, avg: 0 });
-        expect(s.rx.total_bytes).toBe(0);
-        expect(s.tx.total_bytes).toBe(0);
+        expect(s.packets.rx.bytes).toBe(0);
+        expect(s.packets.tx.bytes).toBe(0);
     });
 
     it("absorbs inbound-rtp/audio into rx fields", async () => {
@@ -54,26 +54,26 @@ describe("RTCStatsAdapter", () => {
         const adapter = new RTCStatsAdapter(pc, makeEngine(0.03));
         await adapter.refresh();
         const s = adapter.snapshot();
-        expect(s.rx.total_bytes).toBe(1234);
-        expect(s.rx.total).toBe(100);
-        expect(s.rx.loss).toBe(2);
-        expect(s.rx.audio_level).toBe(0.4);
-        expect(s.rx.jitter_ms).toBeCloseTo(12);
-        expect(s.audio_context.output_latency_ms).toBeCloseTo(30);
+        expect(s.packets.rx.bytes).toBe(1234);
+        expect(s.packets.rx.received).toBe(100);
+        expect(s.packets.rx.lost).toBe(2);
+        expect(s.audio.rx.level).toBe(0.4);
+        expect(s.audio.rx.jitter_ms).toBeCloseTo(12);
+        expect(s.latency.playout_ms).toBeCloseTo(30);
     });
 
     it("absorbs outbound-rtp/audio bytes into tx.total_bytes", async () => {
         const pc = makePc([[{ type: "outbound-rtp", kind: "audio", bytesSent: 500 }]]);
         const adapter = new RTCStatsAdapter(pc, makeEngine());
         await adapter.refresh();
-        expect(adapter.snapshot().tx.total_bytes).toBe(500);
+        expect(adapter.snapshot().packets.tx.bytes).toBe(500);
     });
 
     it("absorbs media-source/audio into tx.audio_level", async () => {
         const pc = makePc([[{ type: "media-source", kind: "audio", audioLevel: 0.7 }]]);
         const adapter = new RTCStatsAdapter(pc, makeEngine());
         await adapter.refresh();
-        expect(adapter.snapshot().tx.audio_level).toBe(0.7);
+        expect(adapter.snapshot().audio.tx.level).toBe(0.7);
     });
 
     it("absorbs remote-inbound-rtp/audio: tx loss/total + rolling RTT", async () => {
@@ -92,11 +92,31 @@ describe("RTCStatsAdapter", () => {
         const adapter = new RTCStatsAdapter(pc, makeEngine());
         await adapter.refresh();
         const s = adapter.snapshot();
-        expect(s.tx.loss).toBe(3);
-        expect(s.tx.total).toBe(200);
-        expect(s.rtt.avg).toBeCloseTo(0.04);
-        expect(s.rtt.min).toBeCloseTo(0.04);
-        expect(s.rtt.max).toBeCloseTo(0.04);
+        expect(s.packets.tx.lost).toBe(3);
+        expect(s.packets.tx.sent).toBe(200);
+        // O getStats dá o RTT em segundos; a superfície fala milissegundo.
+        expect(s.rtt.avg).toBeCloseTo(40);
+        expect(s.rtt.min).toBeCloseTo(40);
+        expect(s.rtt.max).toBeCloseTo(40);
+        expect(s.latency.network_ms).toBeCloseTo(20);
+    });
+
+    it("reads the jitter buffer as the delay per packet it has emitted", async () => {
+        const pc = makePc([
+            [
+                {
+                    type: "inbound-rtp",
+                    kind: "audio",
+                    jitterBufferDelay: 12,
+                    jitterBufferEmittedCount: 240,
+                },
+            ],
+        ]);
+        const adapter = new RTCStatsAdapter(pc, makeEngine());
+
+        await adapter.refresh();
+
+        expect(adapter.snapshot().latency.jitter_buffer_ms).toBeCloseTo(50);
     });
 
     it("computes bitrate from byte deltas across consecutive refreshes", async () => {
@@ -114,7 +134,7 @@ describe("RTCStatsAdapter", () => {
         await adapter.refresh();
 
         const s = adapter.snapshot();
-        expect(s.rx.bitrate_kbps).toBeCloseTo(((3000 - 1000) * 8) / 1000);
+        expect(s.audio.rx.bitrate_kbps).toBeCloseTo(((3000 - 1000) * 8) / 1000);
         spy.mockRestore();
     });
 });

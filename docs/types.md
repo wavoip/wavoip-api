@@ -82,32 +82,30 @@ type CallPeer = {
 
 ## Estatísticas de chamada
 
-`CallStats` é o snapshot retornado por [`ActiveCall.getStats()`](calls/active.md#getstats). Em chamadas `official` todos os campos vêm de `RTCPeerConnection.getStats()`. Em chamadas `unofficial` os campos de RTT, perda e totais vêm do push `call:stats` do servidor, enquanto bitrate, audio levels, jitter RX e latência de saída vêm das medições do transporte WebSocket — `getStats()` retorna os dois mesclados.
+`CallStats` é o snapshot devolvido por [`ActiveCall.getStats()`](calls/active.md#getstats). Em chamadas `official` tudo vem do `RTCPeerConnection.getStats()`. Em chamadas `unofficial`, RTT, perda e totais vêm do push `call:stats` do servidor, e bitrate, níveis, jitter de chegada e as latências locais vêm do transporte WebSocket — `getStats()` devolve os dois mesclados.
 
 ```typescript
 type CallStats = {
-    rtt: {
-        min: number   // Tempo mínimo de ida e volta (ms)
-        max: number   // Tempo máximo de ida e volta (ms)
-        avg: number   // Tempo médio de ida e volta (ms)
+    // RTT da perna cliente ⇔ servidor, acumulado ao longo da chamada, em ms
+    rtt: { min: number; max: number; avg: number }
+
+    // `null` = não medido nesta plataforma ou neste tipo de chamada (não é zero)
+    latency: {
+        total_ms:         number | null  // a soma do que foi medido; é estimativa
+        network_ms:       number | null  // metade do RTT mais recente, cliente ⇔ servidor
+        whatsapp_ms:      number | null  // metade do RTT servidor ⇔ WhatsApp
+        jitter_buffer_ms: number | null  // áudio que chegou e ainda não tocou
+        playout_ms:       number | null  // do motor de áudio até sair no aparelho
     }
-    tx: {
-        total:        number  // Pacotes enviados
-        total_bytes:  number  // Bytes enviados
-        loss:         number  // Perda de pacotes
-        bitrate_kbps: number  // Bitrate de envio na última janela de tick
-        audio_level:  number  // RMS do microfone (0–1)
+
+    audio: {
+        tx: { level: number; bitrate_kbps: number }
+        rx: { level: number; bitrate_kbps: number; jitter_ms: number }
     }
-    rx: {
-        total:        number  // Pacotes recebidos
-        total_bytes:  number  // Bytes recebidos
-        loss:         number  // Perda de pacotes
-        bitrate_kbps: number  // Bitrate de recepção na última janela de tick
-        audio_level:  number  // RMS do alto-falante (0–1)
-        jitter_ms:    number  // Jitter estimado (RFC 3550)
-    }
-    audio_context: {
-        output_latency_ms: number  // AudioContext.outputLatency × 1000
+
+    packets: {
+        tx: { sent: number; lost: number; bytes: number }
+        rx: { received: number; lost: number; bytes: number }
     }
 }
 

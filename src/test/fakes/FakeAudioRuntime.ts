@@ -74,9 +74,14 @@ class FakeAudioHandle implements AudioHandle {
 
 class FakePcmPlayback extends FakeAudioHandle {
     readonly written: ArrayBuffer[] = [];
+    buffered: number | null = null;
 
     write(pcm: ArrayBuffer): void {
         this.written.push(pcm);
+    }
+
+    bufferedMs(): number | null {
+        return this.buffered;
     }
 }
 

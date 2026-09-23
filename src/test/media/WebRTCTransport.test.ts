@@ -1,4 +1,5 @@
 import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
+import { Stats } from "@/domain/call/stats";
 import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -90,17 +91,7 @@ describe("WebRTCTransport", () => {
 
         expect(transport.status).toBe("disconnected");
         expect(transport.peerMuted).toBe(false);
-        expect(transport.stats.rtt).toEqual({ min: 0, max: 0, avg: 0 });
-        expect(transport.stats.tx).toEqual({ total: 0, total_bytes: 0, loss: 0, bitrate_kbps: 0, audio_level: 0 });
-        expect(transport.stats.rx).toEqual({
-            total: 0,
-            total_bytes: 0,
-            loss: 0,
-            bitrate_kbps: 0,
-            audio_level: 0,
-            jitter_ms: 0,
-        });
-        expect(transport.stats.audio_context).toEqual({ output_latency_ms: 0 });
+        expect(transport.stats).toEqual(Stats.empty());
     });
 
     describe("start()", () => {
@@ -381,7 +372,7 @@ describe("WebRTCTransport", () => {
 
             const stats = await transport.getStats();
 
-            expect(stats.rx.total).toBeGreaterThan(0);
+            expect(stats.packets.rx.received).toBeGreaterThan(0);
         });
 
         it("updates stats.rtt with remote-inbound-rtp stats", async () => {
@@ -439,9 +430,9 @@ describe("WebRTCTransport", () => {
 
             const stats = await transport.getStats();
 
-            expect(stats.rx.jitter_ms).toBeCloseTo(15, 5);
-            expect(stats.rx.audio_level).toBe(0.42);
-            expect(stats.tx.audio_level).toBe(0.7);
+            expect(stats.audio.rx.jitter_ms).toBeCloseTo(15, 5);
+            expect(stats.audio.rx.level).toBe(0.42);
+            expect(stats.audio.tx.level).toBe(0.7);
         });
     });
 });
