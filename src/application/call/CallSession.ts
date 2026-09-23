@@ -17,7 +17,7 @@ export type CallSessionEvents = {
     unanswered: [];
     failed: [error: WavoipError<CallFailureCode | "UNKNOWN">];
     ended: [];
-    /** A mídia subiu e está ligada à chamada: é a hora de existir um CallActive. */
+    /** A mídia subiu e está ligada à chamada: é a hora de existir um ActiveCall. */
     activated: [];
     /** A passagem da chamada que sai para a chamada ativa falhou. */
     handoverFailed: [];
@@ -60,7 +60,7 @@ export type StartCallParams = { to: string; type: CallType; deviceToken: string 
 /**
  * Dona de uma chamada, do primeiro toque ao fim: o estado, a mídia e o que o servidor
  * responde. Cada método lê de cima a baixo o que acontece naquele comando, e as views
- * públicas (`Offer`, `CallOutgoing`, `CallActive`) só leem daqui e chamam estes métodos.
+ * públicas (`IncomingCall`, `OutgoingCall`, `ActiveCall`) só leem daqui e chamam estes métodos.
  */
 export class CallSession implements Subscribable<CallSessionEvents> {
     readonly id: string;
@@ -74,6 +74,9 @@ export class CallSession implements Subscribable<CallSessionEvents> {
     private readonly transport: ITransport;
     private wired = false;
     private stopped = false;
+    // Quem terminou a chamada foi quem chama a biblioteca: o eco do servidor não vira
+    // evento, porque o desfecho já foi na resposta do método (v3).
+    private finishedHere = false;
     private serverStats: CallStats | null = null;
     private transportStats: CallStats | null = null;
 
@@ -174,6 +177,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         const ack = await this.deps.signaling.reject(this.id, CallPolicy.ackTimeoutMs);
         if (ack.kind !== "ok") return ackFailure(ack);
         this.status = Status.transition(this.status, "reject") ?? this.status;
+        this.finishedHere = true;
         // O servidor pode ou não ecoar `call:rejected`; sem isto, uma oferta recusada
         // ficaria no roteamento para sempre se a resposta nunca chegar.
         this.events.emit("closed");
@@ -205,6 +209,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         const cancelled = Status.transition(this.status, "cancel");
         if (!cancelled) return Result.fail(CallPolicy.alreadyAnswered);
         this.status = cancelled;
+        this.finishedHere = true;
         if (!this.wired) await this.stopMedia();
         return Result.ok();
     }
@@ -217,6 +222,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         if (this.stopped) return Result.ok();
         const ack = await this.deps.signaling.end(this.id, CallPolicy.ackTimeoutMs);
         if (ack.kind !== "ok") return ackFailure(ack);
+        this.finishedHere = true;
         await this.stopMedia();
         return Result.ok();
     }
@@ -271,7 +277,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
                 void this.handleAnswered(event.plan);
                 return;
             case "rejected":
-                this.events.emit("rejected");
+                if (!this.finishedHere) this.events.emit("rejected");
                 this.events.emit("status", this.status);
                 void this.stopMedia();
                 return;
@@ -289,7 +295,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
                 // `status` antes de `ended`: as views se desmontam no `ended`, e um status
                 // anunciado depois não chegaria a ninguém.
                 this.events.emit("status", this.status);
-                this.events.emit("ended");
+                if (!this.finishedHere) this.events.emit("ended");
                 void this.stopMedia();
                 return;
             case "disconnected":

@@ -48,7 +48,7 @@ wavoip.on("offer", async (offer) => {
 // Realizar chamadas
 const { data: call, error } = await wavoip.startCall({ to: "+5511999999999" })
 if (call) {
-    call.on("peerAccept", (active) => {
+    call.on("accepted", (active) => {
         console.log("Chamada conectada!")
     })
 }

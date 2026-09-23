@@ -1,6 +1,6 @@
 import type { CallSession } from "@/application/call/CallSession";
-import type { CallActive } from "@/modules/call/CallActive";
-import { OfferProxy } from "@/modules/call/Offer";
+import type { ActiveCall } from "@/modules/call/ActiveCall";
+import { IncomingCallProxy } from "@/modules/call/IncomingCall";
 import { CallHarness, relayPlan, testPeer, webRTCPlan } from "@/test/support/CallHarness";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,10 +10,10 @@ beforeEach(() => {
     harness = new CallHarness();
 });
 
-async function makeActive(plan = relayPlan): Promise<{ session: CallSession; active: CallActive }> {
+async function makeActive(plan = relayPlan): Promise<{ session: CallSession; active: ActiveCall }> {
     const type = plan === relayPlan ? "UNOFFICIAL" : "OFFICIAL";
     const session = harness.incoming({ type, plan });
-    const { data } = await OfferProxy(session).accept();
+    const { data } = await IncomingCallProxy(session).accept();
     if (!data) throw new Error("accept failed");
     return { session, active: data };
 }
@@ -24,7 +24,7 @@ const serverStats = {
     rx: { total: 40, total_bytes: 4000, loss: 2 },
 };
 
-describe("CallActive — getters", () => {
+describe("ActiveCall — getters", () => {
     it("reads the call's identity from the session", async () => {
         const { active } = await makeActive();
 
@@ -38,12 +38,20 @@ describe("CallActive — getters", () => {
         expect(active.peer).toEqual({ ...testPeer, muted: false });
     });
 
-    it("connectionStatus follows the transport", async () => {
+    it("connection follows the transport", async () => {
         const { active } = await makeActive();
 
         harness.transports.current.status = "reconnecting";
 
-        expect(active.connectionStatus).toBe("reconnecting");
+        expect(active.connection).toBe("reconnecting");
+    });
+
+    it("connection reads reconnecting while the WhatsApp leg is down", async () => {
+        const { active, session } = await makeActive();
+
+        harness.fromServer(session, { type: "disconnected" });
+
+        expect(active.connection).toBe("reconnecting");
     });
 
     it("peer.muted follows the other side's microphone", async () => {
@@ -63,7 +71,7 @@ describe("CallActive — getters", () => {
     });
 });
 
-describe("CallActive — commands", () => {
+describe("ActiveCall — commands", () => {
     it("mute and unmute tell the other side before cutting the microphone", async () => {
         const { active } = await makeActive();
         harness.signaling.sent.length = 0;
@@ -86,6 +94,18 @@ describe("CallActive — commands", () => {
         expect(harness.transports.current.stops).toBe(1);
     });
 
+    it("does not report ended when the call was ended from here", async () => {
+        const { active, session } = await makeActive();
+        const ended = vi.fn();
+        active.on("ended", ended);
+
+        await active.end();
+        harness.fromServer(session, { type: "ended", status: "ENDED" });
+
+        expect(ended).not.toHaveBeenCalled();
+        expect(active.status).toBe("ENDED");
+    });
+
     it("getStats merges the server's numbers into what the client measured", async () => {
         const { active, session } = await makeActive();
 
@@ -95,51 +115,62 @@ describe("CallActive — commands", () => {
     });
 });
 
-describe("CallActive — what the server says", () => {
-    it("turns the failure reason into the error event", async () => {
+describe("ActiveCall — what the server says", () => {
+    it("turns the failure reason into the failed event", async () => {
         const { active, session } = await makeActive();
         const heard = vi.fn();
-        active.on("error", heard);
+        active.on("failed", heard);
 
         harness.fromServer(session, { type: "failed", error: { code: "CONNECTION_TIMEOUT" } });
 
         expect(heard).toHaveBeenCalledWith({ code: "CONNECTION_TIMEOUT" });
     });
 
-    it("splits the peer's mute into two events", async () => {
+    it("reports the peer's mute on a single channel", async () => {
         const { active, session } = await makeActive();
-        const muted = vi.fn();
-        const unmuted = vi.fn();
-        active.on("peerMute", muted);
-        active.on("peerUnmute", unmuted);
+        const heard = vi.fn();
+        active.on("peerMuteChanged", heard);
 
         harness.fromServer(session, { type: "peerMuted", muted: true }, { type: "peerMuted", muted: false });
 
-        expect(muted).toHaveBeenCalledOnce();
-        expect(unmuted).toHaveBeenCalledOnce();
+        expect(heard.mock.calls).toEqual([[true], [false]]);
     });
 
-    it("announces the outcome before ended", async () => {
+    it("has the status settled before ended fires", async () => {
         const { active, session } = await makeActive();
-        const seen: string[] = [];
-        active.on("status", (status) => seen.push(`status:${status}`));
-        active.on("ended", () => seen.push(`ended:${active.status}`));
+        let seenInListener: string | undefined;
+        active.on("ended", () => {
+            seenInListener = active.status;
+        });
 
         harness.fromServer(session, { type: "ended", status: "ENDED" });
 
-        expect(seen).toEqual(["status:ENDED", "ended:ENDED"]);
+        expect(seenInListener).toBe("ENDED");
     });
 });
 
-describe("CallActive — media reports", () => {
-    it("forwards the transport's connection status", async () => {
+describe("ActiveCall — media reports", () => {
+    it("reports either leg dropping as one connection change", async () => {
+        const { active, session } = await makeActive();
+        const heard = vi.fn();
+        active.on("connectionChanged", heard);
+
+        harness.transports.current.changeStatus("reconnecting");
+        // A perna do WhatsApp cai com o transporte já reconectando: o estado junto não
+        // mudou, e um evento repetido só faria a interface piscar.
+        harness.fromServer(session, { type: "disconnected" });
+
+        expect(heard.mock.calls).toEqual([["reconnecting"]]);
+    });
+
+    it("reports the call as lost when the transport gives up", async () => {
         const { active } = await makeActive();
         const heard = vi.fn();
-        active.on("connectionStatus", heard);
+        active.on("connectionChanged", heard);
 
-        harness.transports.current.emit("statusChanged", "reconnecting");
+        harness.transports.current.changeStatus("disconnected");
 
-        expect(heard).toHaveBeenCalledWith("reconnecting");
+        expect(heard).toHaveBeenCalledWith("disconnected");
     });
 
     it("replays the last diagnostics to a listener that subscribes late", async () => {

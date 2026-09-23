@@ -9,9 +9,9 @@ Todos os tipos listados aqui são re-exportados da raiz do pacote e podem ser im
 
 ```typescript
 import type {
-    CallActive, CallActiveEvents,
-    CallOutgoing, CallOutgoingEvents,
-    Offer, OfferEvents,
+    ActiveCall, ActiveCallEvents,
+    OutgoingCall, OutgoingCallEvents,
+    IncomingCall, IncomingCallEvents,
     Device, DeviceEvents,
     CallPeer, CallStats, ServerCallStats, CallStatus, CallType, CallDirection,
     DeviceStatus, Contact,
@@ -82,7 +82,7 @@ type CallPeer = {
 
 ## Estatísticas de chamada
 
-`CallStats` é o snapshot retornado por [`CallActive.getStats()`](calls/active.md#getstats). Em chamadas `official` todos os campos vêm de `RTCPeerConnection.getStats()`. Em chamadas `unofficial` os campos de RTT, perda e totais vêm do push `call:stats` do servidor, enquanto bitrate, audio levels, jitter RX e latência de saída vêm das medições do transporte WebSocket — `getStats()` retorna os dois mesclados.
+`CallStats` é o snapshot retornado por [`ActiveCall.getStats()`](calls/active.md#getstats). Em chamadas `official` todos os campos vêm de `RTCPeerConnection.getStats()`. Em chamadas `unofficial` os campos de RTT, perda e totais vêm do push `call:stats` do servidor, enquanto bitrate, audio levels, jitter RX e latência de saída vêm das medições do transporte WebSocket — `getStats()` retorna os dois mesclados.
 
 ```typescript
 type CallStats = {
@@ -152,7 +152,7 @@ type ConnectivityIssue =
 ```
 
 {% hint style="info" %}
-`iceDiagnostics` e `connectivityIssue` são emitidos por `Offer`, `CallOutgoing` e `CallActive`. Em `CallActive`, o último `iceDiagnostics` e todos os `connectivityIssue` recebidos até o momento são re-emitidos para listeners tardios, garantindo que consumidores que assinam após o início da chamada não percam o estado inicial.
+`iceDiagnostics` e `connectivityIssue` são emitidos por `IncomingCall`, `OutgoingCall` e `ActiveCall`. Em `ActiveCall`, o último `iceDiagnostics` e todos os `connectivityIssue` recebidos até o momento são re-emitidos para listeners tardios, garantindo que consumidores que assinam após o início da chamada não percam o estado inicial.
 {% endhint %}
 
 ---
@@ -217,48 +217,55 @@ type Contact = {
 type TransportStatus = "disconnected" | "connecting" | "connected" | "reconnecting"
 ```
 
+### `CallConnection`
+
+O estado de uma chamada ativa com as duas pernas somadas — a mídia local e a perna entre o
+servidor e o WhatsApp. Qualquer uma caindo de forma recuperável deixa a chamada em
+`"reconnecting"`; `"disconnected"` quer dizer chamada perdida.
+
+```typescript
+type CallConnection = "connected" | "reconnecting" | "disconnected"
+```
+
 ---
 
 ## Mapas de eventos
 
-### `OfferEvents`
+### `IncomingCallEvents`
 
 ```typescript
-type OfferEvents = {
+type IncomingCallEvents = {
     acceptedElsewhere: []
     rejectedElsewhere: []
-    unanswered:        []
+    cancelled:         []
     ended:             []
-    status:            [status: CallStatus]
     iceDiagnostics:    [diag: IceDiagnostics]
     connectivityIssue: [issue: ConnectivityIssue]
 }
 ```
 
-### `CallOutgoingEvents`
+### `OutgoingCallEvents`
 
 ```typescript
-type CallOutgoingEvents = {
-    peerAccept:        [call: CallActive]
-    peerReject:        []
+type OutgoingCallEvents = {
+    accepted:          [call: ActiveCall]
+    rejected:          []
     unanswered:        []
+    failed:            [error: OutgoingCallFailure]
     ended:             []
-    status:            [status: CallStatus]
     iceDiagnostics:    [diag: IceDiagnostics]
     connectivityIssue: [issue: ConnectivityIssue]
 }
 ```
 
-### `CallActiveEvents`
+### `ActiveCallEvents`
 
 ```typescript
-type CallActiveEvents = {
-    error:             [error: WavoipError<CallFailureCode | "UNKNOWN">]
-    peerMute:          []
-    peerUnmute:        []
+type ActiveCallEvents = {
     ended:             []
-    connectionStatus:  [status: TransportStatus]
-    status:            [status: CallStatus]
+    failed:            [error: WavoipError<CallFailureCode | "UNKNOWN">]
+    peerMuteChanged:   [muted: boolean]
+    connectionChanged: [connection: CallConnection]
     iceDiagnostics:    [diag: IceDiagnostics]
     connectivityIssue: [issue: ConnectivityIssue]
 }

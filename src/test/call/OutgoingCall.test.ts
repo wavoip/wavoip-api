@@ -1,4 +1,4 @@
-import { CallOutgoingProxy } from "@/modules/call/CallOutgoing";
+import { OutgoingCallProxy } from "@/modules/call/OutgoingCall";
 import { Ack } from "@/ports/SignalingPort";
 import { CallHarness, relayPlan, testPeer } from "@/test/support/CallHarness";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,10 +11,10 @@ beforeEach(() => {
 
 function makeOutgoing(type: "OFFICIAL" | "UNOFFICIAL" = "UNOFFICIAL") {
     const session = harness.outgoing({ type });
-    return { session, outgoing: CallOutgoingProxy(session) };
+    return { session, outgoing: OutgoingCallProxy(session) };
 }
 
-describe("CallOutgoing — getters", () => {
+describe("OutgoingCall — getters", () => {
     it("reads the call's identity from the session", () => {
         const { outgoing } = makeOutgoing();
 
@@ -36,11 +36,11 @@ describe("CallOutgoing — getters", () => {
     });
 });
 
-describe("CallOutgoing — the peer answers", () => {
-    it("hands the active call to peerAccept once the media is up", async () => {
+describe("OutgoingCall — the peer answers", () => {
+    it("hands the active call to accepted once the media is up", async () => {
         const { outgoing, session } = makeOutgoing();
         const accepted = vi.fn();
-        outgoing.on("peerAccept", accepted);
+        outgoing.on("accepted", accepted);
 
         harness.fromServer(session, { type: "answered", plan: relayPlan });
         await vi.waitFor(() => expect(accepted).toHaveBeenCalledOnce());
@@ -48,18 +48,18 @@ describe("CallOutgoing — the peer answers", () => {
         expect(accepted.mock.calls[0][0]).toMatchObject({ id: "call-1", status: "ACTIVE" });
     });
 
-    it("reports a failed handover as the end of the call", async () => {
+    it("reports a failed handover as a media failure", async () => {
         const { outgoing, session } = makeOutgoing("UNOFFICIAL");
-        const ended = vi.fn();
-        outgoing.on("ended", ended);
+        const failed = vi.fn();
+        outgoing.on("failed", failed);
         harness.transports.current.startFailure = new Error("no mic");
 
         harness.fromServer(session, { type: "answered", plan: relayPlan });
-        await vi.waitFor(() => expect(ended).toHaveBeenCalledOnce());
+        await vi.waitFor(() => expect(failed).toHaveBeenCalledWith({ code: "MEDIA_NEGOTIATION_FAILED" }));
     });
 });
 
-describe("CallOutgoing — commands", () => {
+describe("OutgoingCall — commands", () => {
     it("mute asks the server and applies only on success", async () => {
         const { outgoing } = makeOutgoing();
 
@@ -95,9 +95,21 @@ describe("CallOutgoing — commands", () => {
     });
 });
 
-describe("CallOutgoing — what the server says", () => {
+describe("OutgoingCall — what the server says", () => {
+    it("does not report ended when the call was cancelled from here", async () => {
+        const { outgoing, session } = makeOutgoing();
+        const ended = vi.fn();
+        outgoing.on("ended", ended);
+
+        await outgoing.cancel();
+        harness.fromServer(session, { type: "ended", status: "CANCELLED" });
+
+        expect(ended).not.toHaveBeenCalled();
+        expect(outgoing.status).toBe("CANCELLED");
+    });
+
     it.each([
-        ["peerReject", { type: "rejected" as const }],
+        ["rejected", { type: "rejected" as const }],
         ["unanswered", { type: "unanswered" as const }],
         ["ended", { type: "ended" as const, status: "ENDED" as const }],
     ])("emits %s", (event, serverEvent) => {
@@ -113,7 +125,7 @@ describe("CallOutgoing — what the server says", () => {
     it("sees the outcome already settled inside the listener", () => {
         const { outgoing, session } = makeOutgoing();
         let statusInListener: string | undefined;
-        outgoing.on("peerReject", () => {
+        outgoing.on("rejected", () => {
             statusInListener = outgoing.status;
         });
 
@@ -128,7 +140,7 @@ describe("CallOutgoing — what the server says", () => {
         const heard = vi.fn();
         const accepted = vi.fn();
         outgoing.on("connectivityIssue", heard);
-        outgoing.on("peerAccept", accepted);
+        outgoing.on("accepted", accepted);
 
         harness.fromServer(session, { type: "answered", plan: { type: "webRTC", sdp: "v=0 answer" } });
         await vi.waitFor(() => expect(accepted).toHaveBeenCalledOnce());

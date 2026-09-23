@@ -79,7 +79,7 @@ Os navegadores exigem um gesto do usuário antes que o `AudioContext` possa reto
 
 ## Estatísticas de qualidade de chamada
 
-A qualidade de áudio por chamada é reportada pelo evento `stats` no `CallActive`:
+A qualidade de áudio por chamada é reportada pelo evento `stats` no `ActiveCall`:
 
 ```typescript
 call.on("stats", (stats) => {

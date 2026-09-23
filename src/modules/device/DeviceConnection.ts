@@ -3,8 +3,8 @@ import { SocketIoSignaling } from "@/adapters/socketio/SocketIoSignaling";
 import { DeviceSession, type DeviceSessionEvents } from "@/application/device/DeviceSession";
 import type { CommandFailure, DeviceApiFailure, StartCallErrorCode, WavoipError } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
-import { type CallOutgoing, CallOutgoingProxy } from "@/modules/call/CallOutgoing";
-import { type Offer, OfferProxy } from "@/modules/call/Offer";
+import { type OutgoingCall, OutgoingCallProxy } from "@/modules/call/OutgoingCall";
+import { type IncomingCall, IncomingCallProxy } from "@/modules/call/IncomingCall";
 import type { ConnectionStatus, Contact, DeviceStatus } from "@/modules/device/Device";
 import { DeviceWebSocketFactory } from "@/modules/device/WebSocket";
 import type { AudioRuntime, TransportOptions } from "@/modules/media/ITransport";
@@ -25,7 +25,7 @@ export type DeviceEvents = {
 };
 
 type Events = DeviceEvents & {
-    offerReceived: [offer: Offer];
+    incomingCall: [offer: IncomingCall];
 };
 
 export interface Device {
@@ -101,10 +101,10 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         return this.session.state.activeCalls;
     }
 
-    async startCall(to: string): Promise<Result<CallOutgoing, WavoipError<StartCallErrorCode>>> {
+    async startCall(to: string): Promise<Result<OutgoingCall, WavoipError<StartCallErrorCode>>> {
         const started = await this.session.startCall(to);
         if (started.error) return started;
-        return Result.ok(CallOutgoingProxy(started.data));
+        return Result.ok(OutgoingCallProxy(started.data));
     }
 
     wakeUp(): Promise<Result<void, DeviceApiFailure>> {
@@ -140,7 +140,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             restrictedChanged: "restrictedChanged",
             activeCallsChanged: "activeCallsChanged",
         });
-        this.session.on("offerReceived", (call) => this.emit("offerReceived", OfferProxy(call)));
+        this.session.on("incomingCall", (call) => this.emit("incomingCall", IncomingCallProxy(call)));
     }
 }
 

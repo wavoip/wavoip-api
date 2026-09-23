@@ -1,6 +1,6 @@
-import { CallActiveProxy } from "@/modules/call/CallActive";
-import { CallOutgoingProxy } from "@/modules/call/CallOutgoing";
-import { OfferProxy } from "@/modules/call/Offer";
+import { ActiveCallProxy } from "@/modules/call/ActiveCall";
+import { OutgoingCallProxy } from "@/modules/call/OutgoingCall";
+import { IncomingCallProxy } from "@/modules/call/IncomingCall";
 import { CallHarness, relayPlan } from "@/test/support/CallHarness";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -12,24 +12,24 @@ beforeEach(() => {
 
 function outgoing() {
     const session = harness.outgoing({ type: "UNOFFICIAL" });
-    return { session, view: CallOutgoingProxy(session) };
+    return { session, view: OutgoingCallProxy(session) };
 }
 
 function offer() {
     const session = harness.incoming({ type: "UNOFFICIAL", plan: relayPlan });
-    return { session, view: OfferProxy(session) };
+    return { session, view: IncomingCallProxy(session) };
 }
 
 function active() {
     const session = harness.incoming({ type: "UNOFFICIAL", plan: relayPlan, status: "ACTIVE" });
-    return { session, view: CallActiveProxy(session) };
+    return { session, view: ActiveCallProxy(session) };
 }
 
 describe("status follows the server's call:* events", () => {
-    it("outgoing call reads REJECTED after a rejection, already inside peerReject", () => {
+    it("outgoing call reads REJECTED after a rejection, already inside rejected", () => {
         const { session, view } = outgoing();
         let seenInListener: string | undefined;
-        view.on("peerReject", () => {
+        view.on("rejected", () => {
             seenInListener = view.status;
         });
 
@@ -47,10 +47,10 @@ describe("status follows the server's call:* events", () => {
         expect(view.status).toBe("NOT_ANSWERED");
     });
 
-    it("offer reads CANCELLED after the caller gives up, already inside ended", () => {
+    it("incoming call reads CANCELLED after the caller gives up, already inside cancelled", () => {
         const { session, view } = offer();
         let seenInListener: string | undefined;
-        view.on("ended", () => {
+        view.on("cancelled", () => {
             seenInListener = view.status;
         });
 

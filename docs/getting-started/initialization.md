@@ -97,7 +97,7 @@ const result = await wavoip.startCall({
 
 ```typescript
 const { data: call, error } = result
-// data: CallOutgoing  —  error: null
+// data: OutgoingCall  —  error: null
 ```
 
 **Falha (todos os dispositivos falharam):**
@@ -111,7 +111,7 @@ const { data, error } = result
 
 Sem nenhum dispositivo para tentar, o código é `NO_DEVICES` e `devices` vem vazio.
 
-Veja [Chamadas Realizadas](../calls/outgoing.md) para a API completa de `CallOutgoing`.
+Veja [Chamadas Realizadas](../calls/outgoing.md) para a API completa de `OutgoingCall`.
 
 ---
 

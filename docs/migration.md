@@ -170,3 +170,67 @@ código não tinha como saber. Agora a falha aparece.
 A mensagem em português que vinha no `err.message` do `startCall` (`"Não foi possível realizar
 a chamada"`) não tem substituto — ela era texto de interface dentro da biblioteca. No lugar
 dela vem o `code` do primeiro dispositivo que falhou, e a lista `devices` com todos.
+
+---
+
+## 5. Os três objetos de chamada: nomes e eventos
+
+| v2 | v3 |
+| --- | --- |
+| `Offer` | `IncomingCall` |
+| `CallOutgoing` | `OutgoingCall` |
+| `CallActive` | `ActiveCall` |
+| `OfferEvents`, `CallOutgoingEvents`, `CallActiveEvents` | `IncomingCallEvents`, `OutgoingCallEvents`, `ActiveCallEvents` |
+
+O evento `wavoip.on("offer")` **não** mudou de nome — só o tipo que ele entrega.
+
+### Os eventos
+
+| v2 | v3 |
+| --- | --- |
+| `outgoing.on("peerAccept")` | `on("accepted")` |
+| `outgoing.on("peerReject")` | `on("rejected")` |
+| `active.on("error")` | `on("failed")` |
+| `active.on("peerMute")` + `on("peerUnmute")` | `on("peerMuteChanged", (muted) => …)` |
+| `active.on("connectionStatus")` | `on("connectionChanged")` (ver abaixo) |
+| `offer.on("unanswered")` | `on("ended")` |
+| `offer.on("ended")` com `status === "CANCELLED"` | `on("cancelled")` |
+| `on("status")` nos três | removido — o **getter** `status` continua |
+
+O prefixo `peer` saiu de `peerAccept` e `peerReject` porque ele não distinguia nada: numa
+chamada que sai, quem aceita ou recusa é sempre o outro lado.
+
+**O evento `status` saiu, o getter fica.** Evento se perde — assinatura tardia, listener
+removido, aba suspensa —, e o getter sempre responde certo, inclusive dentro de qualquer
+handler. Onde você lia `on("status", …)` para saber o desfecho, hoje lê o evento específico
+(`rejected`, `cancelled`, `unanswered`, `failed`, `ended`) e, se precisar, o `status` dentro dele.
+
+### O que você causou não vira evento
+
+```typescript
+// v2 — end() disparava ended, e o seu handler rodava para o seu próprio desligar
+call.on("ended", showEndScreen)
+await call.end()      // showEndScreen roda aqui
+
+// v3 — a resposta é o Result; o ended é só quando o OUTRO lado desliga
+const { error } = await call.end()
+if (!error) showEndScreen()
+```
+
+Vale para `end()`, `cancel()` e `reject()`. Se a sua interface reage no evento, mova a reação
+para depois do `await`: ela passa a rodar uma vez só, em vez de depender de o servidor ecoar.
+
+### As duas pernas viraram uma
+
+A v2 tinha `connectionStatus` (o transporte local) e o evento `status` com
+`DISCONNECTED`/`ACTIVE` (a perna entre o servidor e o WhatsApp). Ninguém tinha as duas na mão,
+e dava para mostrar "conectado" com a perna do WhatsApp caída.
+
+```typescript
+// v3
+call.connection   // "connected" | "reconnecting" | "disconnected"
+call.on("connectionChanged", (connection) => { … })
+```
+
+Qualquer perna caindo de forma recuperável deixa a chamada em `"reconnecting"`, e o evento sai
+só quando o estado somado muda — não repete.

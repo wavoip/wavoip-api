@@ -5,7 +5,7 @@ icon: phone-incoming
 
 # Chamadas Recebidas
 
-Quando uma chamada chega em qualquer dispositivo conectado, a instância `Wavoip` emite um evento `"offer"` com um objeto `Offer`. Você tem uma janela limitada para aceitar ou rejeitar antes que a oferta expire.
+Quando uma chamada chega em qualquer dispositivo conectado, a instância `Wavoip` emite um evento `"offer"` com um objeto `IncomingCall`. Você tem uma janela limitada para aceitar ou rejeitar antes que a oferta expire.
 
 ---
 
@@ -21,14 +21,14 @@ wavoip.on("offer", async (offer) => {
         return
     }
 
-    // call agora é um CallActive
+    // call agora é um ActiveCall
     call.on("ended", () => console.log("Chamada encerrada"))
 })
 ```
 
 ---
 
-## Propriedades do Offer
+## Propriedades do IncomingCall
 
 | Propriedade                       | Tipo            | Descrição                                               |
 | --------------------------------- | --------------- | ------------------------------------------------------- |
@@ -49,7 +49,7 @@ Aceita a chamada. Inicia a captura de áudio e retorna um objeto de chamada ativ
 
 ```typescript
 const { data, error } = await offer.accept()
-// data:  CallActive | null
+// data:  ActiveCall | null
 // error: WavoipError<AcceptFailure> | null
 ```
 
@@ -79,24 +79,24 @@ Assine com `offer.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
 | Evento               | Payload             | Descrição                                                                                                       |
 | -------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `acceptedElsewhere`  | —                   | Outro cliente (aba/dispositivo) aceitou a chamada.                                                              |
-| `rejectedElsewhere`  | —                   | Outro cliente rejeitou a chamada.                                                                               |
-| `unanswered`         | —                   | Oferta expirou sem resposta.                                                                                    |
-| `ended`              | —                   | Chamada encerrada antes de ser atendida — inclusive quando **o chamador desistiu**. É este evento que desfaz a oferta. |
-| `status`             | `CallStatus`        | Status da chamada mudou.                                                                                        |
+| `acceptedElsewhere`  | —                   | Outro cliente (aba/dispositivo) atendeu a chamada.                                                              |
+| `rejectedElsewhere`  | —                   | Outro cliente recusou a chamada.                                                                                |
+| `cancelled`          | —                   | **Quem ligou desistiu** antes de alguém atender.                                                                |
+| `ended`              | —                   | A oferta acabou: ou tocou até o fim sem resposta, ou o servidor a encerrou.                                     |
 | `iceDiagnostics`     | `IceDiagnostics`    | Diagnóstico da coleta ICE relativa à oferta (quando houver gathering antes do `accept`).                        |
 | `connectivityIssue`  | `ConnectivityIssue` | Problema de conectividade detectado durante a oferta. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
 
 {% hint style="info" %}
-Quando o chamador desiste antes de você atender, o `status` chega como `CANCELLED`
-**imediatamente antes** do `ended`, e `offer.status` já o traz dentro do handler:
+**Cada desfecho emite um evento, e só um.** Depois dele a oferta fica muda: pare o toque e
+limpe a interface em qualquer um dos quatro. O `status` já está atualizado dentro do handler,
+se você quiser distinguir o caso:
 
 ```typescript
-offer.on("ended", () => hideIncomingCall(offer.status))
+offer.on("cancelled", () => hideIncomingCall())   // offer.status === "CANCELLED"
 ```
 
-Sempre pare o toque e limpe a interface no `ended` — ele é o único evento terminal da
-oferta, qualquer que tenha sido o desfecho, e nada é emitido depois dele.
+`reject()` **não** dispara `rejectedElsewhere`: recusar daqui responde no `Result` do próprio
+método. O `rejectedElsewhere` é sempre outro cliente.
 {% endhint %}
 
 ```typescript
@@ -104,8 +104,8 @@ offer.on("acceptedElsewhere", () => {
     console.log("Chamada atendida em outro lugar")
 })
 
-offer.on("unanswered", () => {
-    console.log("Ninguém atendeu")
+offer.on("cancelled", () => {
+    console.log("Quem ligou desistiu")
 })
 ```
 
@@ -131,7 +131,8 @@ wavoip.on("offer", async (offer) => {
     })
 
     offer.on("acceptedElsewhere", hideIncomingCallUI)
-    offer.on("unanswered", hideIncomingCallUI)
+    offer.on("rejectedElsewhere", hideIncomingCallUI)
+    offer.on("cancelled", hideIncomingCallUI)
     offer.on("ended", hideIncomingCallUI)
 })
 ```

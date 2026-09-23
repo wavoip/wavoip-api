@@ -5,7 +5,7 @@ icon: phone
 
 # Chamada Ativa
 
-Um objeto `CallActive` é fornecido quando uma oferta recebida é aceita ou quando uma chamada realizada é atendida pelo destinatário. Ele oferece controle total sobre a chamada em andamento.
+Um objeto `ActiveCall` é fornecido quando uma oferta recebida é aceita ou quando uma chamada realizada é atendida pelo destinatário. Ele oferece controle total sobre a chamada em andamento.
 
 ---
 
@@ -19,7 +19,7 @@ Um objeto `CallActive` é fornecido quando uma oferta recebida é aceita ou quan
 | `peer`                | `CallPeer`              | Parte remota — telefone, nome de exibição, foto de perfil e mudo.      |
 | `deviceToken`         | `string`                | Token do dispositivo que gerencia esta chamada.                        |
 | `status`              | `CallStatus`            | Estado atual da chamada. Acompanha os eventos do servidor: dentro de qualquer handler já traz o valor novo. |
-| `connectionStatus`    | `TransportStatus`       | Estado do transporte de mídia: `"connecting"`, `"connected"`, `"reconnecting"` ou `"disconnected"`. |
+| `connection`          | `CallConnection`        | A conexão da chamada com as duas pernas somadas: `"connected"`, `"reconnecting"` ou `"disconnected"`. |
 | `audioAnalyserIn`     | `Promise<AnalyserNode>` | Resolve para um `AnalyserNode` conectado ao stream de áudio **recebido** (par → alto-falante local). |
 | `audioAnalyserOut`    | `Promise<AnalyserNode>` | Resolve para um `AnalyserNode` conectado ao stream de áudio **enviado** (microfone local → par). |
 
@@ -77,40 +77,30 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
 | Evento              | Payload             | Descrição                                                                                                              |
 | ------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `ended`             | —                   | Chamada encerrada (por qualquer uma das partes).                                                                       |
-| `peerMute`          | —                   | Parte remota silenciou o microfone.                                                                                    |
-| `peerUnmute`        | —                   | Parte remota ativou o microfone.                                                                                       |
-| `connectionStatus`  | `TransportStatus`   | Estado de conexão do transporte de mídia mudou.                                                                        |
+| `ended`             | —                   | **O outro lado desligou.** Desligar daqui responde no `Result` do `end()`.                                              |
+| `failed`            | `WavoipError`       | A chamada caiu por falha. Veja [`ErrorCode`](../types.md#errorcode) para os motivos possíveis.                         |
+| `peerMuteChanged`   | `boolean`           | O outro lado silenciou (`true`) ou reativou (`false`) o microfone.                                                      |
+| `connectionChanged` | `CallConnection`    | A conexão da chamada mudou, somando as duas pernas (ver abaixo).                                                       |
 | `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE (duração, candidatos por tipo, STUN/TURN alcançados, par selecionado). Replay em listeners tardios. |
 | `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado (`STUN_UNREACHABLE`, `ICE_GATHERING_TIMEOUT`, `ICE_CONNECTION_FAILED`, `NO_HOST_CANDIDATES`, `SYMMETRIC_NAT_SUSPECTED`). Todos os problemas observados são re-emitidos para listeners tardios. |
-| `error`             | `WavoipError`       | Servidor sinalizou falha da chamada. Veja [`ErrorCode`](../types.md#errorcode) para os motivos possíveis.              |
-| `status`            | `CallStatus`        | Status da chamada mudou. Durante uma chamada ativa pode emitir `"DISCONNECTED"` quando a perna de mídia do WhatsApp cai e `"ACTIVE"` quando ela se restabelece — é **recuperável** (não terminal), diferente do `connectionStatus` `"disconnected"` do transporte local (esse indica chamada perdida). Use para exibir um indicador de "reconectando". |
 
 ```typescript
 call.on("ended", () => {
     showCallEndedScreen()
 })
 
-call.on("peerMute", () => {
-    updatePeerMuteIndicator(true)
+call.on("peerMuteChanged", (muted) => {
+    updatePeerMuteIndicator(muted)
 })
 
-call.on("peerUnmute", () => {
-    updatePeerMuteIndicator(false)
+call.on("connectionChanged", (connection) => {
+    if (connection === "reconnecting") showReconnectingBanner()
+    if (connection === "connected") hideReconnectingBanner()
+    if (connection === "disconnected") showCallLostScreen()
 })
 
-call.on("connectionStatus", (status) => {
-    console.log("Transporte:", status)
-})
-
-call.on("status", (status) => {
-    // Perna de mídia do WhatsApp: recuperável, não encerra a chamada.
-    if (status === "DISCONNECTED") showReconnectingBanner()
-    if (status === "ACTIVE")       hideReconnectingBanner()
-})
-
-call.on("error", (err) => {
-    console.error("Erro na chamada:", err)
+call.on("failed", (error) => {
+    console.error("Chamada caiu:", error.code)
 })
 
 // Pull de estatísticas — você decide a cadência.
@@ -220,7 +210,7 @@ call.on("connectivityIssue", (issue) => {
 ```
 
 {% hint style="info" %}
-Se você assinar `iceDiagnostics` ou `connectivityIssue` depois que a chamada já iniciou (por exemplo, ao abrir um painel de diagnóstico após o atendimento), o `CallActive` re-emite o último `iceDiagnostics` conhecido e todos os `connectivityIssue` já observados. Isso garante que o consumidor reconstrua o estado completo sem precisar coordenar a assinatura com o ciclo de aceitação.
+Se você assinar `iceDiagnostics` ou `connectivityIssue` depois que a chamada já iniciou (por exemplo, ao abrir um painel de diagnóstico após o atendimento), o `ActiveCall` re-emite o último `iceDiagnostics` conhecido e todos os `connectivityIssue` já observados. Isso garante que o consumidor reconstrua o estado completo sem precisar coordenar a assinatura com o ciclo de aceitação.
 {% endhint %}
 
 Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice) para os payloads completos.
@@ -229,27 +219,32 @@ Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice) para os payloads 
 
 ## Recuperação de conexão
 
-Para chamadas não oficiais (relay), o transporte WebSocket se reconecta automaticamente em desconexões inesperadas. O evento `connectionStatus` rastreia isso:
+Uma chamada tem **duas pernas**: a mídia entre você e o servidor, e a perna entre o servidor e
+o WhatsApp. As duas caem de formas diferentes, e a `connection` soma as duas num estado só —
+qualquer uma delas caindo de forma recuperável deixa a chamada em `"reconnecting"`.
+
+Para chamadas não oficiais (relay), o transporte WebSocket se reconecta sozinho em desconexões
+inesperadas. O evento `connectionChanged` rastreia isso:
 
 {% stepper %}
 {% step %}
 ## Conectado
 
-Chamada funcionando normalmente. `connectionStatus === "connected"`.
+As duas pernas de pé. `connection === "connected"`.
 {% endstep %}
 
 {% step %}
 ## Reconectando
 
-WebSocket caiu inesperadamente. A biblioteca tenta reconectar a cada 1 segundo por até 30 segundos.
-`connectionStatus === "reconnecting"`.
+O WebSocket caiu inesperadamente, ou o servidor avisou que a perna do WhatsApp parou. A
+biblioteca tenta reconectar a cada 1 segundo por até 30 segundos. `connection === "reconnecting"`.
 {% endstep %}
 
 {% step %}
 ## Desconectado
 
 Prazo de 30 segundos excedido sem reconexão bem-sucedida.
-`connectionStatus === "disconnected"` — trate a chamada como perdida.
+`connection === "disconnected"` — trate a chamada como perdida.
 {% endstep %}
 {% endstepper %}
 
@@ -259,15 +254,14 @@ Prazo de 30 segundos excedido sem reconexão bem-sucedida.
 
 ```typescript
 wavoip.on("offer", async (offer) => {
-    const { call, err } = await offer.accept()
-    if (err || !call) return
+    const { data: call, error } = await offer.accept()
+    if (error) return
 
-    call.on("peerMute",   () => setPeerMuted(true))
-    call.on("peerUnmute", () => setPeerMuted(false))
+    call.on("peerMuteChanged", setPeerMuted)
 
-    call.on("connectionStatus", (status) => {
-        if (status === "reconnecting") showReconnectingBanner()
-        if (status === "connected")   hideReconnectingBanner()
+    call.on("connectionChanged", (connection) => {
+        if (connection === "reconnecting") showReconnectingBanner()
+        if (connection === "connected") hideReconnectingBanner()
     })
 
     const statsTimer = setInterval(async () => {

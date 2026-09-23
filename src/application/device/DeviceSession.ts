@@ -17,7 +17,7 @@ export type DeviceSessionEvents = {
     contactChanged: [contact?: Contact];
     restrictedChanged: [restricted: boolean, restrictedUntil: Date | null];
     activeCallsChanged: [count: number];
-    offerReceived: [call: CallSession];
+    incomingCall: [call: CallSession];
 };
 
 export type DeviceSessionDeps = {
@@ -119,7 +119,7 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents> {
             transport: this.deps.transports.forOffer(offer.plan, this.device.token),
         });
         this.registry.register(session);
-        this.events.emit("offerReceived", session);
+        this.events.emit("incomingCall", session);
     }
 
     /** O device anunciou o que é dele: o estado muda aqui, e só então os eventos saem. */

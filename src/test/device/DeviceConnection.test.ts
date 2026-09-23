@@ -88,7 +88,7 @@ vi.mock("@/modules/media/webrtc/Transport", () => ({
 import { DeviceConnection } from "@/modules/device/DeviceConnection";
 import type { MediaManager } from "@/modules/media/MediaManager";
 import type { CallType } from "@/domain/call/types";
-import type { Offer } from "@/modules/call/Offer";
+import type { IncomingCall } from "@/modules/call/IncomingCall";
 
 const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
 
@@ -239,7 +239,7 @@ describe("DeviceConnection — calls map cleanup", () => {
         it("removes call from map when consumer rejects the offer", async () => {
             const { dc, socket } = makeDeviceConnection();
             const received: Array<{ reject: () => Promise<unknown> }> = [];
-            dc.on("offerReceived", (offer) => received.push(offer));
+            dc.on("incomingCall", (offer) => received.push(offer));
 
             socket.receive("call:offer", offerProps("call-1"), vi.fn());
             expect(callsMap(dc).has("call-1")).toBe(true);
@@ -267,8 +267,8 @@ describe("DeviceConnection — calls map cleanup", () => {
     describe("accepting an official offer", () => {
         it("reads ACTIVE once accepted and sends the WebRTC answer", async () => {
             const { dc, socket } = makeDeviceConnection();
-            const received: Offer[] = [];
-            dc.on("offerReceived", (offer) => received.push(offer));
+            const received: IncomingCall[] = [];
+            dc.on("incomingCall", (offer) => received.push(offer));
             socket.receive("call:offer", offerProps("call-1"), vi.fn());
 
             const { data, error } = await received[0].accept();

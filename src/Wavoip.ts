@@ -1,7 +1,7 @@
 import type { DeviceApiFailure, DeviceAttempt, StartCallFailure } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
-import type { CallOutgoing } from "@/modules/call/CallOutgoing";
-import type { Offer } from "@/modules/call/Offer";
+import type { OutgoingCall } from "@/modules/call/OutgoingCall";
+import type { IncomingCall } from "@/modules/call/IncomingCall";
 import { type Device, DeviceConnection } from "@/modules/device/DeviceConnection";
 import { DeviceProxy } from "@/modules/device/DeviceProxy";
 import type { IceConfig } from "@/modules/media/ICEDiagnostics";
@@ -10,7 +10,7 @@ import { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
 type Events = {
-    offer: [offer: Offer];
+    offer: [offer: IncomingCall];
 };
 
 /** O resultado do wake-up de um device, na ordem em que foram pedidos. */
@@ -57,14 +57,14 @@ export class Wavoip extends EventEmitter<Events> {
      * Tries each device in sequence until one successfully initiates a call.
      * If all devices fail, returns a detailed error report listing reasons per device.
      */
-    async startCall(params: { fromTokens?: string[]; to: string }): Promise<Result<CallOutgoing, StartCallFailure>> {
+    async startCall(params: { fromTokens?: string[]; to: string }): Promise<Result<OutgoingCall, StartCallFailure>> {
         const devices = this.devicesFor(params.fromTokens);
         if (!devices.length) return { data: null, error: { code: "NO_DEVICES", devices: [] } };
 
         const attempts: DeviceAttempt[] = [];
         for (const device of devices) {
             const started = await device.startCall(params.to);
-            if (started.data) return Result.ok(started.data);
+            if (!started.error) return Result.ok(started.data);
             attempts.push({ token: device.token, error: started.error });
         }
 
@@ -77,14 +77,14 @@ export class Wavoip extends EventEmitter<Events> {
     async *startCallIterator(params: {
         fromTokens?: string[];
         to: string;
-    }): AsyncGenerator<DeviceAttempt, Result<CallOutgoing, StartCallFailure>> {
+    }): AsyncGenerator<DeviceAttempt, Result<OutgoingCall, StartCallFailure>> {
         const devices = this.devicesFor(params.fromTokens);
         if (!devices.length) return { data: null, error: { code: "NO_DEVICES", devices: [] } };
 
         const attempts: DeviceAttempt[] = [];
         for (const device of devices) {
             const started = await device.startCall(params.to);
-            if (started.data) return Result.ok(started.data);
+            if (!started.error) return Result.ok(started.data);
 
             const attempt: DeviceAttempt = { token: device.token, error: started.error };
             attempts.push(attempt);
@@ -166,7 +166,7 @@ export class Wavoip extends EventEmitter<Events> {
     }
 
     private bindDeviceEvents(device: DeviceConnection) {
-        device.on("offerReceived", (offer) => {
+        device.on("incomingCall", (offer) => {
             this.emit("offer", offer);
         });
     }

@@ -5,7 +5,7 @@ icon: bug
 
 # Solução de Problemas
 
-`@wavoip/wavoip-api` expõe o evento `connectivityIssue` em `Offer`, `CallOutgoing` e `CallActive`. Cada valor identifica uma classe de falha detectada durante a coleta ICE ou ao longo da chamada e ajuda a direcionar a investigação.
+`@wavoip/wavoip-api` expõe o evento `connectivityIssue` em `IncomingCall`, `OutgoingCall` e `ActiveCall`. Cada valor identifica uma classe de falha detectada durante a coleta ICE ou ao longo da chamada e ajuda a direcionar a investigação.
 
 ```typescript
 call.on("connectivityIssue", (issue) => {

@@ -1,3 +1,4 @@
+export type { CallConnection } from "@/domain/call/connection";
 export type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 export type { CallEndOutcome } from "@/modules/device/WebSocket";
 export type { Result } from "@/domain/shared/Result";
@@ -17,9 +18,9 @@ export type {
     WavoipError,
 } from "@/domain/shared/errors";
 export type { CallStats, ServerCallStats } from "@/domain/call/stats";
-export type { CallActive, CallActiveEvents } from "@/modules/call/CallActive";
-export type { CallOutgoing, CallOutgoingEvents } from "@/modules/call/CallOutgoing";
-export type { Offer, OfferEvents } from "@/modules/call/Offer";
+export type { ActiveCall, ActiveCallEvents } from "@/modules/call/ActiveCall";
+export type { OutgoingCall, OutgoingCallEvents } from "@/modules/call/OutgoingCall";
+export type { IncomingCall, IncomingCallEvents } from "@/modules/call/IncomingCall";
 export type { CallPeer } from "@/modules/call/Peer";
 
 export type { ConnectionStatus, DeviceStatus, Contact } from "@/modules/device/Device";

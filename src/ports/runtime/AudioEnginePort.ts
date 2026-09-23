@@ -3,7 +3,7 @@ import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 /**
  * O medidor de nível que a plataforma usa — na web, um `AnalyserNode`. O núcleo não lê
  * nada dele: ele só é repassado a quem consome a biblioteca, em
- * `CallActive.audioAnalyserIn`/`Out`. Quem sabe o que é são o adaptador que o cria e o
+ * `ActiveCall.audioAnalyserIn`/`Out`. Quem sabe o que é são o adaptador que o cria e o
  * integrador que o recebe, e por isso o tipo dele não mora aqui.
  */
 export type AudioMeter = unknown;

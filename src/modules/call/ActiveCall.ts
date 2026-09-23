@@ -3,30 +3,35 @@ import type { CallFailureCode, CommandFailure, WavoipError } from "@/domain/shar
 import type { Result } from "@/domain/shared/Result";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import type { CallStats } from "@/domain/call/stats";
-import type { CallDirection, CallStatus, CallType, TransportStatus } from "@/domain/call/types";
+import { type CallConnection, Connection } from "@/domain/call/connection";
+import type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 import type { CallPeer } from "@/modules/call/Peer";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
 
-export type CallActiveEvents = {
-    error: [error: WavoipError<CallFailureCode | "UNKNOWN">];
-    peerMute: [];
-    peerUnmute: [];
+export type ActiveCallEvents = {
+    /** The peer hung up. Hanging up from here answers in the `end()` result instead. */
     ended: [];
-    connectionStatus: [status: TransportStatus];
-    status: [status: CallStatus];
+    /** The call dropped on its own. */
+    failed: [error: WavoipError<CallFailureCode | "UNKNOWN">];
+    /** The peer muted or unmuted their microphone. */
+    peerMuteChanged: [muted: boolean];
+    /** Either leg of the call — local media or the WhatsApp side — came or went. */
+    connectionChanged: [connection: CallConnection];
     iceDiagnostics: [diag: IceDiagnostics];
     connectivityIssue: [issue: ConnectivityIssue];
 };
 
-export interface CallActive {
+export interface ActiveCall {
     id: string;
     type: CallType;
     direction: CallDirection;
     peer: CallPeer;
     deviceToken: string;
+    /** Always current, even inside an event handler. */
     status: CallStatus;
-    connectionStatus: TransportStatus;
+    /** Both legs of the call in one state: local media and the WhatsApp side. */
+    connection: CallConnection;
     /** Inbound (peer → local speaker) AnalyserNode. */
     audioAnalyserIn: Promise<AnalyserNode>;
     /** Outbound (local mic → peer) AnalyserNode. */
@@ -40,23 +45,33 @@ export interface CallActive {
      * paint a waveform per animation frame, or refresh a dashboard once a second.
      */
     getStats(): Promise<CallStats>;
-    on<T extends keyof CallActiveEvents>(event: T, callback: (...args: CallActiveEvents[T]) => void): Unsubscribe;
+    on<T extends keyof ActiveCallEvents>(event: T, callback: (...args: ActiveCallEvents[T]) => void): Unsubscribe;
 }
 
-export function CallActiveProxy(session: CallSession): CallActive {
-    const emitter = new EventEmitter<CallActiveEvents>();
+export function ActiveCallProxy(session: CallSession): ActiveCall {
+    const emitter = new EventEmitter<ActiveCallEvents>();
 
     let lastIceDiagnostics: IceDiagnostics | undefined;
     const bufferedConnectivityIssues: ConnectivityIssue[] = [];
 
-    forwardEvents<CallSessionEvents, CallActiveEvents>(session, emitter, {
-        connectionStatus: "connectionStatus",
-        status: "status",
+    forwardEvents<CallSessionEvents, ActiveCallEvents>(session, emitter, {
+        failed: "failed",
+        peerMuted: "peerMuteChanged",
+        ended: "ended",
     });
 
-    session.on("failed", (err) => emitter.emit("error", err));
-    session.on("peerMuted", (muted) => emitter.emit(muted ? "peerMute" : "peerUnmute"));
-    session.on("ended", () => emitter.emit("ended"));
+    // As duas pernas alimentam um estado só, então o evento sai apenas quando o valor
+    // junto muda: sem isto, um `call:connected` com o transporte já conectado repetiria.
+    let connection = Connection.merge(session.connectionStatus, session.status);
+    const announceConnection = () => {
+        const merged = Connection.merge(session.connectionStatus, session.status);
+        if (merged === connection) return;
+        connection = merged;
+        emitter.emit("connectionChanged", merged);
+    };
+    session.on("connectionStatus", announceConnection);
+    session.on("status", announceConnection);
+
     session.on("iceDiagnostics", (diag) => {
         lastIceDiagnostics = diag;
         emitter.emit("iceDiagnostics", diag);
@@ -90,7 +105,7 @@ export function CallActiveProxy(session: CallSession): CallActive {
             return session.getStats();
         },
 
-        on<T extends keyof CallActiveEvents>(event: T, callback: (...args: CallActiveEvents[T]) => void): Unsubscribe {
+        on<T extends keyof ActiveCallEvents>(event: T, callback: (...args: ActiveCallEvents[T]) => void): Unsubscribe {
             const unsub = emitter.on(event, callback);
             if (event === "iceDiagnostics" && lastIceDiagnostics) {
                 (callback as (diag: IceDiagnostics) => void)(lastIceDiagnostics);
@@ -102,13 +117,13 @@ export function CallActiveProxy(session: CallSession): CallActive {
             }
             return unsub;
         },
-    } as CallActive;
+    } as ActiveCall;
 
     // Getters vivos: o status da chamada, o do transporte e o mute do outro lado mudam ao
     // longo da vida do proxy, e uma cópia os congelaria no valor da construção.
     Object.defineProperties(proxy, {
         status: { get: () => session.status, enumerable: true },
-        connectionStatus: { get: () => session.connectionStatus, enumerable: true },
+        connection: { get: () => Connection.merge(session.connectionStatus, session.status), enumerable: true },
         peer: { get: () => ({ ...session.peer, muted: session.peerMuted }), enumerable: true },
     });
 

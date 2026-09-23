@@ -1,4 +1,4 @@
-import { OfferProxy } from "@/modules/call/Offer";
+import { IncomingCallProxy } from "@/modules/call/IncomingCall";
 import { Ack } from "@/ports/SignalingPort";
 import { CallHarness, relayPlan, testPeer } from "@/test/support/CallHarness";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,15 +11,15 @@ beforeEach(() => {
 
 function makeOffer() {
     const session = harness.incoming();
-    return { session, offer: OfferProxy(session) };
+    return { session, offer: IncomingCallProxy(session) };
 }
 
 function relayOffer() {
     const session = harness.incoming({ type: "UNOFFICIAL", plan: relayPlan });
-    return { session, offer: OfferProxy(session) };
+    return { session, offer: IncomingCallProxy(session) };
 }
 
-describe("Offer — getters", () => {
+describe("IncomingCall — getters", () => {
     it("reads the call's identity from the session", () => {
         const { offer } = makeOffer();
 
@@ -42,7 +42,7 @@ describe("Offer — getters", () => {
     });
 });
 
-describe("Offer — accept and reject", () => {
+describe("IncomingCall — accept and reject", () => {
     it("accept returns the active call", async () => {
         const { offer } = makeOffer();
 
@@ -80,11 +80,23 @@ describe("Offer — accept and reject", () => {
     });
 });
 
-describe("Offer — what the server says", () => {
+describe("IncomingCall — what the server says", () => {
+    it("does not report rejectedElsewhere when the offer was rejected from here", async () => {
+        const { offer, session } = makeOffer();
+        const elsewhere = vi.fn();
+        offer.on("rejectedElsewhere", elsewhere);
+
+        await offer.reject();
+        harness.fromServer(session, { type: "rejected" });
+
+        expect(elsewhere).not.toHaveBeenCalled();
+    });
+
     it.each([
         ["acceptedElsewhere", { type: "accepted" as const }],
         ["rejectedElsewhere", { type: "rejected" as const }],
-        ["unanswered", { type: "unanswered" as const }],
+        ["cancelled", { type: "ended" as const, status: "CANCELLED" as const }],
+        ["ended", { type: "unanswered" as const }],
         ["ended", { type: "ended" as const, status: "ENDED" as const }],
     ])("emits %s", (event, serverEvent) => {
         const { offer, session } = makeOffer();
@@ -96,24 +108,25 @@ describe("Offer — what the server says", () => {
         expect(heard).toHaveBeenCalledOnce();
     });
 
-    it("delivers the cancelled outcome before tearing the offer down", () => {
+    it("has the status settled before the cancellation fires", () => {
         const { offer, session } = makeOffer();
-        const seen: string[] = [];
-        offer.on("status", (status) => seen.push(`status:${status}`));
-        offer.on("ended", () => seen.push(`ended:${offer.status}`));
+        let seenInListener: string | undefined;
+        offer.on("cancelled", () => {
+            seenInListener = offer.status;
+        });
 
         harness.fromServer(session, { type: "ended", status: "CANCELLED" });
 
-        expect(seen).toEqual(["status:CANCELLED", "ended:CANCELLED"]);
+        expect(seenInListener).toBe("CANCELLED");
     });
 
     it("goes quiet after the offer is over", () => {
         const { offer, session } = makeOffer();
         harness.fromServer(session, { type: "ended", status: "ENDED" });
         const heard = vi.fn();
-        offer.on("status", heard);
+        offer.on("ended", heard);
 
-        harness.fromServer(session, { type: "ringing" });
+        harness.fromServer(session, { type: "ended", status: "ENDED" });
 
         expect(heard).not.toHaveBeenCalled();
     });

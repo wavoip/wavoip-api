@@ -26,6 +26,12 @@ abstract class FakeTransportBase extends EventEmitter<Events> {
         this.connected = true;
     }
 
+    /** Como um transporte de verdade: grava o estado novo e só então anuncia. */
+    changeStatus(status: TransportStatus): void {
+        this.status = status;
+        this.emit("statusChanged", status);
+    }
+
     blockStart(): void {
         this.blockedStart = new Promise(() => {});
     }

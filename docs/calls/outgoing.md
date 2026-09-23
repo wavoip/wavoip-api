@@ -5,7 +5,7 @@ icon: phone-outgoing
 
 # Chamadas Realizadas
 
-Use `wavoip.startCall()` para iniciar uma chamada. O método retorna um objeto `CallOutgoing` que emite eventos conforme o destinatário responde.
+Use `wavoip.startCall()` para iniciar uma chamada. O método retorna um objeto `OutgoingCall` que emite eventos conforme o destinatário responde.
 
 ---
 
@@ -22,13 +22,13 @@ if (error) {
     return
 }
 
-// call é um CallOutgoing
-call.on("peerAccept", (active) => {
+// call é um OutgoingCall
+call.on("accepted", (active) => {
     console.log("Chamada conectada!")
     handleActiveCall(active)
 })
 
-call.on("peerReject", () => console.log("Destinatário rejeitou a chamada"))
+call.on("rejected", () => console.log("Destinatário rejeitou a chamada"))
 call.on("unanswered", () => console.log("Sem resposta"))
 ```
 
@@ -43,7 +43,7 @@ call.on("unanswered", () => console.log("Sem resposta"))
 
 ### Valor de retorno
 
-**Sucesso** — `{ data: CallOutgoing; error: null }`
+**Sucesso** — `{ data: OutgoingCall; error: null }`
 
 **Falha** — `{ data: null; error: StartCallFailure }`, onde `StartCallFailure` é um `WavoipError` com `devices: { token, error }[]`
 
@@ -53,7 +53,7 @@ call.on("unanswered", () => console.log("Sem resposta"))
 
 ---
 
-## Propriedades do CallOutgoing
+## Propriedades do OutgoingCall
 
 | Propriedade                       | Tipo            | Descrição                                                  |
 | --------------------------------- | --------------- | ---------------------------------------------------------- |
@@ -72,43 +72,36 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
 | Evento              | Payload             | Descrição                                                                                                       |
 | ------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `peerAccept`        | `CallActive`        | Destinatário atendeu — um `CallActive` é fornecido.                                                             |
-| `peerReject`        | —                   | Destinatário recusou a chamada.                                                                                 |
-| `unanswered`        | —                   | Chamada expirou sem resposta.                                                                                   |
-| `ended`             | —                   | Chamada encerrada — inclusive por cancelamento. Consulte `status` para saber qual fim foi (ver abaixo).           |
-| `status`            | `CallStatus`        | Status da chamada mudou.                                                                                        |
+| `accepted`          | `ActiveCall`        | Destinatário atendeu — a chamada continua no `ActiveCall` que vem no payload.                                   |
+| `rejected`          | —                   | Destinatário recusou a chamada.                                                                                 |
+| `unanswered`        | —                   | Tocou até o fim sem ninguém atender.                                                                            |
+| `failed`            | `WavoipError`       | A chamada não subiu: falha de mídia local ou do servidor.                                                       |
+| `ended`             | —                   | O servidor encerrou a oferta — um reinício ou uma hibernação do dispositivo, por exemplo.                       |
 | `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE realizada antes do par atender.                                                       |
 | `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado durante a chamada. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
 
-#### Cancelada ou encerrada?
+#### Cancelar não dispara evento
 
-`ended` é o único evento terminal, e é ele que desfaz a chamada. Para saber **qual**
-fim foi, leia `call.status` dentro do handler, que já traz o desfecho:
+`cancel()` responde no próprio `Result`: se ele voltar sem erro, a chamada foi cancelada, e
+nenhum evento é emitido por isso. Cada desfecho tem o seu evento, e o `ended` aqui significa
+uma coisa só — **o servidor** encerrou a oferta sem que ninguém tenha atendido, recusado ou
+desistido daqui. Acontece quando o dispositivo reinicia ou entra em hibernação no meio.
+
+O `status` está sempre atualizado dentro de qualquer handler, se você quiser lê-lo:
 
 ```typescript
-call.on("ended", () => {
-    // "CANCELLED" quando alguém desistiu antes do atendimento
-    showEndScreen(call.status)
-})
+call.on("rejected", () => showEndScreen(call.status))   // "REJECTED"
 ```
 
-O evento `status` do desfecho também é sempre emitido **antes** do `ended`, para quem
-prefere acompanhar pelo evento.
-
-{% hint style="info" %}
-`CANCELLED` **não** quer dizer "você cancelou": quer dizer que alguém desistiu antes do
-atendimento — pode ter sido o destinatário. Uma instância antiga não informa o desfecho
-e tudo continua chegando como `ENDED`.
-{% endhint %}
-
 ```typescript
-call.on("peerAccept", (active) => {
+call.on("accepted", (active) => {
     // Transicionar para interface de chamada ativa
     active.on("ended", () => showCallEndedScreen())
 })
 
-call.on("peerReject", () => showNotification("Chamada recusada"))
+call.on("rejected", () => showNotification("Chamada recusada"))
 call.on("unanswered", () => showNotification("Sem resposta"))
+call.on("failed", (error) => showNotification(messages[error.code]))
 ```
 
 ---
@@ -146,7 +139,7 @@ para sempre.
 `ACK_TIMEOUT` significa **"não sabemos"**, não "não cancelou". O pacote é descartado
 quando o prazo estoura, então o servidor pode nunca tê-lo recebido e o destinatário
 pode continuar tocando — e atender. Por isso o áudio **não** é liberado nesse caminho:
-trate como chamada possivelmente viva, e continue ouvindo `peerAccept` e `ended`.
+trate como chamada possivelmente viva, e continue ouvindo `accepted` e `ended`.
 {% endhint %}
 
 Em qualquer outra recusa (id desconhecido, erro interno) a chamada já morreu no
