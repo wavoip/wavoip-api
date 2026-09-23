@@ -10,7 +10,6 @@ export type {
     MediaPlanRelay,
     MediaPlanWebRTC,
 } from "@/domain/call/types";
-import type { CallFailReason } from "@/modules/device/CallFailReason";
 import type { Contact, DeviceStatus } from "@/modules/device/Device";
 import { Config } from "@/config/config";
 import { io } from "socket.io-client";
@@ -79,7 +78,8 @@ export type ServerEvents = {
     "call:disconnected": (callId: string) => void;
     "call:connected": (callId: string) => void;
     "call:unanswered": (callId: string) => void;
-    "call:failed": (callId: string, error: CallFailReason) => void;
+    /** O motivo cru do servidor; o adaptador o traduz (ver `CallFailure`). */
+    "call:failed": (callId: string, reason: string) => void;
     "call:stats": (callId: string, stats: ServerCallStats) => void;
     "call:peer:muted": (callId: string, muted: boolean) => void;
 };

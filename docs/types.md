@@ -253,7 +253,7 @@ type CallOutgoingEvents = {
 
 ```typescript
 type CallActiveEvents = {
-    error:             [err: CallFailReason]
+    error:             [error: WavoipError<CallFailureCode | "UNKNOWN">]
     peerMute:          []
     peerUnmute:        []
     ended:             []
@@ -276,31 +276,61 @@ type DeviceEvents = {
 }
 ```
 
-### `CallFailReason`
+### `WavoipError`
 
-Motivo de falha emitido no evento `error` de [`CallActive`](calls/active.md). É uma união aberta: os literais conhecidos abaixo dão autocomplete, mas qualquer string vinda do servidor é aceita — assim novos motivos podem surgir sem quebrar consumidores tipados.
+O erro que todo método e todo evento de falha carrega. O `code` é o contrato: é estável, é nele que você decide o fluxo e é ele que você traduz. Código de protocolo (da instance, do UWP, da API central) é traduzido na borda da biblioteca e **nunca** chega até você.
 
 ```typescript
-type CallFailReason =
-    | "CORRUPTED_KEYS"
-    | "CONNECTION_TIMEOUT"
-    | "PEER_TX_TIMEOUT"
-    | "PEER_RX_TIMEOUT"
-    | "ACCOUNT_RESTRICTED"
-    | "NO_CALL_PERMISSION"
-    | "INTERNAL_ERROR"
-    | (string & {})
+type WavoipError<C extends ErrorCode = ErrorCode> = {
+    code: C
+    details?: Record<string, unknown>   // valores para a sua mensagem, ex.: { min, max }
+    cause?: unknown                     // valor bruto, só para log e diagnóstico
+}
 ```
 
-| Motivo                | Significado                                                                                            |
-| --------------------- | ------------------------------------------------------------------------------------------------------ |
-| `CORRUPTED_KEYS`      | Não foi possível estabelecer a chamada com segurança.                                                  |
-| `CONNECTION_TIMEOUT`  | A chamada perdeu contato com o servidor.                                                               |
-| `PEER_TX_TIMEOUT`     | O contato parou de enviar áudio.                                                                       |
-| `PEER_RX_TIMEOUT`     | O usuário parou de enviar áudio.                                                                       |
-| `ACCOUNT_RESTRICTED`  | A conta do WhatsApp está restrita e não pode realizar chamadas.                                        |
-| `NO_CALL_PERMISSION`  | A conta não tem permissão para realizar chamadas.                                                      |
-| `INTERNAL_ERROR`      | Algo deu errado do lado do servidor.                                                                   |
+{% hint style="warning" %}
+Não escreva lógica em cima do `cause` — ele é diagnóstico, não contrato. Quando um valor aparece com frequência, ele vira um `code` novo numa versão seguinte.
+{% endhint %}
+
+### `ErrorCode`
+
+Um catálogo só, agrupado por origem. Cada método declara o subconjunto que ele pode devolver, então o autocomplete mostra só os códigos possíveis naquele ponto.
+
+```typescript
+type ErrorCode = DeviceErrorCode | CommandErrorCode | MediaErrorCode | CallFailureCode | "UNKNOWN"
+```
+
+| Grupo | Código | Significado |
+| ----- | ------ | ----------- |
+| `DeviceErrorCode` | `DEVICE_NOT_LINKED` | É preciso vincular um número ao dispositivo. |
+| | `DEVICE_RESTARTING` | O dispositivo está reiniciando. |
+| | `DEVICE_ERROR` | O dispositivo está em estado de erro ou desabilitado. |
+| | `DEVICE_NOT_FOUND` | O token não corresponde a nenhum dispositivo. |
+| | `WAKE_UP_RATE_LIMITED` | Pedidos de wake-up demais em sequência. |
+| | `NO_DEVICES` | Nenhum dispositivo disponível para a operação. |
+| `CommandErrorCode` | `ACK_TIMEOUT` | O servidor não confirmou o comando em 10s. |
+| | `CALL_ALREADY_ANSWERED` | O outro lado atendeu entre o clique e a confirmação. |
+| | `CALL_NOT_FOUND` | O servidor não conhece essa chamada. |
+| | `DEVICE_BUSY` | O dispositivo já está em outra chamada. |
+| | `NETWORK_ERROR` | O pedido não chegou ao servidor: rede, DNS ou TLS. |
+| `MediaErrorCode` | `MICROPHONE_PERMISSION_DENIED` | O usuário negou o microfone. |
+| | `AUDIO_DEVICE_NOT_FOUND` | O aparelho de áudio pedido não existe. |
+| | `OUTPUT_SELECTION_UNSUPPORTED` | O navegador não permite escolher a saída. |
+| | `VOLUME_OUT_OF_RANGE` | Volume fora da faixa; a faixa vem em `details`. |
+| | `MEDIA_NEGOTIATION_FAILED` | A negociação de mídia falhou; a exceção original vem em `cause`. |
+| | `UNSUPPORTED_MEDIA_PLAN` | O servidor propôs um transporte que a biblioteca não fala. |
+| `CallFailureCode` | `LOCAL_AUDIO_TIMEOUT` | O seu microfone parou de enviar áudio. |
+| | `REMOTE_AUDIO_TIMEOUT` | O contato parou de enviar áudio. |
+| | `CONNECTION_TIMEOUT` | A chamada perdeu contato com o servidor. |
+| | `ENCRYPTION_FAILED` | Não foi possível estabelecer a chamada com segurança. |
+| | `ACCOUNT_RESTRICTED` | A conta do WhatsApp está restrita e não pode chamar. |
+| | `NO_CALL_PERMISSION` | A conta não tem permissão para chamar. |
+| | `SERVER_ERROR` | Algo deu errado do lado do servidor. |
+| — | `UNKNOWN` | Motivo que esta versão da biblioteca ainda não conhece. O valor bruto vai no `cause`. |
+
+{% hint style="info" %}
+`LOCAL_AUDIO_TIMEOUT` e `REMOTE_AUDIO_TIMEOUT` substituem os antigos `PEER_TX_TIMEOUT` e `PEER_RX_TIMEOUT`. Os nomes `TX` e `RX` eram do ponto de vista do motor de VoIP do servidor, e a v2 os documentava invertidos.
+{% endhint %}
 
 ---
 

@@ -1,5 +1,5 @@
 import type { CallSession, CallSessionEvents } from "@/application/call/CallSession";
-import type { CallFailReason } from "@/domain/call/failReason";
+import type { CallFailureCode, WavoipError } from "@/domain/shared/errors";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import type { CallStats } from "@/domain/call/stats";
 import type { CallDirection, CallStatus, CallType, TransportStatus } from "@/domain/call/types";
@@ -9,7 +9,7 @@ import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
 
 export type CallActiveEvents = {
-    error: [err: CallFailReason];
+    error: [error: WavoipError<CallFailureCode | "UNKNOWN">];
     peerMute: [];
     peerUnmute: [];
     ended: [];

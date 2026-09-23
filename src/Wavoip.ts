@@ -6,7 +6,6 @@ import type { IceConfig } from "@/modules/media/ICEDiagnostics";
 import type { TransportOptions } from "@/modules/media/ITransport";
 import { MediaManager } from "@/modules/media/MediaManager";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import { type Language, setLanguage } from "@/modules/shared/i18n";
 
 type Events = {
     offer: [offer: Offer];
@@ -21,12 +20,9 @@ export class Wavoip extends EventEmitter<Events> {
     constructor(params: {
         tokens: string[];
         platform?: string;
-        language?: Language;
         iceConfig?: IceConfig;
     }) {
         super();
-
-        setLanguage(params.language ?? "pt-BR");
 
         this.mediaManager = new MediaManager();
         this.transportOptions = collectTransportOptions(params);
@@ -37,19 +33,6 @@ export class Wavoip extends EventEmitter<Events> {
             this.bindDeviceEvents(device);
             this._devices.push(device);
         }
-    }
-
-    /**
-     * Switch the locale of the library-emitted strings, such as the per-device
-     * reasons `startCall()` reports when a device cannot place a call. Affects
-     * every Wavoip instance — locale state is module-global within the
-     * `wavoip-api` a18n namespace.
-     *
-     * @example
-     * wavoip.setLanguage("es")
-     */
-    setLanguage(lang: Language): void {
-        setLanguage(lang);
     }
 
     get multimedia() {

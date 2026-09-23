@@ -101,9 +101,9 @@ describe("CallActive — what the server says", () => {
         const heard = vi.fn();
         active.on("error", heard);
 
-        harness.fromServer(session, { type: "failed", reason: "CONNECTION_TIMEOUT" });
+        harness.fromServer(session, { type: "failed", error: { code: "CONNECTION_TIMEOUT" } });
 
-        expect(heard).toHaveBeenCalledWith("CONNECTION_TIMEOUT");
+        expect(heard).toHaveBeenCalledWith({ code: "CONNECTION_TIMEOUT" });
     });
 
     it("splits the peer's mute into two events", async () => {

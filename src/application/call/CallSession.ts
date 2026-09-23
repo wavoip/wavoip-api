@@ -1,13 +1,13 @@
-import type { CallFailReason } from "@/domain/call/failReason";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import { CallPolicy } from "@/domain/call/policy";
 import { type CallStats, type ServerCallStats, Stats } from "@/domain/call/stats";
 import { Status } from "@/domain/call/status";
 import type { CallDirection, CallStatus, CallType, MediaPlan, Peer, TransportStatus } from "@/domain/call/types";
+import type { CallFailureCode, WavoipError } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
 import { type ITransport, isRTCTransport } from "@/modules/media/ITransport";
 import { EventEmitter, type Subscribable, type Unsubscribe } from "@/modules/shared/EventEmitter";
-import type { CallSignalingPort, ServerCallEvent } from "@/ports/SignalingPort";
+import type { CallSignalingPort, ServerCallEvent, SignalAck } from "@/ports/SignalingPort";
 
 export type CallSessionEvents = {
     status: [status: CallStatus];
@@ -15,7 +15,7 @@ export type CallSessionEvents = {
     acceptedElsewhere: [];
     rejected: [];
     unanswered: [];
-    failed: [reason: CallFailReason];
+    failed: [error: WavoipError<CallFailureCode | "UNKNOWN">];
     ended: [];
     /** A mídia subiu e está ligada à chamada: é a hora de existir um CallActive. */
     activated: [];
@@ -104,14 +104,14 @@ export class CallSession implements Subscribable<CallSessionEvents> {
                 plan = { type: "webRTC", sdp: await transport.createOffer() };
             } catch (e) {
                 await transport.stop().catch(() => {});
-                return Result.fail("MEDIA_OFFER_FAILED", e);
+                return Result.fail("MEDIA_NEGOTIATION_FAILED", { cause: e });
             }
         }
 
         const ack = await deps.signaling.startCall(params.to, plan, CallPolicy.ackTimeoutMs);
         if (ack.kind !== "ok") {
             await transport.stop().catch(() => {});
-            return Result.fail(ack.kind === "timeout" ? "ACK_TIMEOUT" : ack.code);
+            return ackFailure(ack);
         }
 
         // O tipo da chamada vem do device (`device:init`), e não da resposta do `call.start`,
@@ -153,7 +153,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         } catch (err) {
             // Sem isto o microfone fica aberto depois de um aceite que falhou.
             await this.stopMedia();
-            return Result.fail("MEDIA_START_FAILED", err);
+            return Result.fail("MEDIA_NEGOTIATION_FAILED", { cause: err });
         }
 
         // Só há chamada ativa depois de o servidor confirmar: sem o ack, a biblioteca
@@ -161,7 +161,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         const ack = await this.deps.signaling.accept(this.id, answer, CallPolicy.ackTimeoutMs);
         if (ack.kind !== "ok") {
             await this.stopMedia();
-            return Result.fail(ack.kind === "timeout" ? "ACK_TIMEOUT" : ack.code);
+            return ackFailure(ack);
         }
 
         this.status = Status.transition(this.status, "accept") ?? this.status;
@@ -172,8 +172,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
     /** A oferta só está recusada quando o servidor confirma; até lá, ela continua tocando. */
     async reject(): Promise<Result<void>> {
         const ack = await this.deps.signaling.reject(this.id, CallPolicy.ackTimeoutMs);
-        if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
-        if (ack.kind === "refused") return Result.fail(ack.code);
+        if (ack.kind !== "ok") return ackFailure(ack);
         this.status = Status.transition(this.status, "reject") ?? this.status;
         // O servidor pode ou não ecoar `call:rejected`; sem isto, uma oferta recusada
         // ficaria no roteamento para sempre se a resposta nunca chegar.
@@ -194,10 +193,11 @@ export class CallSession implements Subscribable<CallSessionEvents> {
     async cancel(): Promise<Result<void>> {
         if (this.stopped) return Result.ok();
         const ack = await this.deps.signaling.cancel(this.id, CallPolicy.ackTimeoutMs);
-        if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
-        if (ack.kind === "refused") {
-            if (ack.code !== CallPolicy.alreadyAnswered && !this.wired) await this.stopMedia();
-            return Result.fail(ack.code);
+        if (ack.kind !== "ok") {
+            if (ack.kind === "refused" && ack.code !== CallPolicy.alreadyAnswered && !this.wired) {
+                await this.stopMedia();
+            }
+            return ackFailure(ack);
         }
         // O servidor já recusa cancelar uma chamada ACTIVE; uma transição local que não se
         // aplica quer dizer que os dois discordam, e a mídia não cai com base num ack que
@@ -216,8 +216,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
     async end(): Promise<Result<void>> {
         if (this.stopped) return Result.ok();
         const ack = await this.deps.signaling.end(this.id, CallPolicy.ackTimeoutMs);
-        if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
-        if (ack.kind === "refused") return Result.fail(ack.code);
+        if (ack.kind !== "ok") return ackFailure(ack);
         await this.stopMedia();
         return Result.ok();
     }
@@ -229,8 +228,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
      */
     async mute(muted: boolean): Promise<Result<void>> {
         const ack = await this.deps.signaling.mute(this.id, muted, CallPolicy.ackTimeoutMs);
-        if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
-        if (ack.kind === "refused") return Result.fail(ack.code);
+        if (ack.kind !== "ok") return ackFailure(ack);
         this.deps.setLocalMuted(muted);
         return Result.ok();
     }
@@ -283,7 +281,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
                 void this.stopMedia();
                 return;
             case "failed":
-                this.events.emit("failed", event.reason);
+                this.events.emit("failed", event.error);
                 this.events.emit("status", this.status);
                 void this.stopMedia();
                 return;
@@ -354,4 +352,10 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         this.stopped = true;
         await this.transport.stop().catch(() => {});
     }
+}
+
+/** O ack que não veio é ACK_TIMEOUT; o recusado já chega traduzido pelo adaptador. */
+function ackFailure(ack: Exclude<SignalAck<unknown>, { kind: "ok" }>): Result<never> {
+    if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
+    return Result.fail(ack.code, { cause: ack.cause });
 }

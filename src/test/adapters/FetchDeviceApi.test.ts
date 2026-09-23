@@ -36,10 +36,13 @@ describe("FetchDeviceApi", () => {
         expect((await new FetchDeviceApi("device-token").wakeUp()).error?.code).toBe("WAKE_UP_RATE_LIMITED");
     });
 
-    it("falls back to the status when the body carries no code", async () => {
+    it("reports an unmapped failure as UNKNOWN, keeping the status in the cause", async () => {
         answerWith({ ok: false, status: 502, json: async () => ({}) });
 
-        expect((await new FetchDeviceApi("device-token").restart()).error?.code).toBe("HTTP_502");
+        const failure = (await new FetchDeviceApi("device-token").restart()).error;
+
+        expect(failure?.code).toBe("UNKNOWN");
+        expect(failure?.cause).toBe("HTTP_502");
     });
 
     it("reports a network failure instead of throwing", async () => {

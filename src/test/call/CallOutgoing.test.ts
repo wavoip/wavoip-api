@@ -84,7 +84,7 @@ describe("CallOutgoing — commands", () => {
     });
 
     it.each([
-        [Ack.Refuse("IS_NOT_OFFER"), "IS_NOT_OFFER"],
+        [Ack.Refuse("CALL_ALREADY_ANSWERED"), "CALL_ALREADY_ANSWERED"],
         [Ack.Timeout(), "ACK_TIMEOUT"],
     ])("cancel reports %o as %s", async (answer, err) => {
         const { outgoing } = makeOutgoing();

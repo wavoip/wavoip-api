@@ -81,7 +81,7 @@ describe("status follows the server's call:* events", () => {
     it("active call reads FAILED after a failure", () => {
         const { session, view } = active();
 
-        harness.fromServer(session, { type: "failed", reason: "CONNECTION_TIMEOUT" });
+        harness.fromServer(session, { type: "failed", error: { code: "CONNECTION_TIMEOUT" } });
 
         expect(view.status).toBe("FAILED");
     });

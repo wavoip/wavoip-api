@@ -1,3 +1,4 @@
+import { CallFailure } from "@/domain/call/failure";
 import { Status } from "@/domain/call/status";
 import type { MediaPlan } from "@/domain/call/types";
 import type { ClientEvents, DeviceSocket, ServerEvents, WssResponse } from "@/modules/device/WebSocket";
@@ -7,6 +8,7 @@ import {
     type DeviceSignalingPort,
     type IncomingOffer,
     type ServerCallEvent,
+    type RefusalCode,
     type ServerDeviceEvent,
     type SignalAck,
     type StartedCall,
@@ -122,7 +124,9 @@ export class SocketIoSignaling implements CallSignalingPort, DeviceSignalingPort
         this.bind("call:answered", (id, plan) => this.announce(id, { type: "answered", plan }));
         this.bind("call:rejected", (id) => this.announce(id, { type: "rejected" }));
         this.bind("call:unanswered", (id) => this.announce(id, { type: "unanswered" }));
-        this.bind("call:failed", (id, reason) => this.announce(id, { type: "failed", reason }));
+        this.bind("call:failed", (id, reason) =>
+            this.announce(id, { type: "failed", error: CallFailure.fromServer(reason) }),
+        );
         // `Status.narrow` porque o servidor tem mais desfechos que a união pública (os
         // `*_ELSEWHERE`), e a instance antiga não manda nenhum: os dois casos viram ENDED.
         this.bind("call:ended", (id, out) => this.announce(id, { type: "ended", status: Status.narrow(out?.status) }));
@@ -191,7 +195,7 @@ export class SocketIoSignaling implements CallSignalingPort, DeviceSignalingPort
                 emitWithAck(event: string, ...args: unknown[]): Promise<WssResponse<T & (string | object)>>;
             };
             const response = await socket.emitWithAck(event, ...args);
-            if (response.type === "error") return Ack.Refuse(response.result);
+            if (response.type === "error") return refusalOf(response.result);
             return Ack.Ok((response as { result?: T }).result as T);
         } catch {
             return Ack.Timeout();
@@ -205,4 +209,20 @@ export class SocketIoSignaling implements CallSignalingPort, DeviceSignalingPort
             socket.off(event, handler);
         });
     }
+}
+
+/**
+ * A recusa do servidor vira o vocabulário da biblioteca aqui, e não lá dentro: o resto do
+ * código não conhece nome de protocolo. O que não está na tabela vira `UNKNOWN`, com o
+ * valor bruto no `cause`.
+ */
+const REFUSALS: Record<string, RefusalCode> = {
+    IS_NOT_OFFER: "CALL_ALREADY_ANSWERED",
+    CALL_NOT_FOUND: "CALL_NOT_FOUND",
+    busy: "DEVICE_BUSY",
+};
+
+function refusalOf(raw: string): SignalAck<never> {
+    const code = REFUSALS[raw];
+    return code ? Ack.Refuse(code) : Ack.Refuse("UNKNOWN", raw);
 }

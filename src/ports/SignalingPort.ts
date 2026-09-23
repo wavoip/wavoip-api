@@ -1,6 +1,6 @@
-import type { CallFailReason } from "@/domain/call/failReason";
 import type { ServerCallStats } from "@/domain/call/stats";
 import type { CallStatus, CallType, MediaPlan, Peer } from "@/domain/call/types";
+import type { CallFailureCode, CommandErrorCode, WavoipError } from "@/domain/shared/errors";
 import type { Contact, DeviceStatus } from "@/modules/device/Device";
 
 /**
@@ -13,9 +13,11 @@ import type { Contact, DeviceStatus } from "@/modules/device/Device";
  */
 
 /** Resposta do servidor a um comando. `timeout` é o ack que nunca chegou. */
+export type RefusalCode = CommandErrorCode | "UNKNOWN";
+
 export type SignalAck<T = void> =
     | { readonly kind: "ok"; readonly value: T }
-    | { readonly kind: "refused"; readonly code: string }
+    | { readonly kind: "refused"; readonly code: RefusalCode; readonly cause?: unknown }
     | { readonly kind: "timeout" };
 
 /** Fábrica das três respostas, para os adaptadores não repetirem a forma do `SignalAck`. */
@@ -25,8 +27,8 @@ function ok<T>(value?: T): SignalAck<T> {
     return { kind: "ok", value: value as T };
 }
 
-function refuse(code: string): SignalAck<never> {
-    return { kind: "refused", code };
+function refuse(code: RefusalCode, cause?: unknown): SignalAck<never> {
+    return { kind: "refused", code, cause };
 }
 
 function timeout(): SignalAck<never> {
@@ -46,7 +48,7 @@ export type ServerCallEvent =
     | { readonly type: "answered"; readonly plan: MediaPlan }
     | { readonly type: "rejected" }
     | { readonly type: "unanswered" }
-    | { readonly type: "failed"; readonly reason: CallFailReason }
+    | { readonly type: "failed"; readonly error: WavoipError<CallFailureCode | "UNKNOWN"> }
     // `status` vem estreitado: a instance antiga não manda desfecho, e aí é ENDED.
     | { readonly type: "ended"; readonly status: CallStatus }
     | { readonly type: "disconnected" }

@@ -25,7 +25,7 @@ describe("SocketIoSignaling — what the server says", () => {
         ["call:answered", ["call-1", relayPlan], { type: "answered", plan: relayPlan }],
         ["call:rejected", ["call-1"], { type: "rejected" }],
         ["call:unanswered", ["call-1"], { type: "unanswered" }],
-        ["call:failed", ["call-1", "CONNECTION_TIMEOUT"], { type: "failed", reason: "CONNECTION_TIMEOUT" }],
+        ["call:failed", ["call-1", "PEER_TX_TIMEOUT"], { type: "failed", error: { code: "LOCAL_AUDIO_TIMEOUT" } }],
         ["call:disconnected", ["call-1"], { type: "disconnected" }],
         ["call:connected", ["call-1"], { type: "connected" }],
         ["call:peer:muted", ["call-1", true], { type: "peerMuted", muted: true }],
@@ -103,11 +103,26 @@ describe("SocketIoSignaling — commands", () => {
         expect(lastSent()).toMatchObject({ event, timeoutMs: 10_000 });
     });
 
-    it("reports a refusal with the server's code", async () => {
+    it("translates the server's refusal into the library's vocabulary", async () => {
         socket.ackMode = "error";
         socket.errorCode = "IS_NOT_OFFER";
 
-        expect(await signaling.cancel("call-1", 10_000)).toEqual({ kind: "refused", code: "IS_NOT_OFFER" });
+        expect(await signaling.cancel("call-1", 10_000)).toEqual({
+            kind: "refused",
+            code: "CALL_ALREADY_ANSWERED",
+            cause: undefined,
+        });
+    });
+
+    it("reports a refusal it does not know as UNKNOWN, keeping the raw code", async () => {
+        socket.ackMode = "error";
+        socket.errorCode = "CALL_LOCKED";
+
+        expect(await signaling.cancel("call-1", 10_000)).toEqual({
+            kind: "refused",
+            code: "UNKNOWN",
+            cause: "CALL_LOCKED",
+        });
     });
 
     it("reports a timeout when the ack never arrives", async () => {

@@ -82,7 +82,7 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 | `connectionStatus`  | `TransportStatus`   | Estado de conexão do transporte de mídia mudou.                                                                        |
 | `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE (duração, candidatos por tipo, STUN/TURN alcançados, par selecionado). Replay em listeners tardios. |
 | `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado (`STUN_UNREACHABLE`, `ICE_GATHERING_TIMEOUT`, `ICE_CONNECTION_FAILED`, `NO_HOST_CANDIDATES`, `SYMMETRIC_NAT_SUSPECTED`). Todos os problemas observados são re-emitidos para listeners tardios. |
-| `error`             | `CallFailReason`    | Servidor sinalizou falha da chamada. Veja [`CallFailReason`](../types.md#callfailreason) para a lista de motivos.      |
+| `error`             | `WavoipError`       | Servidor sinalizou falha da chamada. Veja [`ErrorCode`](../types.md#errorcode) para os motivos possíveis.              |
 | `status`            | `CallStatus`        | Status da chamada mudou. Durante uma chamada ativa pode emitir `"DISCONNECTED"` quando a perna de mídia do WhatsApp cai e `"ACTIVE"` quando ela se restabelece — é **recuperável** (não terminal), diferente do `connectionStatus` `"disconnected"` do transporte local (esse indica chamada perdida). Use para exibir um indicador de "reconectando". |
 
 ```typescript

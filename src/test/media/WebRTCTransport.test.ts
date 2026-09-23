@@ -443,6 +443,5 @@ describe("WebRTCTransport", () => {
             expect(stats.rx.audio_level).toBe(0.42);
             expect(stats.tx.audio_level).toBe(0.7);
         });
-
     });
 });

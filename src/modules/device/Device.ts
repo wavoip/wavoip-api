@@ -1,5 +1,5 @@
 import type { CallType } from "@/domain/call/types";
-import { t } from "@/modules/shared/i18n";
+import type { DeviceErrorCode } from "@/domain/shared/errors";
 
 /**
  * Account-level device status. WebSocket transport state is tracked separately
@@ -34,19 +34,11 @@ export class DeviceModel {
 
     constructor(public readonly token: string) {}
 
-    canCall(): { err?: string } {
-        if (this.status === "error") {
-            return { err: t("Device error") };
-        }
-
-        if (this.status === "connecting") {
-            return { err: t("A phone number must be linked to the device") };
-        }
-
-        if (this.status === "restarting") {
-            return { err: t("Device is restarting") };
-        }
-
-        return {};
+    /** O motivo de o device não poder chamar agora, ou `null` se ele pode. */
+    canCall(): DeviceErrorCode | null {
+        if (this.status === "error") return "DEVICE_ERROR";
+        if (this.status === "connecting") return "DEVICE_NOT_LINKED";
+        if (this.status === "restarting") return "DEVICE_RESTARTING";
+        return null;
     }
 }

@@ -7,5 +7,5 @@
  */
 export const CallPolicy = {
     ackTimeoutMs: 10_000,
-    alreadyAnswered: "IS_NOT_OFFER",
+    alreadyAnswered: "CALL_ALREADY_ANSWERED",
 } as const;

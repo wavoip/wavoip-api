@@ -1,4 +1,5 @@
 import { Config } from "@/config/config";
+import type { ErrorCode } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
 import type { DeviceApiPort } from "@/ports/DeviceApiPort";
 
@@ -32,17 +33,29 @@ export class FetchDeviceApi implements DeviceApiPort {
     private async get(url: string): Promise<Result<void>> {
         try {
             const response = await fetch(url);
-            if (!response.ok) return Result.fail(await readErrorCode(response));
+            if (!response.ok) return failureOf(response);
             return Result.ok();
-        } catch (e) {
-            return Result.fail("NETWORK_ERROR", e);
+        } catch (cause) {
+            return Result.fail("NETWORK_ERROR", { cause });
         }
     }
 }
 
-/** O corpo de erro da API central traz um código; o da API do device, não. */
-async function readErrorCode(response: Response): Promise<string> {
+/**
+ * O corpo de erro da API central traz um código; o da API do device, não — e aí sobra o
+ * status HTTP, que vai no `cause`.
+ */
+const HTTP_CODES: Record<string, ErrorCode> = {
+    DEVICE_NOT_FOUND: "DEVICE_NOT_FOUND",
+    WAKE_UP_RATE_LIMITED: "WAKE_UP_RATE_LIMITED",
+    DEVICE_DISABLED: "DEVICE_ERROR",
+    DEVICE_INVALID_STATE_TRANSITION: "DEVICE_ERROR",
+};
+
+async function failureOf(response: Response): Promise<Result<never>> {
     const body: unknown = await response.json().catch(() => null);
-    const code = (body as { code?: unknown; err?: unknown } | null)?.code;
-    return typeof code === "string" ? code : `HTTP_${response.status}`;
+    const raw = (body as { code?: unknown } | null)?.code;
+    const code = typeof raw === "string" ? HTTP_CODES[raw] : undefined;
+    if (code) return Result.fail(code, { cause: raw });
+    return Result.fail("UNKNOWN", { cause: raw ?? `HTTP_${response.status}` });
 }

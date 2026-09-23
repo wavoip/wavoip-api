@@ -55,7 +55,7 @@ describe("CallRegistry", () => {
         [{ type: "ended" as const, status: "ENDED" as const }],
         [{ type: "unanswered" as const }],
         [{ type: "rejected" as const }],
-        [{ type: "failed" as const, reason: "CONNECTION_TIMEOUT" }],
+        [{ type: "failed" as const, error: { code: "CONNECTION_TIMEOUT" as const } }],
     ])("drops the call after %o", (event) => {
         registry.register(session("call-1"));
 

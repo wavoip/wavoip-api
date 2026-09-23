@@ -70,7 +70,7 @@ describe("CallSession — accepting an offer", () => {
 
         const accepted = await session.accept();
 
-        expect(accepted.error?.code).toBe("MEDIA_START_FAILED");
+        expect(accepted.error?.code).toBe("MEDIA_NEGOTIATION_FAILED");
         expect(media.stops).toBe(1);
         expect(session.status).toBe("CALLING");
         expect(signaling.sent).toEqual([]);
@@ -126,7 +126,7 @@ describe("CallSession — outgoing call", () => {
     });
 
     it("releases the prepared transport when the server refuses the call", async () => {
-        signaling.startAnswer = Ack.Refuse("busy");
+        signaling.startAnswer = Ack.Refuse("DEVICE_BUSY");
 
         const started = await CallSession.Start(deps(), {
             to: "5511999999999",
@@ -134,7 +134,7 @@ describe("CallSession — outgoing call", () => {
             deviceToken: "device-token",
         });
 
-        expect(started.error?.code).toBe("busy");
+        expect(started.error?.code).toBe("DEVICE_BUSY");
         expect(transports.current.stops).toBe(1);
     });
 
@@ -202,9 +202,9 @@ describe("CallSession — cancelling", () => {
 
     it("keeps the media when the peer answered first", async () => {
         const session = await dialedSession();
-        signaling.cancelAnswer = Ack.Refuse("IS_NOT_OFFER");
+        signaling.cancelAnswer = Ack.Refuse("CALL_ALREADY_ANSWERED");
 
-        expect((await session.cancel()).error?.code).toBe("IS_NOT_OFFER");
+        expect((await session.cancel()).error?.code).toBe("CALL_ALREADY_ANSWERED");
         expect(transports.current.stops).toBe(0);
     });
 
@@ -227,7 +227,7 @@ describe("CallSession — cancelling", () => {
     it("refuses to cancel a call that is already active", async () => {
         const session = makeSession({ status: "ACTIVE", plan: relayPlan });
 
-        expect((await session.cancel()).error?.code).toBe("IS_NOT_OFFER");
+        expect((await session.cancel()).error?.code).toBe("CALL_ALREADY_ANSWERED");
         expect(session.status).toBe("ACTIVE");
     });
 });
@@ -308,7 +308,7 @@ describe("CallSession — what the server says", () => {
         const session = makeSession({ type: "UNOFFICIAL", plan: relayPlan });
         await session.accept();
 
-        session.handleServerEvent({ type: "failed", reason: "CONNECTION_TIMEOUT" });
+        session.handleServerEvent({ type: "failed", error: { code: "CONNECTION_TIMEOUT" } });
         await vi.waitFor(() => expect(transports.current.stops).toBe(1));
     });
 

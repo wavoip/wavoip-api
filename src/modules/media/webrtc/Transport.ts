@@ -4,13 +4,7 @@ import { RTCAudioPipe } from "@/modules/media/webrtc/AudioPipe";
 import { RTCConnection } from "@/modules/media/webrtc/Connection";
 import { RTCStatsAdapter } from "@/modules/media/webrtc/StatsAdapter";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
-import type {
-    AudioRuntime,
-    Events,
-    ITransport,
-    TransportOptions,
-    TransportStatus,
-} from "@/modules/media/ITransport";
+import type { AudioRuntime, Events, ITransport, TransportOptions, TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { AudioMeter } from "@/ports/runtime/AudioEnginePort";
 import type { PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";

@@ -1,6 +1,13 @@
 export type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 export type { CallEndOutcome } from "@/modules/device/WebSocket";
-export type { CallFailReason } from "@/domain/call/failReason";
+export type {
+    CallFailureCode,
+    CommandErrorCode,
+    DeviceErrorCode,
+    ErrorCode,
+    MediaErrorCode,
+    WavoipError,
+} from "@/domain/shared/errors";
 export type { CallStats, ServerCallStats } from "@/domain/call/stats";
 export type { CallActive, CallActiveEvents } from "@/modules/call/CallActive";
 export type { CallOutgoing, CallOutgoingEvents } from "@/modules/call/CallOutgoing";
@@ -21,6 +28,5 @@ export type { MediaManagerState } from "@/modules/media/MediaManager";
 export type { StunProbeResult } from "@/modules/media/StunProbe";
 export { runStunProbe } from "@/modules/media/StunProbe";
 export type { Unsubscribe } from "@/modules/shared/EventEmitter";
-export type { Language } from "@/modules/shared/i18n";
 
 export { Wavoip } from "@/Wavoip";

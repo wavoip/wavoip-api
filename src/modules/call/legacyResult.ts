@@ -1,4 +1,5 @@
-import type { Result, WavoipError } from "@/domain/shared/Result";
+import type { WavoipError } from "@/domain/shared/errors";
+import type { Result } from "@/domain/shared/Result";
 
 /**
  * A superfície v2 devolve `{ err }` com string. A v3 troca isso pelo `Result` inteiro

@@ -152,9 +152,7 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
 function transportsFor(audio: AudioRuntime, token: string, options?: TransportOptions): TransportFactory {
     return {
         forCall: (type) =>
-            type === "OFFICIAL"
-                ? new WebRTCTransport(audio, undefined, options)
-                : new WebsocketTransport(audio, token),
+            type === "OFFICIAL" ? new WebRTCTransport(audio, undefined, options) : new WebsocketTransport(audio, token),
         forOffer: (plan, deviceToken) => {
             if (plan.type === "webRTC") return new WebRTCTransport(audio, plan.sdp, options);
             if (plan.type === "relay") {

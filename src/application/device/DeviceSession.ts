@@ -76,8 +76,8 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents> {
     }
 
     async startCall(to: string): Promise<Result<CallSession>> {
-        const { err } = this.device.canCall();
-        if (err) return Result.fail(err);
+        const blocked = this.device.canCall();
+        if (blocked) return Result.fail(blocked);
 
         const started = await CallSession.Start(this.callDeps, {
             to,
@@ -103,7 +103,7 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents> {
     async pairingCode(phone: string): Promise<Result<string>> {
         const ack = await this.deps.signaling.requestPairingCode(phone, CallPolicy.ackTimeoutMs);
         if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
-        if (ack.kind === "refused") return Result.fail(ack.code);
+        if (ack.kind === "refused") return Result.fail(ack.code, { cause: ack.cause });
         return Result.ok(ack.value);
     }
 

@@ -25,7 +25,6 @@ export default defineConfig({
             output: {
                 globals: {
                     "socket.io-client": "io",
-                    a18n: "a18n",
                 },
             },
         },
