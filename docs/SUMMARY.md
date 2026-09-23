@@ -19,5 +19,6 @@
 
 ## Referência
 
+* [Migrando da v2 para a v3](migration.md)
 * [Tipos](types.md)
 * [Solução de Problemas](troubleshooting.md)
