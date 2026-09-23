@@ -1,3 +1,4 @@
+import type { DeviceApiFailure } from "@/domain/shared/errors";
 import type { Result } from "@/domain/shared/Result";
 
 /**
@@ -6,7 +7,7 @@ import type { Result } from "@/domain/shared/Result";
  * não responde; o resto ainda fala com a API do próprio device.
  */
 export interface DeviceApiPort {
-    restart(): Promise<Result<void>>;
-    logout(): Promise<Result<void>>;
-    wakeUp(): Promise<Result<void>>;
+    restart(): Promise<Result<void, DeviceApiFailure>>;
+    logout(): Promise<Result<void, DeviceApiFailure>>;
+    wakeUp(): Promise<Result<void, DeviceApiFailure>>;
 }

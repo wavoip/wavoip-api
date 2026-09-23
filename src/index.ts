@@ -1,15 +1,19 @@
 export type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 export type { CallEndOutcome } from "@/modules/device/WebSocket";
 export type { Result } from "@/domain/shared/Result";
+export type { DeviceWakeUp } from "@/Wavoip";
 export type {
     AcceptFailure,
     CallFailureCode,
     CommandFailure,
-    DeviceApiFailure,
     CommandErrorCode,
+    DeviceApiFailure,
+    DeviceAttempt,
     DeviceErrorCode,
     ErrorCode,
     MediaErrorCode,
+    StartCallErrorCode,
+    StartCallFailure,
     WavoipError,
 } from "@/domain/shared/errors";
 export type { CallStats, ServerCallStats } from "@/domain/call/stats";

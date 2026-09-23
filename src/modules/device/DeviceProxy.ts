@@ -1,3 +1,5 @@
+import type { CommandFailure, DeviceApiFailure } from "@/domain/shared/errors";
+import type { Result } from "@/domain/shared/Result";
 import type { Device, DeviceConnection, DeviceEvents } from "@/modules/device/DeviceConnection";
 import type { Unsubscribe } from "@/modules/shared/EventEmitter";
 
@@ -16,19 +18,19 @@ export function DeviceProxy(conn: DeviceConnection): Device {
             return conn.on(event, callback);
         },
 
-        restart(): Promise<void> {
+        restart(): Promise<Result<void, DeviceApiFailure>> {
             return conn.restart();
         },
 
-        logout(): Promise<void> {
+        logout(): Promise<Result<void, DeviceApiFailure>> {
             return conn.logout();
         },
 
-        wakeUp(): Promise<boolean> {
+        wakeUp(): Promise<Result<void, DeviceApiFailure>> {
             return conn.wakeUp();
         },
 
-        pairingCode(phone: string): Promise<{ pairingCode: string; err: null } | { pairingCode: null; err: string }> {
+        pairingCode(phone: string): Promise<Result<string, CommandFailure>> {
             return conn.pairingCode(phone);
         },
     };

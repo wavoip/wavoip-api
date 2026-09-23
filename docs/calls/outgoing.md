@@ -12,13 +12,13 @@ Use `wavoip.startCall()` para iniciar uma chamada. O método retorna um objeto `
 ## Iniciando uma chamada
 
 ```typescript
-const { call, err } = await wavoip.startCall({
+const { data: call, error } = await wavoip.startCall({
     to: "+5511999999999",
 })
 
-if (err) {
-    console.error("Não foi possível iniciar a chamada:", err.message)
-    // err.devices lista quais dispositivos foram tentados e por que cada um falhou
+if (error) {
+    console.error("Não foi possível iniciar a chamada:", error.code)
+    // error.devices lista quais dispositivos foram tentados e por que cada um falhou
     return
 }
 
@@ -43,9 +43,9 @@ call.on("unanswered", () => console.log("Sem resposta"))
 
 ### Valor de retorno
 
-**Sucesso** — `{ call: CallOutgoing; err: null }`
+**Sucesso** — `{ data: CallOutgoing; error: null }`
 
-**Falha** — `{ call: null; err: { message: string; devices: { token: string; reason: string }[] } }`
+**Falha** — `{ data: null; error: StartCallFailure }`, onde `StartCallFailure` é um `WavoipError` com `devices: { token, error }[]`
 
 {% hint style="info" %}
 `startCall` tenta cada dispositivo elegível em sequência. O primeiro dispositivo que iniciar a chamada com sucesso é usado; os demais não são tentados. Use `fromTokens` para controlar quais dispositivos participam.
@@ -172,7 +172,7 @@ const iter = wavoip.startCallIterator({ to: "+5511999999999" })
 
 // Yield para cada tentativa falha
 for await (const attempt of iter) {
-    console.warn(`Dispositivo ${attempt.token} indisponível: ${attempt.err}`)
+    console.warn(`Dispositivo ${attempt.token} indisponível: ${attempt.error.code}`)
     updateUI({ tryingNext: true })
 }
 

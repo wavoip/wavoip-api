@@ -125,7 +125,7 @@ Instâncias mais antigas do backend não enviam este evento. Nesse caso `device.
 Reinicia o dispositivo Wavoip. Chamadas em andamento são finalizadas antes do reinício.
 
 ```typescript
-await device.restart()
+const { error } = await device.restart()
 ```
 
 ---
@@ -135,18 +135,22 @@ await device.restart()
 Desvincula o número WhatsApp do dispositivo.
 
 ```typescript
-await device.logout()
+const { error } = await device.logout()
 ```
 
 ---
 
 ### `wakeUp()`
 
-Acorda um dispositivo em hibernação. Retorna `true` se o dispositivo respondeu.
+Acorda um dispositivo em hibernação, pela API central — que sabe acordá-lo mesmo quando o
+próprio dispositivo não responde.
 
 ```typescript
-const woken = await device.wakeUp()
+const { error } = await device.wakeUp()
+if (error) console.error(error.code)   // DEVICE_NOT_FOUND, WAKE_UP_RATE_LIMITED, NETWORK_ERROR…
 ```
+
+Acordar quem já estava acordado **não** é erro: o retorno é sucesso nos dois casos.
 
 ---
 
@@ -155,19 +159,19 @@ const woken = await device.wakeUp()
 Solicita um código de pareamento para vincular um número de telefone sem precisar escanear o QR code.
 
 ```typescript
-const result = await device.pairingCode("+5511999999999")
+const { data: pairingCode, error } = await device.pairingCode("+5511999999999")
 
-if (result.err) {
-    console.error(result.err)
+if (error) {
+    console.error(error.code)
 } else {
-    console.log("Código de pareamento:", result.pairingCode)
+    console.log("Código de pareamento:", pairingCode)
 }
 ```
 
-| Campo de retorno | Tipo              | Descrição                                       |
-| ---------------- | ----------------- | ----------------------------------------------- |
-| `pairingCode`    | `string \| null`  | O código a ser inserido no telefone.            |
-| `err`            | `string \| null`  | Mensagem de erro se a solicitação falhou.        |
+| Campo de retorno | Tipo                        | Descrição                                |
+| ---------------- | --------------------------- | ---------------------------------------- |
+| `data`           | `string \| null`            | O código a ser inserido no telefone.     |
+| `error`          | `CommandFailure \| null`    | Por que a solicitação falhou.            |
 
 ---
 

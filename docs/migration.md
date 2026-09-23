@@ -152,3 +152,21 @@ O tipo do erro é o subconjunto que aquele método pode devolver, então o autoc
 oferece código que não pode acontecer ali. `CommandFailure` são os códigos de comando; o
 `AcceptFailure` soma a eles o `MEDIA_NEGOTIATION_FAILED`, porque atender sobe a mídia local
 antes de o comando sair.
+
+### No device e no `Wavoip`
+
+| v2 | v3 |
+| --- | --- |
+| `device.restart()` / `logout()` → `Promise<void>` que engolia a falha | `Result<void, DeviceApiFailure>` |
+| `device.wakeUp()` → `boolean` | `Result<void, DeviceApiFailure>` |
+| `device.pairingCode(phone)` → `{ pairingCode, err }` | `Result<string, CommandFailure>` |
+| `wavoip.startCall()` → `{ call, err: { message, devices } }` | `Result<OutgoingCall, StartCallFailure>` |
+| `wavoip.startCallIterator()` → yield `{ call, token, err }` | yield `DeviceAttempt` (`{ token, error }`) |
+| `wavoip.wakeUpDevices()` → `{ token, waken }[]` | `{ token, result }[]` |
+
+O `restart()` e o `logout()` da v2 devolviam `Promise<void>`: se a rota respondesse 500, o seu
+código não tinha como saber. Agora a falha aparece.
+
+A mensagem em português que vinha no `err.message` do `startCall` (`"Não foi possível realizar
+a chamada"`) não tem substituto — ela era texto de interface dentro da biblioteca. No lugar
+dela vem o `code` do primeiro dispositivo que falhou, e a lista `devices` com todos.

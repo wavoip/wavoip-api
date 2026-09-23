@@ -74,3 +74,15 @@ export type AcceptFailure = WavoipError<CommandErrorCode | "MEDIA_NEGOTIATION_FA
 
 /** A falha de uma rota HTTP do device. */
 export type DeviceApiFailure = WavoipError<DeviceErrorCode | "NETWORK_ERROR" | "UNKNOWN">;
+
+/** Começar uma chamada passa pelo device, pela mídia local e pelo comando. */
+export type StartCallErrorCode = DeviceErrorCode | CommandErrorCode | "MEDIA_NEGOTIATION_FAILED" | "UNKNOWN";
+
+/** Por que um device não pôde chamar. */
+export type DeviceAttempt = { readonly token: string; readonly error: WavoipError<StartCallErrorCode> };
+
+/**
+ * A falha de `wavoip.startCall`, que tenta um device por vez. O `code` é o do primeiro que
+ * falhou — com um device só, é o dele; a lista completa, na ordem tentada, vem em `devices`.
+ */
+export type StartCallFailure = WavoipError<StartCallErrorCode> & { readonly devices: readonly DeviceAttempt[] };

@@ -1,6 +1,8 @@
 import { FetchDeviceApi } from "@/adapters/http/FetchDeviceApi";
 import { SocketIoSignaling } from "@/adapters/socketio/SocketIoSignaling";
 import { DeviceSession, type DeviceSessionEvents } from "@/application/device/DeviceSession";
+import type { CommandFailure, DeviceApiFailure, StartCallErrorCode, WavoipError } from "@/domain/shared/errors";
+import { Result } from "@/domain/shared/Result";
 import { type CallOutgoing, CallOutgoingProxy } from "@/modules/call/CallOutgoing";
 import { type Offer, OfferProxy } from "@/modules/call/Offer";
 import type { ConnectionStatus, Contact, DeviceStatus } from "@/modules/device/Device";
@@ -36,10 +38,10 @@ export interface Device {
     restrictedUntil: Date | null;
     activeCalls: number;
     on<T extends keyof DeviceEvents>(event: T, callback: (...args: DeviceEvents[T]) => void): Unsubscribe;
-    restart(): Promise<void>;
-    logout(): Promise<void>;
-    wakeUp(): Promise<boolean>;
-    pairingCode(phone: string): Promise<{ pairingCode: string; err: null } | { pairingCode: null; err: string }>;
+    restart(): Promise<Result<void, DeviceApiFailure>>;
+    logout(): Promise<Result<void, DeviceApiFailure>>;
+    wakeUp(): Promise<Result<void, DeviceApiFailure>>;
+    pairingCode(phone: string): Promise<Result<string, CommandFailure>>;
 }
 
 export class DeviceConnection extends EventEmitter<Events> implements Device {
@@ -99,21 +101,18 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         return this.session.state.activeCalls;
     }
 
-    async startCall(to: string): Promise<{ call: CallOutgoing; err?: undefined } | { call?: undefined; err: string }> {
+    async startCall(to: string): Promise<Result<CallOutgoing, WavoipError<StartCallErrorCode>>> {
         const started = await this.session.startCall(to);
-        if (started.error) return { err: started.error.code };
-        return { call: CallOutgoingProxy(started.data) };
+        if (started.error) return started;
+        return Result.ok(CallOutgoingProxy(started.data));
     }
 
-    async wakeUp(): Promise<boolean> {
-        const woken = await this.session.wakeUp();
-        return woken.error === null;
+    wakeUp(): Promise<Result<void, DeviceApiFailure>> {
+        return this.session.wakeUp();
     }
 
-    async pairingCode(phone: string): Promise<{ pairingCode: string; err: null } | { pairingCode: null; err: string }> {
-        const code = await this.session.pairingCode(phone);
-        if (code.error) return { pairingCode: null, err: code.error.code };
-        return { pairingCode: code.data, err: null };
+    pairingCode(phone: string): Promise<Result<string, CommandFailure>> {
+        return this.session.pairingCode(phone);
     }
 
     connect(): void {
@@ -124,12 +123,12 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         this.session.disconnect();
     }
 
-    async restart(): Promise<void> {
-        await this.session.restart();
+    restart(): Promise<Result<void, DeviceApiFailure>> {
+        return this.session.restart();
     }
 
-    async logout(): Promise<void> {
-        await this.session.logout();
+    logout(): Promise<Result<void, DeviceApiFailure>> {
+        return this.session.logout();
     }
 
     private forwardSessionEvents(): void {

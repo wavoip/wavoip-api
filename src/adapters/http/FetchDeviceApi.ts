@@ -1,5 +1,5 @@
 import { Config } from "@/config/config";
-import type { ErrorCode } from "@/domain/shared/errors";
+import type { DeviceApiFailure, DeviceErrorCode } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
 import type { DeviceApiPort } from "@/ports/DeviceApiPort";
 
@@ -10,11 +10,11 @@ import type { DeviceApiPort } from "@/ports/DeviceApiPort";
 export class FetchDeviceApi implements DeviceApiPort {
     constructor(private readonly token: string) {}
 
-    restart(): Promise<Result<void>> {
+    restart(): Promise<Result<void, DeviceApiFailure>> {
         return this.get(`${Config.devicesUrl}/${this.token}/device/restart`);
     }
 
-    logout(): Promise<Result<void>> {
+    logout(): Promise<Result<void, DeviceApiFailure>> {
         return this.get(`${Config.devicesUrl}/${this.token}/whatsapp/logout`);
     }
 
@@ -26,11 +26,11 @@ export class FetchDeviceApi implements DeviceApiPort {
      * acordar quem já está acordado não é erro. Falha mesmo é 404 `DEVICE_NOT_FOUND`,
      * 409 `DEVICE_DISABLED`, 429 `WAKE_UP_RATE_LIMITED` e os 5xx de infraestrutura.
      */
-    wakeUp(): Promise<Result<void>> {
+    wakeUp(): Promise<Result<void, DeviceApiFailure>> {
         return this.get(`${Config.apiUrl}/v2/devices/${this.token}/wakeup`);
     }
 
-    private async get(url: string): Promise<Result<void>> {
+    private async get(url: string): Promise<Result<void, DeviceApiFailure>> {
         try {
             const response = await fetch(url);
             if (!response.ok) return failureOf(response);
@@ -45,14 +45,14 @@ export class FetchDeviceApi implements DeviceApiPort {
  * O corpo de erro da API central traz um código; o da API do device, não — e aí sobra o
  * status HTTP, que vai no `cause`.
  */
-const HTTP_CODES: Record<string, ErrorCode> = {
+const HTTP_CODES: Record<string, DeviceErrorCode> = {
     DEVICE_NOT_FOUND: "DEVICE_NOT_FOUND",
     WAKE_UP_RATE_LIMITED: "WAKE_UP_RATE_LIMITED",
     DEVICE_DISABLED: "DEVICE_ERROR",
     DEVICE_INVALID_STATE_TRANSITION: "DEVICE_ERROR",
 };
 
-async function failureOf(response: Response): Promise<Result<never>> {
+async function failureOf(response: Response): Promise<Result<never, DeviceApiFailure>> {
     const body: unknown = await response.json().catch(() => null);
     const raw = (body as { code?: unknown } | null)?.code;
     const code = typeof raw === "string" ? HTTP_CODES[raw] : undefined;

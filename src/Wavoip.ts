@@ -1,3 +1,5 @@
+import type { DeviceApiFailure, DeviceAttempt, StartCallFailure } from "@/domain/shared/errors";
+import { Result } from "@/domain/shared/Result";
 import type { CallOutgoing } from "@/modules/call/CallOutgoing";
 import type { Offer } from "@/modules/call/Offer";
 import { type Device, DeviceConnection } from "@/modules/device/DeviceConnection";
@@ -10,6 +12,9 @@ import { EventEmitter } from "@/modules/shared/EventEmitter";
 type Events = {
     offer: [offer: Offer];
 };
+
+/** O resultado do wake-up de um device, na ordem em que foram pedidos. */
+export type DeviceWakeUp = { readonly token: string; readonly result: Result<void, DeviceApiFailure> };
 
 export class Wavoip extends EventEmitter<Events> {
     private readonly mediaManager: MediaManager;
@@ -52,36 +57,18 @@ export class Wavoip extends EventEmitter<Events> {
      * Tries each device in sequence until one successfully initiates a call.
      * If all devices fail, returns a detailed error report listing reasons per device.
      */
-    async startCall(params: {
-        fromTokens?: string[];
-        to: string;
-    }): Promise<
-        | { call: CallOutgoing; err: null }
-        | { call: null; err: { message: string; devices: { token: string; reason: string }[] } }
-    > {
-        const devices = params.fromTokens?.length
-            ? params.fromTokens
-                  .map((token) => this._devices.find((d) => d.token === token))
-                  .filter((d): d is DeviceConnection => !!d)
-            : this._devices;
+    async startCall(params: { fromTokens?: string[]; to: string }): Promise<Result<CallOutgoing, StartCallFailure>> {
+        const devices = this.devicesFor(params.fromTokens);
+        if (!devices.length) return { data: null, error: { code: "NO_DEVICES", devices: [] } };
 
-        if (!devices.length) {
-            return { call: null, err: { devices: [], message: "Nenhum dispositivo encontrado" } };
-        }
-
-        const device_errors: { token: string; reason: string }[] = [];
-
+        const attempts: DeviceAttempt[] = [];
         for (const device of devices) {
-            const { call, err } = await device.startCall(params.to);
-            if (!call) {
-                device_errors.push({ token: device.token, reason: err as string });
-                continue;
-            }
-
-            return { call, err: null };
+            const started = await device.startCall(params.to);
+            if (started.data) return Result.ok(started.data);
+            attempts.push({ token: device.token, error: started.error });
         }
 
-        return { call: null, err: { message: "Não foi possível realizar a chamada", devices: device_errors } };
+        return { data: null, error: { ...attempts[0].error, devices: attempts } };
     }
 
     /**
@@ -90,31 +77,21 @@ export class Wavoip extends EventEmitter<Events> {
     async *startCallIterator(params: {
         fromTokens?: string[];
         to: string;
-    }): AsyncGenerator<
-        { call: null; token: string; err: string },
-        { call: CallOutgoing; token: string } | { call: null; err: string }
-    > {
-        const devices = params.fromTokens?.length
-            ? params.fromTokens
-                  .map((token) => this._devices.find((d) => d.token === token))
-                  .filter((d): d is DeviceConnection => !!d)
-            : this._devices;
+    }): AsyncGenerator<DeviceAttempt, Result<CallOutgoing, StartCallFailure>> {
+        const devices = this.devicesFor(params.fromTokens);
+        if (!devices.length) return { data: null, error: { code: "NO_DEVICES", devices: [] } };
 
-        if (!devices.length) {
-            return { call: null, err: "Nenhum dispositivo configurado" };
-        }
-
+        const attempts: DeviceAttempt[] = [];
         for (const device of devices) {
-            const { call, err } = await device.startCall(params.to);
-            if (!call) {
-                yield { call: null, token: device.token, err: err as string };
-                continue;
-            }
+            const started = await device.startCall(params.to);
+            if (started.data) return Result.ok(started.data);
 
-            return { call, token: device.token };
+            const attempt: DeviceAttempt = { token: device.token, error: started.error };
+            attempts.push(attempt);
+            yield attempt;
         }
 
-        return { call: null, err: "Não foi possível realizar a chamada" };
+        return { data: null, error: { ...attempts[0].error, devices: attempts } };
     }
 
     get devices(): Device[] {
@@ -163,24 +140,29 @@ export class Wavoip extends EventEmitter<Events> {
     /**
      * Iteratively wakes up devices that are in hibernation.
      */
-    async *wakeUpDevicesIterator(
-        tokens: string[] = [],
-    ): AsyncGenerator<{ token: string; waken: boolean }, void, unknown> {
+    async *wakeUpDevicesIterator(tokens: string[] = []): AsyncGenerator<DeviceWakeUp, void, unknown> {
         const devices = tokens.length ? this._devices.filter((d) => tokens.includes(d.token)) : this._devices;
 
         for (const device of devices) {
-            const waken = await device.wakeUp();
-            yield { token: device.token, waken };
+            yield { token: device.token, result: await device.wakeUp() };
         }
     }
 
     /**
      * Wakes up devices and returns an array of Promises resolving to wake results.
      */
-    wakeUpDevices(tokens: string[] = []): Promise<{ token: string; waken: boolean }>[] {
+    wakeUpDevices(tokens: string[] = []): Promise<DeviceWakeUp>[] {
         const devices = tokens.length ? this._devices.filter((d) => tokens.includes(d.token)) : this._devices;
 
-        return devices.map((device) => device.wakeUp().then((waken) => ({ token: device.token, waken })));
+        return devices.map((device) => device.wakeUp().then((result) => ({ token: device.token, result })));
+    }
+
+    /** Sem `fromTokens`, todos; com ele, só os que existem, na ordem pedida. */
+    private devicesFor(tokens?: string[]): DeviceConnection[] {
+        if (!tokens?.length) return this._devices;
+        return tokens
+            .map((token) => this._devices.find((d) => d.token === token))
+            .filter((device): device is DeviceConnection => !!device);
     }
 
     private bindDeviceEvents(device: DeviceConnection) {

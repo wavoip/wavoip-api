@@ -2,6 +2,7 @@ import { CallRegistry } from "@/application/call/CallRegistry";
 import { CallSession, type CallSessionDeps, type TransportFactory } from "@/application/call/CallSession";
 import { ReconnectPolicy } from "@/domain/device/reconnectPolicy";
 import { CallPolicy } from "@/domain/call/policy";
+import type { CommandFailure, DeviceApiFailure, StartCallErrorCode, WavoipError } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
 import type { ConnectionStatus, Contact, DeviceStatus } from "@/modules/device/Device";
 import { DeviceModel } from "@/modules/device/Device";
@@ -75,7 +76,7 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents> {
         this.deps.signaling.disconnect();
     }
 
-    async startCall(to: string): Promise<Result<CallSession>> {
+    async startCall(to: string): Promise<Result<CallSession, WavoipError<StartCallErrorCode>>> {
         const blocked = this.device.canCall();
         if (blocked) return Result.fail(blocked);
 
@@ -88,19 +89,19 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents> {
         return started;
     }
 
-    restart(): Promise<Result<void>> {
+    restart(): Promise<Result<void, DeviceApiFailure>> {
         return this.deps.api.restart();
     }
 
-    logout(): Promise<Result<void>> {
+    logout(): Promise<Result<void, DeviceApiFailure>> {
         return this.deps.api.logout();
     }
 
-    wakeUp(): Promise<Result<void>> {
+    wakeUp(): Promise<Result<void, DeviceApiFailure>> {
         return this.deps.api.wakeUp();
     }
 
-    async pairingCode(phone: string): Promise<Result<string>> {
+    async pairingCode(phone: string): Promise<Result<string, CommandFailure>> {
         const ack = await this.deps.signaling.requestPairingCode(phone, CallPolicy.ackTimeoutMs);
         if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
         if (ack.kind === "refused") return Result.fail(ack.code, { cause: ack.cause });

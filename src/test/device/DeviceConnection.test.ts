@@ -348,7 +348,7 @@ describe("DeviceConnection — calls map cleanup", () => {
 
             const result = await dc.startCall("5511999999999");
 
-            expect(result.err).toBeDefined();
+            expect(result.error?.code).toBe("DEVICE_ERROR");
             expect(callsMap(dc).size).toBe(0);
         });
 
@@ -458,7 +458,7 @@ describe("DeviceConnection — calls map cleanup", () => {
 
             const result = await dc.startCall("5511999999999");
 
-            expect(result.err).toBeUndefined();
+            expect(result.error).toBeNull();
             expect(callsMap(dc).has("call-restricted")).toBe(true);
         });
     });

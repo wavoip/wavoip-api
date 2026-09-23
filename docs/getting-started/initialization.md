@@ -96,17 +96,20 @@ const result = await wavoip.startCall({
 **Sucesso:**
 
 ```typescript
-const { call, err } = result
-// call: CallOutgoing  —  err: null
+const { data: call, error } = result
+// data: CallOutgoing  —  error: null
 ```
 
 **Falha (todos os dispositivos falharam):**
 
 ```typescript
-const { call, err } = result
-// call: null
-// err: { message: string; devices: { token: string; reason: string }[] }
+const { data, error } = result
+// data: null
+// error: StartCallFailure — o código do primeiro dispositivo que falhou,
+//        mais `devices`, com o motivo de cada um na ordem tentada
 ```
+
+Sem nenhum dispositivo para tentar, o código é `NO_DEVICES` e `devices` vem vazio.
 
 Veja [Chamadas Realizadas](../calls/outgoing.md) para a API completa de `CallOutgoing`.
 
@@ -121,14 +124,12 @@ const iter = wavoip.startCallIterator({ to: "+5511999999999" })
 
 // Cada yield é uma tentativa falha em um dispositivo
 for await (const attempt of iter) {
-    console.warn(`Dispositivo ${attempt.token} falhou:`, attempt.err)
+    console.warn(`Dispositivo ${attempt.token} falhou:`, attempt.error.code)
 }
 
 // .return() contém o resultado final
-const result = await iter.return(undefined)
-if (result.value?.call) {
-    const call = result.value.call
-}
+const finished = await iter.return(undefined)
+const call = finished.value?.data
 ```
 
 {% hint style="info" %}
@@ -143,7 +144,7 @@ Acorda dispositivos em hibernação. Retorna um array de Promises para que você
 
 ```typescript
 const results = await Promise.all(wavoip.wakeUpDevices())
-// { token: string; waken: boolean }[]
+// { token: string; result: Result<void, DeviceApiFailure> }[]
 ```
 
 Passe um array de tokens para atingir dispositivos específicos; omita para acordar todos.
@@ -155,8 +156,8 @@ Passe um array de tokens para atingir dispositivos específicos; omita para acor
 Variante de gerador assíncrono — emite cada resultado de wake conforme concluído.
 
 ```typescript
-for await (const result of wavoip.wakeUpDevicesIterator()) {
-    console.log(result.token, result.waken ? "acordou" : "falhou")
+for await (const { token, result } of wavoip.wakeUpDevicesIterator()) {
+    console.log(token, result.error ? `falhou: ${result.error.code}` : "acordou")
 }
 ```
 
