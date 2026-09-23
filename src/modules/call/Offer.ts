@@ -42,7 +42,7 @@ export interface Offer {
     onStatus(cb: (status: CallStatus) => void): void;
 }
 
-export function OfferProxy(session: CallSession, release: () => void): Offer {
+export function OfferProxy(session: CallSession): Offer {
     const emitter = new EventEmitter<OfferEvents>();
 
     const sessionUnsubs: Unsubscribe[] = [];
@@ -88,12 +88,11 @@ export function OfferProxy(session: CallSession, release: () => void): Offer {
             return { call: CallActiveProxy(session), err: null };
         },
 
-        // A oferta só sai do roteamento quando o servidor confirma a recusa; se ele não
-        // confirmar, ela continua tocando e o integrador fica sabendo.
+        // A oferta só está recusada quando o servidor confirma; se ele não confirmar, ela
+        // continua tocando e o integrador fica sabendo.
         async reject(): Promise<{ err: string | null }> {
             const rejected = await session.reject();
             if (rejected.error) return { err: rejected.error.code };
-            release();
             dispose();
             return { err: null };
         },

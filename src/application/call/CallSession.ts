@@ -21,6 +21,8 @@ export type CallSessionEvents = {
     activated: [];
     /** A passagem da chamada que sai para a chamada ativa falhou. */
     handoverFailed: [];
+    /** A chamada acabou por decisão daqui e não espera mais nada do servidor. */
+    closed: [];
     connectionStatus: [status: TransportStatus];
     peerMuted: [muted: boolean];
     stats: [stats: CallStats];
@@ -175,6 +177,9 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
         if (ack.kind === "refused") return Result.fail(ack.code);
         this.status = Status.transition(this.status, "reject") ?? this.status;
+        // O servidor pode ou não ecoar `call:rejected`; sem isto, uma oferta recusada
+        // ficaria no roteamento para sempre se a resposta nunca chegar.
+        this.events.emit("closed");
         return Result.ok();
     }
 

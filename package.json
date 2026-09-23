@@ -24,8 +24,8 @@
     "scripts": {
         "dev": "vite",
         "lint": "pnpm exec tsc --noEmit && pnpm exec tsc -p tsconfig.core.json && pnpm exec biome lint --fix .",
-        "build": "vite build",
-        "prepare": "vite build",
+        "build": "node scripts/check-env.mjs && vite build",
+        "prepare": "node scripts/check-env.mjs && vite build",
         "build:pack": "pnpm pre-deploy && pnpm pack",
         "test": "vitest run",
         "test:watch": "vitest",
@@ -50,7 +50,6 @@
     },
     "dependencies": {
         "a18n": "^1.12.4",
-        "axios": "^1.12.2",
         "socket.io-client": "^4.8.1"
     }
 }

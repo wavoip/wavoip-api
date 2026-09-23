@@ -1,5 +1,6 @@
 import { OfferProxy } from "@/modules/call/Offer";
 import { _resetDeprecationWarnings } from "@/modules/shared/deprecation";
+import { Ack } from "@/ports/SignalingPort";
 import { CallHarness, relayPlan, testPeer } from "@/test/support/CallHarness";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,14 +11,14 @@ beforeEach(() => {
     _resetDeprecationWarnings();
 });
 
-function makeOffer(release = vi.fn()) {
+function makeOffer() {
     const session = harness.incoming();
-    return { session, release, offer: OfferProxy(session, release) };
+    return { session, offer: OfferProxy(session) };
 }
 
 function relayOffer() {
     const session = harness.incoming({ type: "UNOFFICIAL", plan: relayPlan });
-    return { session, offer: OfferProxy(session, vi.fn()) };
+    return { session, offer: OfferProxy(session) };
 }
 
 describe("Offer — getters", () => {
@@ -74,12 +75,20 @@ describe("Offer — accept and reject", () => {
         expect(err).toBe("Permission denied");
     });
 
-    it("reject tells the server and leaves the routing at once", async () => {
-        const { offer, release } = makeOffer();
+    it("reject tells the server and leaves the routing", async () => {
+        const { offer, session } = makeOffer();
 
         expect(await offer.reject()).toEqual({ err: null });
         expect(harness.signaling.sent).toEqual([{ command: "reject", callId: "call-1" }]);
-        expect(release).toHaveBeenCalledOnce();
+        expect(harness.registry.has(session.id)).toBe(false);
+    });
+
+    it("a refused reject keeps the offer routed, because it is still ringing", async () => {
+        const { offer, session } = makeOffer();
+        harness.signaling.rejectAnswer = Ack.Refuse("CALL_NOT_FOUND");
+
+        expect(await offer.reject()).toEqual({ err: "CALL_NOT_FOUND" });
+        expect(harness.registry.has(session.id)).toBe(true);
     });
 });
 

@@ -57,11 +57,11 @@ vi.mock("@/modules/device/WebSocket", async (importOriginal) => {
     return { ...actual, DeviceWebSocketFactory: vi.fn(makeSocket) };
 });
 
-vi.mock("axios", () => ({
-    default: {
-        create: vi.fn(() => ({
-            get: vi.fn().mockResolvedValue({ data: { result: null } }),
-        })),
+vi.mock("@/adapters/http/FetchDeviceApi", () => ({
+    FetchDeviceApi: class {
+        restart = vi.fn().mockResolvedValue({ data: undefined, error: null });
+        logout = vi.fn().mockResolvedValue({ data: undefined, error: null });
+        wakeUp = vi.fn().mockResolvedValue({ data: undefined, error: null });
     },
 }));
 
@@ -103,9 +103,10 @@ function makeDeviceConnection() {
     return { dc, socket };
 }
 
-// A tabela de chamadas roteadas vive no CallRegistry da conexão.
+// A tabela de chamadas roteadas vive no CallRegistry da sessão do device.
 function callsMap(dc: DeviceConnection): Map<string, unknown> {
-    return (dc as unknown as { registry: { sessions: Map<string, unknown> } }).registry.sessions;
+    const session = (dc as unknown as { session: { registry: { routed: Map<string, unknown> } } }).session;
+    return session.registry.routed;
 }
 
 const offerProps = (id: string) => ({
@@ -379,8 +380,8 @@ describe("DeviceConnection — calls map cleanup", () => {
 
             await dc.startCall("5511999999999");
 
-            const call = callsMap(dc).get("call-out-1") as { type: string } | undefined;
-            expect(call?.type).toBe("UNOFFICIAL");
+            const routed = callsMap(dc).get("call-out-1") as { session: { type: string } } | undefined;
+            expect(routed?.session.type).toBe("UNOFFICIAL");
         });
     });
 

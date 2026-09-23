@@ -2,7 +2,7 @@ import { CallActiveProxy } from "@/modules/call/CallActive";
 import { CallOutgoingProxy } from "@/modules/call/CallOutgoing";
 import { OfferProxy } from "@/modules/call/Offer";
 import { CallHarness, relayPlan } from "@/test/support/CallHarness";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, } from "vitest";
 
 let harness: CallHarness;
 
@@ -17,7 +17,7 @@ function outgoing() {
 
 function offer() {
     const session = harness.incoming({ type: "UNOFFICIAL", plan: relayPlan });
-    return { session, view: OfferProxy(session, vi.fn()) };
+    return { session, view: OfferProxy(session) };
 }
 
 function active() {

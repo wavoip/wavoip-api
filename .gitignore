@@ -1,4 +1,4 @@
 node_modules/
-.env
+.env.local
 dist/
 wavoip-wavoip-api*.tgz
