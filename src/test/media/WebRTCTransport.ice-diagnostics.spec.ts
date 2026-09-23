@@ -20,7 +20,7 @@ describe("WebRTCTransport ICE diagnostics", () => {
 
     describe("candidate counting", () => {
         it("counts candidates by type from onicecandidate events", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio);
 
             const diagPromise = new Promise<IceDiagnostics>((resolve) => {
@@ -46,7 +46,7 @@ describe("WebRTCTransport ICE diagnostics", () => {
 
     describe("iceDiagnostics event", () => {
         it("emits with gatheringTimedOut=false when gathering completes in time", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio);
 
             const cb = vi.fn();
@@ -68,7 +68,7 @@ describe("WebRTCTransport ICE diagnostics", () => {
         });
 
         it("emits with gatheringTimedOut=true when the timeout fires first", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio, undefined, { iceConfig: { gatheringTimeoutMs: 200 } });
 
             const cb = vi.fn();
@@ -86,7 +86,7 @@ describe("WebRTCTransport ICE diagnostics", () => {
         });
 
         it("sets turnReached=true when a relay candidate is gathered", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio);
 
             const cb = vi.fn();
@@ -106,7 +106,7 @@ describe("WebRTCTransport ICE diagnostics", () => {
 
     describe("connectivityIssue event", () => {
         it("emits STUN_UNREACHABLE when gathering times out without an srflx candidate", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio, undefined, { iceConfig: { gatheringTimeoutMs: 200 } });
 
             const issues: ConnectivityIssue[] = [];
@@ -121,7 +121,7 @@ describe("WebRTCTransport ICE diagnostics", () => {
         });
 
         it("does not emit STUN_UNREACHABLE when an srflx candidate is gathered before timeout", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio, undefined, { iceConfig: { gatheringTimeoutMs: 200 } });
 
             const issues: ConnectivityIssue[] = [];
@@ -139,7 +139,7 @@ describe("WebRTCTransport ICE diagnostics", () => {
         });
 
         it("emits NO_HOST_CANDIDATES when gathering ends without a host candidate", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio);
 
             const issues: ConnectivityIssue[] = [];
@@ -156,7 +156,7 @@ describe("WebRTCTransport ICE diagnostics", () => {
         });
 
         it("emits ICE_CONNECTION_FAILED when iceConnectionState transitions to failed", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio);
 
             const issues: ConnectivityIssue[] = [];
@@ -173,7 +173,7 @@ describe("WebRTCTransport ICE diagnostics", () => {
         });
 
         it("does not emit duplicates for the same issue", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio);
 
             const issues: ConnectivityIssue[] = [];

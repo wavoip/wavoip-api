@@ -1,7 +1,7 @@
 import type { AudioRuntime } from "@/modules/media/ITransport";
-import type { PcmPlayback } from "@/ports/runtime/AudioEnginePort";
+import type { AudioEnginePort, AudioHandle, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
+import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 import type { MediaStreamLike, MediaTrackLike } from "@/ports/runtime/PeerConnectionPort";
-import type { WebAudioHandle } from "@/platform/web/WebAudioEngine";
 
 /** Uma track de microfone que só guarda o `enabled`, que é o que o mute mexe. */
 export class FakeAudioTrack implements MediaTrackLike {
@@ -46,7 +46,7 @@ export class FakeAudioStream implements MediaStreamLike {
     removeTrack(): void {}
 }
 
-export class FakeMicrophone {
+export class FakeMicrophone implements MicrophonePort {
     readonly stream = new FakeAudioStream();
     muted = false;
     opens = 0;
@@ -63,9 +63,9 @@ export class FakeMicrophone {
 }
 
 /** Um handle que só registra que foi fechado. */
-class FakeAudioHandle {
+class FakeAudioHandle implements AudioHandle {
     stopped = false;
-    readonly analyser = { fftSize: 256 } as AnalyserNode;
+    readonly meter = { kind: "fake-meter" };
 
     stop(): void {
         this.stopped = true;
@@ -84,7 +84,7 @@ class FakePcmPlayback extends FakeAudioHandle {
  * O motor sem `AudioContext`: cada método guarda o handle que devolveu, para o teste
  * conferir o que foi aberto e o que foi fechado.
  */
-export class FakeAudioEngine {
+export class FakeAudioEngine implements AudioEnginePort {
     outputLatency = 0;
     prepared = 0;
     resumed = 0;
@@ -113,38 +113,33 @@ export class FakeAudioEngine {
         this.closed += 1;
     }
 
-    playStream(): WebAudioHandle {
+    playStream(): AudioHandle {
         const handle = new FakeAudioHandle();
         this.played.push(handle);
         return handle;
     }
 
-    monitorStream(): WebAudioHandle {
+    monitorStream(): AudioHandle {
         const handle = new FakeAudioHandle();
         this.monitored.push(handle);
         return handle;
     }
 
-    capturePcm(_stream: MediaStreamLike, onFrame: (pcm: ArrayBuffer) => void): WebAudioHandle {
+    capturePcm(_stream: MediaStreamLike, onFrame: (pcm: ArrayBuffer) => void): AudioHandle {
         const handle = new FakeAudioHandle();
         this.captured.push(handle);
         this.emitCapturedFrame = onFrame;
         return handle;
     }
 
-    playPcm(): PcmPlayback & WebAudioHandle {
+    playPcm(): PcmPlayback & AudioHandle {
         const playback = new FakePcmPlayback();
         this.playbacks.push(playback);
         return playback;
     }
 }
 
-export class FakeAudioRuntime {
+export class FakeAudioRuntime implements AudioRuntime {
     readonly engine = new FakeAudioEngine();
     readonly microphone = new FakeMicrophone();
-
-    /** O cast existe porque o `AudioRuntime` pede o motor da web, que tem campos privados. */
-    asRuntime(): AudioRuntime {
-        return this as unknown as AudioRuntime;
-    }
 }

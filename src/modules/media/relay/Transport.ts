@@ -13,12 +13,13 @@ import {
     type TransportStatus,
 } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
+import type { AudioMeter } from "@/ports/runtime/AudioEnginePort";
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
     public readonly kind = "ws" as const;
     public peerMuted = false;
-    public audioAnalyserIn: Promise<AnalyserNode>;
-    public audioAnalyserOut: Promise<AnalyserNode>;
+    public meterIn: Promise<AudioMeter>;
+    public meterOut: Promise<AudioMeter>;
 
     get status(): TransportStatus {
         return this.connection.status;
@@ -45,8 +46,8 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
             this.connection.send(data);
             this.statsAdapter.noteSent(data.byteLength);
         });
-        this.audioAnalyserIn = this.audioPipe.audioAnalyserIn;
-        this.audioAnalyserOut = this.audioPipe.audioAnalyserOut;
+        this.meterIn = this.audioPipe.meterIn;
+        this.meterOut = this.audioPipe.meterOut;
 
         this.statsAdapter = new WSStatsAdapter(audio.engine, {
             readTxLevel: () => this.audioPipe.readTxLevel(),

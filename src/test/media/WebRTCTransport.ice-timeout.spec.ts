@@ -19,7 +19,7 @@ describe("WebRTCTransport ICE gathering timeout", () => {
 
     describe("createOffer (outgoing)", () => {
         it("resolves immediately when gathering completes before the timeout", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio);
 
             const offerPromise = transport.createOffer();
@@ -32,7 +32,7 @@ describe("WebRTCTransport ICE gathering timeout", () => {
         });
 
         it("resolves at the configured timeout when gathering never completes", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio, undefined, { iceConfig: { gatheringTimeoutMs: 800 } });
 
             const offerPromise = transport.createOffer();
@@ -51,7 +51,7 @@ describe("WebRTCTransport ICE gathering timeout", () => {
         });
 
         it("uses the 2500ms default timeout when none is configured", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio);
 
             const offerPromise = transport.createOffer();
@@ -70,7 +70,7 @@ describe("WebRTCTransport ICE gathering timeout", () => {
         });
 
         it("removes the icegatheringstatechange listener after resolving on completion", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio);
 
             const offerPromise = transport.createOffer();
@@ -84,7 +84,7 @@ describe("WebRTCTransport ICE gathering timeout", () => {
         });
 
         it("removes the icegatheringstatechange listener after timing out", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio, undefined, { iceConfig: { gatheringTimeoutMs: 500 } });
 
             const offerPromise = transport.createOffer();
@@ -97,7 +97,7 @@ describe("WebRTCTransport ICE gathering timeout", () => {
         });
 
         it("returns immediately when gathering is already complete before waitForIceGathering attaches", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio);
             pcFactory.last().iceGatheringState = "complete";
 
@@ -108,7 +108,7 @@ describe("WebRTCTransport ICE gathering timeout", () => {
 
     describe("accept (incoming) honors the same timeout cap", () => {
         it("resolves the answer at the configured timeout when gathering hangs", async () => {
-            const audio = new FakeAudioRuntime().asRuntime();
+            const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio, "offer-sdp", { iceConfig: { gatheringTimeoutMs: 400 } });
 
             const accepting = transport.accept();

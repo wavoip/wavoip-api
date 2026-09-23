@@ -13,12 +13,13 @@ import {
     type TransportStatus,
 } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
+import type { AudioMeter } from "@/ports/runtime/AudioEnginePort";
 import type { PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
 
 export class WebRTCTransport extends EventEmitter<Events> implements ITransport {
     readonly kind = "webrtc" as const;
-    audioAnalyserIn: Promise<AnalyserNode>;
-    audioAnalyserOut: Promise<AnalyserNode>;
+    meterIn: Promise<AudioMeter>;
+    meterOut: Promise<AudioMeter>;
 
     private readonly connection: RTCConnection;
     private readonly audioPipe: RTCAudioPipe;
@@ -61,8 +62,8 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         this.connection = new RTCConnection(offer, options?.iceConfig);
         this.audioPipe = new RTCAudioPipe(this.connection.pc, audio);
         this.statsAdapter = new RTCStatsAdapter(this.connection.pc, audio.engine);
-        this.audioAnalyserIn = this.audioPipe.audioAnalyserIn;
-        this.audioAnalyserOut = this.audioPipe.audioAnalyserOut;
+        this.meterIn = this.audioPipe.meterIn;
+        this.meterOut = this.audioPipe.meterOut;
 
         this.audioPipe.on("peerMuted", (m) => this.emit("peerMuted", m));
         this.connection.on("iceDiagnostics", (d) => this.emit("iceDiagnostics", d));

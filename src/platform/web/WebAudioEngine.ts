@@ -6,13 +6,7 @@ import outWorkletSource from "../../modules/worklets/AudioWorkletOut.ts?worklet"
 
 const METER_FFT_SIZE = 256;
 
-/**
- * O handle da web também entrega o `AnalyserNode` que mediu o áudio, porque
- * `CallActive.audioAnalyserIn`/`Out` ainda o publicam. Sai junto com eles na v3 (DEV-526).
- */
-export type WebAudioHandle = AudioHandle & { readonly analyser: AnalyserNode };
-
-/** O motor de áudio do navegador: um `AudioContext` e os três worklets. */
+/** O motor de áudio do navegador: um `AudioContext`, os três worklets e os `AnalyserNode`. */
 export class WebAudioEngine implements AudioEnginePort {
     private readonly context = new AudioContext({ latencyHint: 0 });
     // Preguiçoso para um motor construído e nunca usado não pagar o addModule dos worklets.
@@ -60,7 +54,7 @@ export class WebAudioEngine implements AudioEnginePort {
      * segurando o `MediaStream`, a cadeia analyser/destination da track remota não recebe
      * áudio. O elemento fica mudo — ele só serve de âncora.
      */
-    playStream(stream: MediaStreamLike): WebAudioHandle {
+    playStream(stream: MediaStreamLike): AudioHandle {
         const anchor = new Audio();
         anchor.muted = true;
         anchor.srcObject = stream as unknown as MediaStream;
@@ -71,7 +65,7 @@ export class WebAudioEngine implements AudioEnginePort {
         analyser.connect(this.context.destination);
 
         return {
-            analyser,
+            meter: analyser,
             stop: () => {
                 source.disconnect();
                 analyser.disconnect();
@@ -80,11 +74,11 @@ export class WebAudioEngine implements AudioEnginePort {
         };
     }
 
-    monitorStream(stream: MediaStreamLike): WebAudioHandle {
+    monitorStream(stream: MediaStreamLike): AudioHandle {
         const source = this.sourceOf(stream);
         const meter = this.meterSilently(source);
         return {
-            analyser: meter.analyser,
+            meter: meter.meter,
             stop: () => {
                 source.disconnect();
                 meter.stop();
@@ -92,7 +86,7 @@ export class WebAudioEngine implements AudioEnginePort {
         };
     }
 
-    capturePcm(stream: MediaStreamLike, onFrame: (pcm: ArrayBuffer) => void): WebAudioHandle {
+    capturePcm(stream: MediaStreamLike, onFrame: (pcm: ArrayBuffer) => void): AudioHandle {
         const source = this.sourceOf(stream);
         const resampler = new AudioWorkletNode(this.context, "resample-processor", {
             numberOfInputs: 1,
@@ -104,7 +98,7 @@ export class WebAudioEngine implements AudioEnginePort {
 
         const meter = this.meterSilently(source);
         return {
-            analyser: meter.analyser,
+            meter: meter.meter,
             stop: () => {
                 resampler.port.onmessage = null;
                 resampler.disconnect();
@@ -114,7 +108,7 @@ export class WebAudioEngine implements AudioEnginePort {
         };
     }
 
-    playPcm(): PcmPlayback & WebAudioHandle {
+    playPcm(): PcmPlayback & AudioHandle {
         const playback = new AudioWorkletNode(this.context, "audio-data-worklet-stream", {
             numberOfInputs: 0,
             numberOfOutputs: 1,
@@ -125,7 +119,7 @@ export class WebAudioEngine implements AudioEnginePort {
         analyser.connect(this.context.destination);
 
         return {
-            analyser,
+            meter: analyser,
             write: (pcm) => {
                 // Copia antes de transferir: o event.data do WebSocket pode ser reutilizado.
                 const copy = pcm.slice(0);
@@ -143,7 +137,7 @@ export class WebAudioEngine implements AudioEnginePort {
      * O `AnalyserNode` lê vazio sem caminho até o destination; o ganho zero mantém o grafo
      * renderizando sem devolver o microfone no alto-falante.
      */
-    private meterSilently(source: AudioNode): WebAudioHandle {
+    private meterSilently(source: AudioNode): AudioHandle {
         const analyser = this.createMeter();
         const silence = this.context.createGain();
         silence.gain.value = 0;
@@ -152,7 +146,7 @@ export class WebAudioEngine implements AudioEnginePort {
         silence.connect(this.context.destination);
 
         return {
-            analyser,
+            meter: analyser,
             stop: () => {
                 analyser.disconnect();
                 silence.disconnect();

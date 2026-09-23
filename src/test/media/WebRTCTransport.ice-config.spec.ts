@@ -16,7 +16,7 @@ describe("WebRTCTransport ICE server config", () => {
     });
 
     it("uses multiple default STUN servers when no iceServers configured", () => {
-        const audio = new FakeAudioRuntime().asRuntime();
+        const audio = new FakeAudioRuntime();
         new WebRTCTransport(audio);
 
         const config = pcFactory.last()._config;
@@ -30,7 +30,7 @@ describe("WebRTCTransport ICE server config", () => {
     });
 
     it("uses iceServers from config when provided", () => {
-        const audio = new FakeAudioRuntime().asRuntime();
+        const audio = new FakeAudioRuntime();
         const custom: RTCIceServer[] = [
             { urls: "stun:my-stun.example.com:3478" },
             { urls: ["turn:my-turn.example.com:3478"], username: "u", credential: "c" },

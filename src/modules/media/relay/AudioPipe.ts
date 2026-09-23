@@ -1,8 +1,7 @@
 import { rmsInt16 } from "@/modules/media/audio-level";
 import type { AudioRuntime } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { WebAudioHandle } from "@/platform/web/WebAudioEngine";
-import type { PcmPlayback } from "@/ports/runtime/AudioEnginePort";
+import type { AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 
 type AudioDataCallback = (data: ArrayBuffer) => void;
 
@@ -16,13 +15,13 @@ export type PipeEvents = {
 
 export class WSAudioPipe extends EventEmitter<PipeEvents> {
     peerMuted = false;
-    readonly audioAnalyserIn: Promise<AnalyserNode>;
-    readonly audioAnalyserOut: Promise<AnalyserNode>;
+    readonly meterIn: Promise<AudioMeter>;
+    readonly meterOut: Promise<AudioMeter>;
 
-    private readonly meterInResolver: PromiseWithResolvers<AnalyserNode>;
-    private readonly meterOutResolver: PromiseWithResolvers<AnalyserNode>;
-    private capture: WebAudioHandle | null = null;
-    private playback: (PcmPlayback & WebAudioHandle) | null = null;
+    private readonly meterInResolver: PromiseWithResolvers<AudioMeter>;
+    private readonly meterOutResolver: PromiseWithResolvers<AudioMeter>;
+    private capture: AudioHandle | null = null;
+    private playback: (PcmPlayback & AudioHandle) | null = null;
     private txLevel = 0;
     private rxLevel = 0;
     private started = false;
@@ -34,10 +33,10 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> {
     ) {
         super();
 
-        this.meterInResolver = Promise.withResolvers<AnalyserNode>();
-        this.audioAnalyserIn = this.meterInResolver.promise;
-        this.meterOutResolver = Promise.withResolvers<AnalyserNode>();
-        this.audioAnalyserOut = this.meterOutResolver.promise;
+        this.meterInResolver = Promise.withResolvers<AudioMeter>();
+        this.meterIn = this.meterInResolver.promise;
+        this.meterOutResolver = Promise.withResolvers<AudioMeter>();
+        this.meterOut = this.meterOutResolver.promise;
     }
 
     async start(): Promise<void> {
@@ -51,8 +50,8 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> {
         });
         this.playback = this.audio.engine.playPcm();
 
-        this.meterOutResolver.resolve(this.capture.analyser);
-        this.meterInResolver.resolve(this.playback.analyser);
+        this.meterOutResolver.resolve(this.capture.meter);
+        this.meterInResolver.resolve(this.playback.meter);
     }
 
     async stop(): Promise<void> {

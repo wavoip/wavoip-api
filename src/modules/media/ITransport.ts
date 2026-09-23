@@ -3,7 +3,7 @@ import type { MediaPlan } from "@/domain/call/types";
 import type { TransportStatus } from "@/domain/call/types";
 import type { ConnectivityIssue, IceConfig, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { WebAudioEngine } from "@/platform/web/WebAudioEngine";
+import type { AudioEnginePort, AudioMeter } from "@/ports/runtime/AudioEnginePort";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 
 export type { TransportStatus } from "@/domain/call/types";
@@ -11,12 +11,9 @@ export type TransportKind = "webrtc" | "ws";
 
 export const DEFAULT_STATS_TICK_MS = 200;
 
-/**
- * O áudio da plataforma como o transporte o usa. O motor é o da web enquanto a API pública
- * entregar `AnalyserNode` em `audioAnalyserIn`/`Out`; a v3 troca pelo `AudioEnginePort`.
- */
+/** O áudio da plataforma como o transporte o usa. */
 export type AudioRuntime = {
-    readonly engine: WebAudioEngine;
+    readonly engine: AudioEnginePort;
     readonly microphone: MicrophonePort;
 };
 
@@ -40,8 +37,9 @@ export interface ITransport extends EventEmitter<Events> {
     readonly kind: TransportKind;
     status: TransportStatus;
     peerMuted: boolean;
-    audioAnalyserIn: Promise<AnalyserNode>;
-    audioAnalyserOut: Promise<AnalyserNode>;
+    /** O que mede o que chega e o que sai; vira `audioAnalyserIn`/`Out` na API pública. */
+    meterIn: Promise<AudioMeter>;
+    meterOut: Promise<AudioMeter>;
     stats: CallStats;
 
     /**

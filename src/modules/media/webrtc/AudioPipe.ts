@@ -1,6 +1,6 @@
 import type { AudioRuntime } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { WebAudioHandle } from "@/platform/web/WebAudioEngine";
+import type { AudioHandle, AudioMeter } from "@/ports/runtime/AudioEnginePort";
 import type { MediaStreamLike, PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
 
 /**
@@ -14,13 +14,13 @@ export type PipeEvents = {
 
 export class RTCAudioPipe extends EventEmitter<PipeEvents> {
     peerMuted = false;
-    readonly audioAnalyserIn: Promise<AnalyserNode>;
-    readonly audioAnalyserOut: Promise<AnalyserNode>;
+    readonly meterIn: Promise<AudioMeter>;
+    readonly meterOut: Promise<AudioMeter>;
 
-    private readonly meterInResolver: PromiseWithResolvers<AnalyserNode>;
-    private readonly meterOutResolver: PromiseWithResolvers<AnalyserNode>;
-    private micMeter: WebAudioHandle | null = null;
-    private remotePlayback: WebAudioHandle | null = null;
+    private readonly meterInResolver: PromiseWithResolvers<AudioMeter>;
+    private readonly meterOutResolver: PromiseWithResolvers<AudioMeter>;
+    private micMeter: AudioHandle | null = null;
+    private remotePlayback: AudioHandle | null = null;
     private started = false;
     private stopped = false;
 
@@ -30,10 +30,10 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> {
     ) {
         super();
 
-        this.meterInResolver = Promise.withResolvers<AnalyserNode>();
-        this.audioAnalyserIn = this.meterInResolver.promise;
-        this.meterOutResolver = Promise.withResolvers<AnalyserNode>();
-        this.audioAnalyserOut = this.meterOutResolver.promise;
+        this.meterInResolver = Promise.withResolvers<AudioMeter>();
+        this.meterIn = this.meterInResolver.promise;
+        this.meterOutResolver = Promise.withResolvers<AudioMeter>();
+        this.meterOut = this.meterOutResolver.promise;
 
         this.pc.addEventListener("track", (event) => this.handleRemoteTrack(event));
     }
@@ -50,7 +50,7 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> {
         // O microfone alimenta o RTCPeerConnection direto, sem passar pelo motor de áudio:
         // medir o que sai pede uma derivação só para isso.
         this.micMeter = this.audio.engine.monitorStream(micStream);
-        this.meterOutResolver.resolve(this.micMeter.analyser);
+        this.meterOutResolver.resolve(this.micMeter.meter);
     }
 
     async stop(): Promise<void> {
@@ -73,7 +73,7 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> {
         }
 
         this.remotePlayback = this.audio.engine.playStream(remoteStream);
-        this.meterInResolver.resolve(this.remotePlayback.analyser);
+        this.meterInResolver.resolve(this.remotePlayback.meter);
     }
 
     private announcePeerMuted(muted: boolean): void {
