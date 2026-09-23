@@ -4,7 +4,6 @@ import type { CallSession, CallSessionEvents } from "@/application/call/CallSess
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 import { toLegacy } from "@/modules/call/legacyResult";
-import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
 
@@ -25,25 +24,11 @@ export interface CallOutgoing {
     peer: CallPeer;
     deviceToken: string;
     status: CallStatus;
-    /** @deprecated Use `deviceToken` instead. */
-    device_token: string;
-    on<T extends keyof CallOutgoingEvents>(event: T, callback: (...args: CallOutgoingEvents[T]) => void): Unsubscribe;
-    /** @deprecated Use `on("peerAccept", callback)` instead. */
-    onPeerAccept(callback: (call: CallActive) => void): void;
-    /** @deprecated Use `on("peerReject", callback)` instead. */
-    onPeerReject(callback: () => void): void;
-    /** @deprecated Use `on("unanswered", callback)` instead. */
-    onUnanswered(callback: () => void): void;
-    /** @deprecated Use `on("ended", callback)` instead. */
-    onEnd(callback: () => void): void;
     mute(): Promise<{ err: string | null }>;
     unmute(): Promise<{ err: string | null }>;
     /** Gives up the call before the peer answers. */
     cancel(): Promise<{ err: string | null }>;
-    /** @deprecated Use `cancel()` instead. */
-    end(): Promise<{ err: string | null }>;
-    /** @deprecated Use `on("status", callback)` instead. */
-    onStatus(cb: (status: CallStatus) => void): void;
+    on<T extends keyof CallOutgoingEvents>(event: T, callback: (...args: CallOutgoingEvents[T]) => void): Unsubscribe;
 }
 
 export function CallOutgoingProxy(session: CallSession): CallOutgoing {
@@ -60,12 +45,6 @@ export function CallOutgoingProxy(session: CallSession): CallOutgoing {
         iceDiagnostics: "iceDiagnostics",
         connectivityIssue: "connectivityIssue",
     });
-
-    let onPeerAcceptUnsub: Unsubscribe | undefined;
-    let onPeerRejectUnsub: Unsubscribe | undefined;
-    let onUnansweredUnsub: Unsubscribe | undefined;
-    let onEndUnsub: Unsubscribe | undefined;
-    let onStatusUnsub: Unsubscribe | undefined;
 
     const proxy = {
         id: session.id,
@@ -85,46 +64,11 @@ export function CallOutgoingProxy(session: CallSession): CallOutgoing {
             return toLegacy(await session.cancel());
         },
 
-        end(): Promise<{ err: string | null }> {
-            warnDeprecated("CallOutgoing.end", "use `outgoing.cancel()` instead.");
-            return proxy.cancel();
-        },
-
         on<T extends keyof CallOutgoingEvents>(
             event: T,
             callback: (...args: CallOutgoingEvents[T]) => void,
         ): Unsubscribe {
             return emitter.on(event, callback);
-        },
-
-        onPeerAccept(callback: (call: CallActive) => void): void {
-            warnDeprecated("CallOutgoing.onPeerAccept", 'use `outgoing.on("peerAccept", cb)` instead.');
-            onPeerAcceptUnsub?.();
-            onPeerAcceptUnsub = emitter.on("peerAccept", callback);
-        },
-
-        onPeerReject(callback: () => void): void {
-            warnDeprecated("CallOutgoing.onPeerReject", 'use `outgoing.on("peerReject", cb)` instead.');
-            onPeerRejectUnsub?.();
-            onPeerRejectUnsub = emitter.on("peerReject", callback);
-        },
-
-        onUnanswered(callback: () => void): void {
-            warnDeprecated("CallOutgoing.onUnanswered", 'use `outgoing.on("unanswered", cb)` instead.');
-            onUnansweredUnsub?.();
-            onUnansweredUnsub = emitter.on("unanswered", callback);
-        },
-
-        onEnd(callback: () => void): void {
-            warnDeprecated("CallOutgoing.onEnd", 'use `outgoing.on("ended", cb)` instead.');
-            onEndUnsub?.();
-            onEndUnsub = emitter.on("ended", callback);
-        },
-
-        onStatus(cb: (status: CallStatus) => void): void {
-            warnDeprecated("CallOutgoing.onStatus", 'use `outgoing.on("status", cb)` instead.');
-            onStatusUnsub?.();
-            onStatusUnsub = emitter.on("status", cb);
         },
     } as CallOutgoing;
 
@@ -132,13 +76,6 @@ export function CallOutgoingProxy(session: CallSession): CallOutgoing {
     Object.defineProperties(proxy, {
         status: { get: () => session.status, enumerable: true },
         peer: { get: () => ({ ...session.peer, muted: false }), enumerable: true },
-        device_token: {
-            get: () => {
-                warnDeprecated("CallOutgoing.device_token", "use `outgoing.deviceToken` instead.");
-                return session.deviceToken;
-            },
-            enumerable: true,
-        },
     });
 
     return proxy;

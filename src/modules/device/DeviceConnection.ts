@@ -9,7 +9,6 @@ import type { AudioRuntime, TransportOptions } from "@/modules/media/ITransport"
 import type { MediaManager } from "@/modules/media/MediaManager";
 import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
 import { WebsocketTransport } from "@/modules/media/relay/Transport";
-import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
 import type { TransportFactory } from "@/application/call/CallSession";
@@ -37,12 +36,6 @@ export interface Device {
     restrictedUntil: Date | null;
     activeCalls: number;
     on<T extends keyof DeviceEvents>(event: T, callback: (...args: DeviceEvents[T]) => void): Unsubscribe;
-    /** @deprecated Use `on("statusChanged", callback)` instead. */
-    onStatus(cb: (status: DeviceStatus) => void): Unsubscribe;
-    /** @deprecated Use `on("qrCodeChanged", callback)` instead. */
-    onQRCode(cb: (qrcode?: string) => void): Unsubscribe;
-    /** @deprecated Use `on("contactChanged", callback)` instead. */
-    onContact(cb: (contact?: Contact) => void): Unsubscribe;
     restart(): Promise<void>;
     logout(): Promise<void>;
     wakeUp(): Promise<boolean>;
@@ -51,10 +44,6 @@ export interface Device {
 
 export class DeviceConnection extends EventEmitter<Events> implements Device {
     private readonly session: DeviceSession;
-
-    private _onStatusUnsub?: () => void;
-    private _onQRCodeUnsub?: () => void;
-    private _onContactUnsub?: () => void;
 
     constructor(mediaManager: MediaManager, token: string, platform?: string, transportOptions?: TransportOptions) {
         super();
@@ -114,27 +103,6 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
         const started = await this.session.startCall(to);
         if (started.error) return { err: started.error.code };
         return { call: CallOutgoingProxy(started.data) };
-    }
-
-    onStatus(cb: (status: DeviceStatus) => void): () => void {
-        warnDeprecated("Device.onStatus", 'use `device.on("statusChanged", cb)` instead.');
-        this._onStatusUnsub?.();
-        this._onStatusUnsub = this.on("statusChanged", cb);
-        return this._onStatusUnsub;
-    }
-
-    onQRCode(cb: (qrcode?: string) => void): () => void {
-        warnDeprecated("Device.onQRCode", 'use `device.on("qrCodeChanged", cb)` instead.');
-        this._onQRCodeUnsub?.();
-        this._onQRCodeUnsub = this.on("qrCodeChanged", cb);
-        return this._onQRCodeUnsub;
-    }
-
-    onContact(cb: (contact?: Contact) => void): () => void {
-        warnDeprecated("Device.onContact", 'use `device.on("contactChanged", cb)` instead.');
-        this._onContactUnsub?.();
-        this._onContactUnsub = this.on("contactChanged", cb);
-        return this._onContactUnsub;
     }
 
     async wakeUp(): Promise<boolean> {

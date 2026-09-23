@@ -63,7 +63,6 @@ call.on("unanswered", () => console.log("Sem resposta"))
 | `peer`                            | `CallPeer`      | Telefone, nome de exibição e foto de perfil do destinatário.|
 | `deviceToken`                     | `string`        | Token do dispositivo que está realizando a chamada.        |
 | `status`                          | `CallStatus`    | Estado atual da chamada. Acompanha os eventos do servidor: dentro de qualquer handler já traz o valor novo. |
-| ~~`device_token`~~ **(deprecated)** | `string`      | **Use `deviceToken` no lugar.** Acesso emite `console.warn` único. |
 
 ---
 
@@ -161,19 +160,6 @@ informado: o fim chega como `ENDED`, não `CANCELLED`, e a recusa por corrida co
 atendimento pode voltar como sucesso. Trate `ENDED` como o desfecho padrão e não dependa
 de `CANCELLED` para encerrar a interface.
 {% endhint %}
-
----
-
-### `end()`
-
-{% hint style="warning" %}
-**Depreciado.** Use `cancel()` — mesmo comportamento, nome que corresponde ao que
-sempre foi enviado no fio. O acesso emite um `console.warn` único.
-{% endhint %}
-
-```typescript
-await call.end()
-```
 
 ---
 

@@ -15,18 +15,13 @@
  *   });
  */
 export type CallFailReason =
-    /**
-     * @deprecated Use {@link CallFailReason} `"PEER_RX_TIMEOUT"` instead.
-     * Kept for backward compatibility.
-     */
-    | "AUDIO_TIMEOUT"
     /** The call could not be established securely. */
     | "CORRUPTED_KEYS"
     /** The call lost contact with the server. */
     | "CONNECTION_TIMEOUT"
     /** The contact stopped sending audio. */
     | "PEER_TX_TIMEOUT"
-    /** The user stopped sending audio. Supersedes `"AUDIO_TIMEOUT"`. */
+    /** The user stopped sending audio. */
     | "PEER_RX_TIMEOUT"
     /** The WhatsApp account is restricted and cannot place calls. */
     | "ACCOUNT_RESTRICTED"

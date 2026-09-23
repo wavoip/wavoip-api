@@ -22,9 +22,6 @@ Um objeto `CallActive` é fornecido quando uma oferta recebida é aceita ou quan
 | `connectionStatus`    | `TransportStatus`       | Estado do transporte de mídia: `"connecting"`, `"connected"`, `"reconnecting"` ou `"disconnected"`. |
 | `audioAnalyserIn`     | `Promise<AnalyserNode>` | Resolve para um `AnalyserNode` conectado ao stream de áudio **recebido** (par → alto-falante local). |
 | `audioAnalyserOut`    | `Promise<AnalyserNode>` | Resolve para um `AnalyserNode` conectado ao stream de áudio **enviado** (microfone local → par). |
-| ~~`device_token`~~ **(deprecated)** | `string` | **Use `deviceToken` no lugar.** Acesso emite `console.warn` único. |
-| ~~`connection_status`~~ **(deprecated)** | `TransportStatus` | **Use `connectionStatus` no lugar.** Acesso emite `console.warn` único. |
-| ~~`audio_analyser`~~ **(deprecated)** | `Promise<AnalyserNode>` | **Use `audioAnalyserIn` no lugar.** Acesso emite `console.warn` único. |
 
 ---
 
@@ -63,12 +60,12 @@ console.log(`RTT médio: ${stats.rtt.avg}ms | bitrate RX: ${stats.rx.bitrate_kbp
 Comportamento por tipo de chamada:
 
 - **`official`**: dispara `pc.getStats()` no transporte WebRTC e retorna o snapshot resultante (RTT par-a-par, perda, bitrate, audio level, jitter).
-- **`unofficial`** (relay): mescla os campos do lado cliente medidos pelo transporte WebSocket (bitrate, audio level, jitter RX, latência de saída) com a última projeção de `serverStats` recebida via push do servidor (RTT, perda, totais). Apenas a combinação tem a imagem completa — nenhum lado sozinho a possui.
+- **`unofficial`** (relay): mescla os campos do lado cliente medidos pelo transporte WebSocket (bitrate, audio level, jitter RX, latência de saída) com a última projeção recebida no push `call:stats` do servidor (RTT, perda, totais). Apenas a combinação tem a imagem completa — nenhum lado sozinho a possui.
 
 Antes do transporte ser conectado (raro, apenas durante a transição `RINGING` → `ACTIVE`), retorna um snapshot vazio com zeros.
 
 {% hint style="info" %}
-`getStats()` é a API recomendada. Os eventos `stats` e `serverStats` permanecem disponíveis por compatibilidade, mas estão marcados como **deprecated** — eles disparam em uma cadência fixa de 200ms controlada pela biblioteca, enquanto `getStats()` permite que você escolha quando e com qual frequência ler.
+Não existe evento de estatística: quem escolhe quando e com que frequência ler é você. Para um medidor que acompanha a tela, chame `getStats()` no seu próprio `requestAnimationFrame` ou `setInterval`.
 {% endhint %}
 
 ---
@@ -83,8 +80,6 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 | `peerMute`          | —                   | Parte remota silenciou o microfone.                                                                                    |
 | `peerUnmute`        | —                   | Parte remota ativou o microfone.                                                                                       |
 | `connectionStatus`  | `TransportStatus`   | Estado de conexão do transporte de mídia mudou.                                                                        |
-| ~~`stats`~~ **(deprecated)** | `CallStats`         | Tick fixo de 200ms com `CallStats`. **Use [`getStats()`](#getstats) no lugar** — você controla a cadência. Ainda disparado por retrocompatibilidade; emite um aviso `console.warn` único na primeira assinatura. |
-| ~~`serverStats`~~ **(deprecated)** | `ServerCallStats`   | `call:stats` bruto enviado pelo servidor (RTT servidor↔cliente e servidor↔WhatsApp). **Use [`getStats()`](#getstats) no lugar** — os mesmos campos já estão mesclados ali para chamadas `unofficial`. Emite um aviso `console.warn` único na primeira assinatura. |
 | `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE (duração, candidatos por tipo, STUN/TURN alcançados, par selecionado). Replay em listeners tardios. |
 | `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado (`STUN_UNREACHABLE`, `ICE_GATHERING_TIMEOUT`, `ICE_CONNECTION_FAILED`, `NO_HOST_CANDIDATES`, `SYMMETRIC_NAT_SUSPECTED`). Todos os problemas observados são re-emitidos para listeners tardios. |
 | `error`             | `CallFailReason`    | Servidor sinalizou falha da chamada. Veja [`CallFailReason`](../types.md#callfailreason) para a lista de motivos.      |

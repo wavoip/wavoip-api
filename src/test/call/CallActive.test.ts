@@ -1,7 +1,6 @@
 import type { CallSession } from "@/application/call/CallSession";
 import type { CallActive } from "@/modules/call/CallActive";
 import { OfferProxy } from "@/modules/call/Offer";
-import { _resetDeprecationWarnings } from "@/modules/shared/deprecation";
 import { CallHarness, relayPlan, testPeer, webRTCPlan } from "@/test/support/CallHarness";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,7 +8,6 @@ let harness: CallHarness;
 
 beforeEach(() => {
     harness = new CallHarness();
-    _resetDeprecationWarnings();
 });
 
 async function makeActive(plan = relayPlan): Promise<{ session: CallSession; active: CallActive }> {
@@ -131,16 +129,6 @@ describe("CallActive — what the server says", () => {
 
         expect(seen).toEqual(["status:ENDED", "ended:ENDED"]);
     });
-
-    it("reports the server's stats as they arrive", async () => {
-        const { active, session } = await makeActive();
-        const heard = vi.fn();
-        active.on("serverStats", heard);
-
-        harness.fromServer(session, { type: "stats", stats: serverStats });
-
-        expect(heard).toHaveBeenCalledWith(serverStats);
-    });
 });
 
 describe("CallActive — media reports", () => {
@@ -169,34 +157,5 @@ describe("CallActive — media reports", () => {
         active.on("iceDiagnostics", heard);
 
         expect(heard).toHaveBeenCalledWith(diag);
-    });
-});
-
-describe("CallActive — deprecated surface", () => {
-    it("warns once per deprecated member", async () => {
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-        const { active } = await makeActive();
-
-        void active.device_token;
-        void active.device_token;
-        void active.connection_status;
-        active.onEnd(vi.fn());
-        active.on("stats", vi.fn());
-
-        const warned = warn.mock.calls.map((c) => String(c[0]));
-        expect(warned.filter((m) => m.includes("CallActive.device_token"))).toHaveLength(1);
-        expect(warned.filter((m) => m.includes("CallActive.connection_status"))).toHaveLength(1);
-        expect(warned.filter((m) => m.includes("CallActive.onEnd"))).toHaveLength(1);
-        expect(warned.filter((m) => m.includes("CallActive.stats event"))).toHaveLength(1);
-        warn.mockRestore();
-    });
-
-    it("does not warn about the stats event on its own", async () => {
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-        await makeActive();
-
-        expect(warn.mock.calls.filter((c) => String(c[0]).includes("stats event"))).toHaveLength(0);
-        warn.mockRestore();
     });
 });

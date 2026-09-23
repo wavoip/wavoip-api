@@ -17,7 +17,6 @@ export class Wavoip extends EventEmitter<Events> {
     private readonly transportOptions?: TransportOptions;
     private readonly platform?: string;
     private _devices: DeviceConnection[] = [];
-    private _onOfferUnsub?: () => void;
 
     constructor(params: {
         tokens: string[];
@@ -44,12 +43,6 @@ export class Wavoip extends EventEmitter<Events> {
             this.bindDeviceEvents(device);
             this._devices.push(device);
         }
-    }
-
-    /** @deprecated Use `on("offer", callback)` instead. */
-    onOffer(cb: (offer: Offer) => void) {
-        this._onOfferUnsub?.();
-        this._onOfferUnsub = this.on("offer", cb);
     }
 
     /**

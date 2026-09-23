@@ -82,7 +82,7 @@ type CallPeer = {
 
 ## Estatísticas de chamada
 
-`CallStats` é o snapshot retornado por [`CallActive.getStats()`](calls/active.md#getstats). Em chamadas `official` todos os campos vêm de `RTCPeerConnection.getStats()`. Em chamadas `unofficial` os campos de RTT, perda e totais vêm do push `serverStats` do servidor, enquanto bitrate, audio levels, jitter RX e latência de saída vêm das medições do transporte WebSocket — `getStats()` retorna os dois mesclados.
+`CallStats` é o snapshot retornado por [`CallActive.getStats()`](calls/active.md#getstats). Em chamadas `official` todos os campos vêm de `RTCPeerConnection.getStats()`. Em chamadas `unofficial` os campos de RTT, perda e totais vêm do push `call:stats` do servidor, enquanto bitrate, audio levels, jitter RX e latência de saída vêm das medições do transporte WebSocket — `getStats()` retorna os dois mesclados.
 
 ```typescript
 type CallStats = {
@@ -257,10 +257,6 @@ type CallActiveEvents = {
     peerMute:          []
     peerUnmute:        []
     ended:             []
-    /** @deprecated Use `CallActive.getStats()` — você controla a cadência. */
-    stats:             [stats: CallStats]
-    /** @deprecated Use `CallActive.getStats()` — já mescla servidor + cliente. */
-    serverStats:       [stats: ServerCallStats]
     connectionStatus:  [status: TransportStatus]
     status:            [status: CallStatus]
     iceDiagnostics:    [diag: IceDiagnostics]
@@ -286,7 +282,6 @@ Motivo de falha emitido no evento `error` de [`CallActive`](calls/active.md). É
 
 ```typescript
 type CallFailReason =
-    | "AUDIO_TIMEOUT"        // @deprecated — use "PEER_RX_TIMEOUT"
     | "CORRUPTED_KEYS"
     | "CONNECTION_TIMEOUT"
     | "PEER_TX_TIMEOUT"
@@ -299,11 +294,10 @@ type CallFailReason =
 
 | Motivo                | Significado                                                                                            |
 | --------------------- | ------------------------------------------------------------------------------------------------------ |
-| `AUDIO_TIMEOUT`       | **Obsoleto.** Substituído por `PEER_RX_TIMEOUT`. Mantido para retrocompatibilidade.                    |
 | `CORRUPTED_KEYS`      | Não foi possível estabelecer a chamada com segurança.                                                  |
 | `CONNECTION_TIMEOUT`  | A chamada perdeu contato com o servidor.                                                               |
 | `PEER_TX_TIMEOUT`     | O contato parou de enviar áudio.                                                                       |
-| `PEER_RX_TIMEOUT`     | O usuário parou de enviar áudio. Substitui `AUDIO_TIMEOUT`.                                            |
+| `PEER_RX_TIMEOUT`     | O usuário parou de enviar áudio.                                                                       |
 | `ACCOUNT_RESTRICTED`  | A conta do WhatsApp está restrita e não pode realizar chamadas.                                        |
 | `NO_CALL_PERMISSION`  | A conta não tem permissão para realizar chamadas.                                                      |
 | `INTERNAL_ERROR`      | Algo deu errado do lado do servidor.                                                                   |

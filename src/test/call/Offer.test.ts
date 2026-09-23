@@ -1,5 +1,4 @@
 import { OfferProxy } from "@/modules/call/Offer";
-import { _resetDeprecationWarnings } from "@/modules/shared/deprecation";
 import { Ack } from "@/ports/SignalingPort";
 import { CallHarness, relayPlan, testPeer } from "@/test/support/CallHarness";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,7 +7,6 @@ let harness: CallHarness;
 
 beforeEach(() => {
     harness = new CallHarness();
-    _resetDeprecationWarnings();
 });
 
 function makeOffer() {
@@ -41,17 +39,6 @@ describe("Offer — getters", () => {
         harness.fromServer(session, { type: "ended", status: "CANCELLED" });
 
         expect(offer.status).toBe("CANCELLED");
-    });
-
-    it("device_token warns once and forwards", () => {
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-        const { offer } = makeOffer();
-
-        expect(offer.device_token).toBe("device-token");
-        expect(offer.device_token).toBe("device-token");
-
-        expect(warn.mock.calls.filter((c) => String(c[0]).includes("Offer.device_token"))).toHaveLength(1);
-        warn.mockRestore();
     });
 });
 
@@ -128,31 +115,5 @@ describe("Offer — what the server says", () => {
         harness.fromServer(session, { type: "ringing" });
 
         expect(heard).not.toHaveBeenCalled();
-    });
-});
-
-describe("Offer — deprecated listeners", () => {
-    it("onEnd warns once and fires on the terminal event", () => {
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-        const { offer, session } = relayOffer();
-        const heard = vi.fn();
-
-        offer.onEnd(heard);
-        harness.fromServer(session, { type: "ended", status: "ENDED" });
-
-        expect(heard).toHaveBeenCalledOnce();
-        expect(warn.mock.calls.filter((c) => String(c[0]).includes("Offer.onEnd"))).toHaveLength(1);
-        warn.mockRestore();
-    });
-
-    it("onStatus fires with the new status", () => {
-        vi.spyOn(console, "warn").mockImplementation(() => {});
-        const { offer, session } = relayOffer();
-        const heard = vi.fn();
-
-        offer.onStatus(heard);
-        harness.fromServer(session, { type: "ringing" });
-
-        expect(heard).toHaveBeenCalledWith("RINGING");
     });
 });

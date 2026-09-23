@@ -1,5 +1,4 @@
 import { CallOutgoingProxy } from "@/modules/call/CallOutgoing";
-import { _resetDeprecationWarnings } from "@/modules/shared/deprecation";
 import { Ack } from "@/ports/SignalingPort";
 import { CallHarness, relayPlan, testPeer } from "@/test/support/CallHarness";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,7 +7,6 @@ let harness: CallHarness;
 
 beforeEach(() => {
     harness = new CallHarness();
-    _resetDeprecationWarnings();
 });
 
 function makeOutgoing(type: "OFFICIAL" | "UNOFFICIAL" = "UNOFFICIAL") {
@@ -94,17 +92,6 @@ describe("CallOutgoing — commands", () => {
 
         expect(await outgoing.cancel()).toEqual({ err });
         expect(outgoing.status).toBe("RINGING");
-    });
-
-    it("end is a deprecated alias of cancel", async () => {
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-        const { outgoing } = makeOutgoing();
-
-        expect(await outgoing.end()).toEqual({ err: null });
-
-        expect(harness.signaling.sent.map((s) => s.command)).toEqual(["cancel"]);
-        expect(warn.mock.calls.filter((c) => String(c[0]).includes("CallOutgoing.end"))).toHaveLength(1);
-        warn.mockRestore();
     });
 });
 

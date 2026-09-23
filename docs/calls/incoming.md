@@ -38,7 +38,6 @@ wavoip.on("offer", async (offer) => {
 | `peer`                            | `CallPeer`      | Telefone, nome de exibição e foto de perfil do chamador.|
 | `deviceToken`                     | `string`        | Token do dispositivo que recebeu a chamada.             |
 | `status`                          | `CallStatus`    | Estado atual da chamada (ex: `"CALLING"`). Acompanha os eventos do servidor: dentro de qualquer handler já traz o valor novo. |
-| ~~`device_token`~~ **(deprecated)** | `string`      | **Use `deviceToken` no lugar.** Acesso emite `console.warn` único. |
 
 ---
 
