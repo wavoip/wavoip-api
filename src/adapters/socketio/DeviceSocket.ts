@@ -10,7 +10,7 @@ export type {
     MediaPlanRelay,
     MediaPlanWebRTC,
 } from "@/domain/call/types";
-import type { Contact, DeviceStatus } from "@/modules/device/Device";
+import type { Contact, DeviceStatus } from "@/domain/device/model";
 import { Config } from "@/config/config";
 import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";

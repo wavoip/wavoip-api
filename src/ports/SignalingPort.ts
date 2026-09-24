@@ -1,7 +1,7 @@
 import type { ServerCallStats } from "@/domain/call/stats";
 import type { CallStatus, CallType, MediaPlan, Peer } from "@/domain/call/types";
 import type { CallFailureCode, CommandErrorCode, WavoipError } from "@/domain/shared/errors";
-import type { Contact, DeviceStatus } from "@/modules/device/Device";
+import type { Contact, DeviceStatus } from "@/domain/device/model";
 
 /**
  * A sinalização da chamada como a biblioteca precisa dela, sem socket.io no meio. O

@@ -1,4 +1,4 @@
-import type { DeviceSocket } from "@/modules/device/WebSocket";
+import type { DeviceSocket } from "@/adapters/socketio/DeviceSocket";
 
 type SocketListener = (...args: unknown[]) => void;
 type AckMode = "success" | "error" | "timeout";

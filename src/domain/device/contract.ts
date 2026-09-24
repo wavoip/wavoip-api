@@ -1,4 +1,4 @@
-import type { ConnectionStatus, Contact, DeviceStatus } from "@/modules/device/Device";
+import type { ConnectionStatus, Contact, DeviceStatus } from "@/domain/device/model";
 import type { CommandFailure, DeviceApiFailure } from "@/domain/shared/errors";
 import type { Result } from "@/domain/shared/Result";
 import type { Unsubscribe } from "@/modules/shared/EventEmitter";

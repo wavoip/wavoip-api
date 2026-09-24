@@ -1,7 +1,7 @@
 import { CallFailure } from "@/domain/call/failure";
 import { Status } from "@/domain/call/status";
 import type { MediaPlan } from "@/domain/call/types";
-import type { ClientEvents, DeviceSocket, ServerEvents, WssResponse } from "@/modules/device/WebSocket";
+import type { ClientEvents, DeviceSocket, ServerEvents, WssResponse } from "@/adapters/socketio/DeviceSocket";
 import {
     Ack,
     type CallSignalingPort,

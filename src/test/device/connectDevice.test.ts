@@ -52,8 +52,8 @@ const { makeSocket, getSocket } = vi.hoisted(() => {
     return { makeSocket: _make, getSocket: () => _last ?? _make() };
 });
 
-vi.mock("@/modules/device/WebSocket", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("@/modules/device/WebSocket")>();
+vi.mock("@/adapters/socketio/DeviceSocket", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@/adapters/socketio/DeviceSocket")>();
     return { ...actual, DeviceWebSocketFactory: vi.fn(makeSocket) };
 });
 
