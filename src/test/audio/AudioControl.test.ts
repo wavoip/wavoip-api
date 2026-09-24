@@ -15,8 +15,8 @@ const browserDevices = [
 
 async function makeControl() {
     const media = new MediaManager();
-    // O construtor enumera sem esperar; uma volta na fila basta para a lista chegar.
-    await Promise.resolve();
+    // O construtor enumera sem esperar: aguarda a lista chegar, em vez de contar microtasks.
+    await vi.waitFor(() => expect(media.listInputDevices().length).toBeGreaterThan(0));
     return { media, control: media as AudioControl };
 }
 

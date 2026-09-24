@@ -26,8 +26,11 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> implements Mi
 
     constructor() {
         super();
-        this.enumerateDevices();
-        navigator.mediaDevices.addEventListener("devicechange", this.handleDeviceChange);
+        // Fora de contexto seguro o navegador não expõe `mediaDevices`. Quebrar aqui derrubaria
+        // o `new Wavoip()` inteiro e esconderia o motivo; a lista fica vazia e quem pedir áudio
+        // recebe a falha com o código dela.
+        void this.enumerateDevices();
+        navigator.mediaDevices?.addEventListener("devicechange", this.handleDeviceChange);
     }
 
     /** O que o navegador lista, já no tipo neutro que a API pública entrega. */
@@ -65,7 +68,7 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> implements Mi
         const mic = this.activeMic ?? this.devices.find((d) => d.kind === "audioinput");
         const pinned = this.permissionGranted ? mic?.deviceId : undefined;
 
-        const stream = await navigator.mediaDevices.getUserMedia(buildAudioConstraints(pinned));
+        const stream = await capture(buildAudioConstraints(pinned));
         this.stream = stream;
         this.permissionGranted = true;
 
@@ -97,7 +100,7 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> implements Mi
     async destroy(): Promise<void> {
         await this.close();
 
-        navigator.mediaDevices.removeEventListener("devicechange", this.handleDeviceChange);
+        navigator.mediaDevices?.removeEventListener("devicechange", this.handleDeviceChange);
 
         await this.engine.close();
         this.removeAllListeners();
@@ -120,7 +123,7 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> implements Mi
             return true;
         }
 
-        const newStream = await navigator.mediaDevices.getUserMedia(buildAudioConstraints(deviceId));
+        const newStream = await capture(buildAudioConstraints(deviceId));
 
         const newTrack = newStream.getAudioTracks()[0];
 
@@ -197,7 +200,7 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> implements Mi
     }
 
     private async enumerateDevices(): Promise<void> {
-        const all = await navigator.mediaDevices.enumerateDevices();
+        const all = await listPlatformDevices();
         this.devices = all.filter((d) => d.kind === "audioinput" || d.kind === "audiooutput");
 
         if (this.permissionGranted) {
@@ -267,4 +270,23 @@ function toAudioDevice(device: MediaDeviceInfo): AudioDevice {
         label: device.label,
         kind: device.kind === "audioinput" ? "input" : "output",
     };
+}
+
+/**
+ * Falhar aqui é a resposta certa — o que não pode é falhar com um `TypeError` de propriedade
+ * indefinida, que não diz nada a quem lê o console.
+ */
+function capture(constraints: MediaStreamConstraints): Promise<MediaStream> {
+    if (!navigator.mediaDevices) {
+        throw new Error(
+            "navigator.mediaDevices is undefined: capturing audio needs a secure context (HTTPS or localhost)",
+        );
+    }
+    return navigator.mediaDevices.getUserMedia(constraints);
+}
+
+/** Uma lista vazia diz "não sei quais são" sem derrubar quem chamou. */
+async function listPlatformDevices(): Promise<MediaDeviceInfo[]> {
+    if (!navigator.mediaDevices) return [];
+    return navigator.mediaDevices.enumerateDevices().catch(() => []);
 }
