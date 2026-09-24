@@ -179,7 +179,7 @@ describe("DeviceConnection — connectionStatusChanged on socket disconnect/reco
         const cb = vi.fn();
         dc.on("connectionStatusChanged", cb);
 
-        socket.receive("device:init", "UP", "UNOFFICIAL", null, null, false);
+        socket.receive("device:init", "open", "UNOFFICIAL", null, null, false);
 
         expect(cb).toHaveBeenCalledWith("connected");
         expect(dc.connectionStatus).toBe("connected");
@@ -285,7 +285,7 @@ describe("DeviceConnection — calls map cleanup", () => {
             const { dc, socket } = makeDeviceConnection();
 
             // Device UP para o canCall() passar.
-            socket.receive("device:init", "UP", callType, null, null, false);
+            socket.receive("device:init", "open", callType, null, null, false);
 
             socket.ackResponse = { type: "success", result: { id, type: callType, peer } };
 
@@ -373,7 +373,7 @@ describe("DeviceConnection — calls map cleanup", () => {
 
         it("outgoing Call.type follows device.callType, not the server response 'type'", async () => {
             const { dc, socket } = makeDeviceConnection();
-            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, false);
+            socket.receive("device:init", "open", "UNOFFICIAL", null, null, false);
 
             // O servidor mente e diz OFFICIAL na resposta do call.start.
             socket.ackResponse = { type: "success", result: { id: "call-out-1", type: "OFFICIAL", peer } };
@@ -391,7 +391,7 @@ describe("DeviceConnection — calls map cleanup", () => {
             const cb = vi.fn();
             dc.on("restrictedChanged", cb);
 
-            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, true);
+            socket.receive("device:init", "open", "UNOFFICIAL", null, null, true);
 
             expect(dc.restricted).toBe(true);
             expect(dc.restrictedUntil).toBe(null);
@@ -404,7 +404,7 @@ describe("DeviceConnection — calls map cleanup", () => {
             dc.on("restrictedChanged", cb);
             const iso = "2030-01-15T12:34:56.000Z";
 
-            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, true, iso);
+            socket.receive("device:init", "open", "UNOFFICIAL", null, null, true, iso);
 
             expect(dc.restrictedUntil).toBeInstanceOf(Date);
             expect(dc.restrictedUntil?.toISOString()).toBe(iso);
@@ -414,7 +414,7 @@ describe("DeviceConnection — calls map cleanup", () => {
         it("device:init from older instance (no restrictedUntil arg) keeps restrictedUntil null", () => {
             const { dc, socket } = makeDeviceConnection();
 
-            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, true);
+            socket.receive("device:init", "open", "UNOFFICIAL", null, null, true);
 
             expect(dc.restricted).toBe(true);
             expect(dc.restrictedUntil).toBe(null);
@@ -422,7 +422,7 @@ describe("DeviceConnection — calls map cleanup", () => {
 
         it("device:restriction:changed updates state and fires restrictedChanged", () => {
             const { dc, socket } = makeDeviceConnection();
-            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, false);
+            socket.receive("device:init", "open", "UNOFFICIAL", null, null, false);
 
             const cb = vi.fn();
             dc.on("restrictedChanged", cb);
@@ -438,7 +438,7 @@ describe("DeviceConnection — calls map cleanup", () => {
 
         it("device:restriction:changed parses restrictedUntil ISO string into Date", () => {
             const { dc, socket } = makeDeviceConnection();
-            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, false);
+            socket.receive("device:init", "open", "UNOFFICIAL", null, null, false);
 
             const cb = vi.fn();
             dc.on("restrictedChanged", cb);
@@ -453,7 +453,7 @@ describe("DeviceConnection — calls map cleanup", () => {
 
         it("startCall proceeds when device is restricted (backend owns the gate)", async () => {
             const { dc, socket } = makeDeviceConnection();
-            socket.receive("device:init", "UP", "UNOFFICIAL", null, null, true);
+            socket.receive("device:init", "open", "UNOFFICIAL", null, null, true);
             socket.ackResponse = { type: "success", result: { id: "call-restricted", type: "UNOFFICIAL", peer } };
 
             const result = await dc.startCall("5511999999999");

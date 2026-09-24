@@ -6,7 +6,6 @@ import type { DeviceErrorCode } from "@/domain/shared/errors";
  * via `ConnectionStatus` and `connectionStatusChanged`.
  */
 export type DeviceStatus =
-    | "UP"
     | "close"
     | "connecting"
     | "open"

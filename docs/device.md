@@ -39,7 +39,6 @@ Os dispositivos são retornados por `wavoip.getDevices()`, `wavoip.addDevices()`
 | `BUILDING`                   | Dispositivo inicializando; chamadas indisponíveis.                           |
 | `WAITING_PAYMENT`            | Pagamento da conta necessário.                                               |
 | `EXTERNAL_INTEGRATION_ERROR` | Erro de integração externa com o WhatsApp; reinicialização necessária.       |
-| `UP`                         | Legado. O servidor ainda pode enviá-lo; trate como `open`.                   |
 
 {% hint style="info" %}
 O dispositivo se reconecta automaticamente em quedas inesperadas do WebSocket. `disconnected` é transitório — a biblioteca tenta até duas reconexões antes de desistir.

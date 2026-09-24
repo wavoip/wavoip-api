@@ -384,6 +384,7 @@ isso não regride em silêncio.
 | --- | --- |
 | `wavoip.emit(...)`, `once`, `off`, `removeAllListeners` | só `wavoip.on(...)` |
 | `CallEndOutcome` | removido — era o payload cru do `call:ended`, não API |
+| `DeviceStatus` com `"UP"` | removido — não era usado em lugar nenhum do sistema |
 | `MediaManagerState` | removido |
 
 O `Wavoip` herdava de um `EventEmitter` interno, e com isso o `emit` e o `removeAllListeners`

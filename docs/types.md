@@ -193,7 +193,6 @@ Use `runStunProbe(servers, timeoutMs?)` para testar a alcançabilidade de servid
 
 ```typescript
 type DeviceStatus =
-    | "UP"                        // (legado) Dispositivo em execução
     | "close"                     // Conectado, sem WhatsApp vinculado
     | "connecting"                // QR code pronto, aguardando leitura
     | "open"                      // Vinculado e pronto para chamadas
