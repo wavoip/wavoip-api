@@ -3,8 +3,7 @@ export type { AudioAnalyser, CallAudio } from "@/domain/call/audio";
 export type { AudioControl } from "@/modules/audio/AudioControl";
 export type { CallConnection } from "@/domain/call/connection";
 export type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
-export type { CallEndOutcome } from "@/modules/device/WebSocket";
-export type { Result } from "@/domain/shared/Result";
+export { Result } from "@/domain/shared/Result";
 export type { DeviceWakeUp } from "@/Wavoip";
 export type {
     AcceptFailure,
@@ -22,7 +21,7 @@ export type {
 } from "@/domain/shared/errors";
 export type { CallStats, ServerCallStats } from "@/domain/call/stats";
 export type { ActiveCall, ActiveCallEvents } from "@/modules/call/ActiveCall";
-export type { OutgoingCall, OutgoingCallEvents } from "@/modules/call/OutgoingCall";
+export type { OutgoingCall, OutgoingCallEvents, OutgoingCallFailure } from "@/modules/call/OutgoingCall";
 export type { IncomingCall, IncomingCallEvents } from "@/modules/call/IncomingCall";
 export type { CallPeer } from "@/modules/call/Peer";
 

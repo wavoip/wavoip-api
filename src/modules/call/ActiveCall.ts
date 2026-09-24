@@ -3,7 +3,7 @@ import type { CallFailureCode, CommandFailure, WavoipError } from "@/domain/shar
 import type { Result } from "@/domain/shared/Result";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import type { CallStats } from "@/domain/call/stats";
-import { CallAudio } from "@/domain/call/audio";
+import type { AudioAnalyser, CallAudio } from "@/domain/call/audio";
 import { type CallConnection, Connection } from "@/domain/call/connection";
 import type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 import type { CallPeer } from "@/modules/call/Peer";
@@ -50,6 +50,10 @@ export interface ActiveCall {
     on<T extends keyof ActiveCallEvents>(event: T, callback: (...args: ActiveCallEvents[T]) => void): Unsubscribe;
 }
 
+/** Uma chamada sem mídia lê zero, e não erro. */
+const SILENT: AudioAnalyser = { level: () => 0 };
+const SILENT_AUDIO: CallAudio = { in: SILENT, out: SILENT };
+
 export function ActiveCallProxy(session: CallSession): ActiveCall {
     const emitter = new EventEmitter<ActiveCallEvents>();
 
@@ -88,7 +92,7 @@ export function ActiveCallProxy(session: CallSession): ActiveCall {
         type: session.type,
         deviceToken: session.deviceToken,
         direction: session.direction,
-        audio: session.media?.audio ?? CallAudio.silent(),
+        audio: session.media?.audio ?? SILENT_AUDIO,
 
         mute(): Promise<Result<void, CommandFailure>> {
             return session.mute(true);

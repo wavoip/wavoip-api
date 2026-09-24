@@ -8,7 +8,7 @@ import { DeviceProxy } from "@/modules/device/DeviceProxy";
 import type { IceConfig } from "@/modules/media/ICEDiagnostics";
 import type { TransportOptions } from "@/modules/media/ITransport";
 import { MediaManager } from "@/modules/media/MediaManager";
-import { EventEmitter } from "@/modules/shared/EventEmitter";
+import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 
 type Events = {
     offer: [offer: IncomingCall];
@@ -17,7 +17,7 @@ type Events = {
 /** What waking one device answered. */
 export type DeviceWakeUp = { readonly token: string; readonly result: Result<void, DeviceApiFailure> };
 
-export class Wavoip extends EventEmitter<Events> {
+export class Wavoip {
     /** The audio devices the library can see. */
     readonly audio: AudioControl;
 
@@ -25,13 +25,15 @@ export class Wavoip extends EventEmitter<Events> {
     private readonly transportOptions?: TransportOptions;
     private readonly platform?: string;
     private _devices: DeviceConnection[] = [];
+    // Composição, e não herança: herdar do EventEmitter poria `emit` e `removeAllListeners`
+    // na mão do integrador, que poderia forjar uma oferta ou desligar os nossos listeners.
+    private readonly events = new EventEmitter<Events>();
 
     constructor(params: {
         tokens: string[];
         platform?: string;
         iceConfig?: IceConfig;
     }) {
-        super();
 
         this.mediaManager = new MediaManager();
         this.audio = AudioControlProxy(this.mediaManager);
@@ -159,10 +161,12 @@ export class Wavoip extends EventEmitter<Events> {
             .filter((device): device is DeviceConnection => !!device);
     }
 
+    on<T extends keyof Events>(event: T, callback: (...args: Events[T]) => void): Unsubscribe {
+        return this.events.on(event, callback);
+    }
+
     private bindDeviceEvents(device: DeviceConnection) {
-        device.on("incomingCall", (offer) => {
-            this.emit("offer", offer);
-        });
+        device.on("incomingCall", (offer) => this.events.emit("offer", offer));
     }
 }
 

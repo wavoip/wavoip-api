@@ -13,12 +13,3 @@ export type CallAudio = {
     /** What goes out from the microphone. */
     readonly out: AudioAnalyser;
 };
-
-const SILENT: AudioAnalyser = { level: () => 0 };
-
-/** What a call with no media reads as: zero, rather than an error. */
-function silent(): CallAudio {
-    return { in: SILENT, out: SILENT };
-}
-
-export const CallAudio = { silent };
