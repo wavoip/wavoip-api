@@ -1,5 +1,6 @@
 import { CallRegistry } from "@/application/call/CallRegistry";
 import { CallSession, type CallSessionDeps, type TransportFactory } from "@/application/call/CallSession";
+import type { Device } from "@/domain/device/contract";
 import { ReconnectPolicy } from "@/domain/device/reconnectPolicy";
 import { CallPolicy } from "@/domain/call/policy";
 import type { CommandFailure, DeviceApiFailure, StartCallErrorCode, WavoipError } from "@/domain/shared/errors";
@@ -29,9 +30,10 @@ export type DeviceSessionDeps = {
 
 /**
  * Dona de um device: o estado que o servidor anuncia, a conexão com ele e as chamadas que
- * passam por aí. O `DeviceConnection` é só a vista pública disso.
+ * passam por aí. É ela mesma o `Device` que o integrador recebe — o que o tipo público
+ * esconde é a chamada crua, que só o `Wavoip` embrulha nas vistas de chamada.
  */
-export class DeviceSession implements Subscribable<DeviceSessionEvents> {
+export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device {
     private readonly events = new EventEmitter<DeviceSessionEvents>();
     private readonly device: DeviceModel;
     private readonly registry: CallRegistry;
@@ -62,8 +64,36 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents> {
         return this.events.on(event, listener);
     }
 
-    get state(): DeviceModel {
-        return this.device;
+    get token(): string {
+        return this.device.token;
+    }
+
+    get qrCode(): string | undefined {
+        return this.device.qrCode;
+    }
+
+    get contact(): Contact | undefined {
+        return this.device.contact;
+    }
+
+    get status(): DeviceStatus {
+        return this.device.status;
+    }
+
+    get connectionStatus(): ConnectionStatus {
+        return this.device.connectionStatus;
+    }
+
+    get restricted(): boolean {
+        return this.device.restricted;
+    }
+
+    get restrictedUntil(): Date | null {
+        return this.device.restrictedUntil;
+    }
+
+    get activeCalls(): number {
+        return this.device.activeCalls;
     }
 
     connect(): void {

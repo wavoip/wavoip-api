@@ -1,11 +1,13 @@
 import type { AudioControl } from "@/domain/audio/control";
 import type { DeviceApiFailure, DeviceAttempt, StartCallFailure } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
-import type { OutgoingCall } from "@/modules/call/OutgoingCall";
-import type { IncomingCall } from "@/modules/call/IncomingCall";
-import { type Device, DeviceConnection } from "@/modules/device/DeviceConnection";
+import { type OutgoingCall, OutgoingCallProxy } from "@/modules/call/OutgoingCall";
+import { type IncomingCall, IncomingCallProxy } from "@/modules/call/IncomingCall";
+import type { Device } from "@/domain/device/contract";
+import { connectDevice } from "@/modules/device/connectDevice";
 import type { IceConfig } from "@/modules/media/ICEDiagnostics";
 import type { TransportOptions } from "@/modules/media/ITransport";
+import type { DeviceSession } from "@/application/device/DeviceSession";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 
@@ -23,7 +25,7 @@ export class Wavoip {
     private readonly runtime: WavoipRuntime;
     private readonly transportOptions?: TransportOptions;
     private readonly platform?: string;
-    private _devices: DeviceConnection[] = [];
+    private _devices: DeviceSession[] = [];
     // Composição, e não herança: herdar do EventEmitter poria `emit` e `removeAllListeners`
     // na mão do integrador, que poderia forjar uma oferta ou desligar os nossos listeners.
     private readonly events = new EventEmitter<Events>();
@@ -46,7 +48,7 @@ export class Wavoip {
         this.platform = params.platform;
 
         for (const token of [...new Set(params.tokens)]) {
-            const device = new DeviceConnection(this.runtime, token, this.platform, this.transportOptions);
+            const device = connectDevice(this.runtime, token, this.platform, this.transportOptions);
             this.bindDeviceEvents(device);
             this._devices.push(device);
         }
@@ -65,7 +67,7 @@ export class Wavoip {
         const attempts: DeviceAttempt[] = [];
         for (const device of devices) {
             const started = await device.startCall(params.to);
-            if (!started.error) return Result.ok(started.data);
+            if (!started.error) return Result.ok(OutgoingCallProxy(started.data));
             attempts.push({ token: device.token, error: started.error });
         }
 
@@ -85,7 +87,7 @@ export class Wavoip {
         const attempts: DeviceAttempt[] = [];
         for (const device of devices) {
             const started = await device.startCall(params.to);
-            if (!started.error) return Result.ok(started.data);
+            if (!started.error) return Result.ok(OutgoingCallProxy(started.data));
 
             const attempt: DeviceAttempt = { token: device.token, error: started.error };
             attempts.push(attempt);
@@ -108,10 +110,10 @@ export class Wavoip {
      * @param tokens - Device tokens to add.
      */
     addDevices(tokens: string[] = []): Device[] {
-        const added: DeviceConnection[] = [];
+        const added: DeviceSession[] = [];
         for (const token of tokens) {
             if (this._devices.some((d) => d.token === token)) continue;
-            const device = new DeviceConnection(this.runtime, token, this.platform, this.transportOptions);
+            const device = connectDevice(this.runtime, token, this.platform, this.transportOptions);
             this._devices.push(device);
             added.push(device);
             this.bindDeviceEvents(device);
@@ -126,7 +128,7 @@ export class Wavoip {
     removeDevices(tokens: string[]): Device[] {
         if (!tokens.length) return [...this._devices];
 
-        const remaining: DeviceConnection[] = [];
+        const remaining: DeviceSession[] = [];
         for (const device of this._devices) {
             if (tokens.includes(device.token)) {
                 device.disconnect();
@@ -158,20 +160,22 @@ export class Wavoip {
         return devices.map((device) => device.wakeUp().then((result) => ({ token: device.token, result })));
     }
 
-    private devicesFor(tokens?: string[]): DeviceConnection[] {
+    private devicesFor(tokens?: string[]): DeviceSession[] {
         // Sem `fromTokens`, todos; com ele, só os que existem, na ordem pedida.
         if (!tokens?.length) return this._devices;
         return tokens
             .map((token) => this._devices.find((d) => d.token === token))
-            .filter((device): device is DeviceConnection => !!device);
+            .filter((device): device is DeviceSession => !!device);
     }
 
     on<T extends keyof Events>(event: T, callback: (...args: Events[T]) => void): Unsubscribe {
         return this.events.on(event, callback);
     }
 
-    private bindDeviceEvents(device: DeviceConnection) {
-        device.on("incomingCall", (offer) => this.events.emit("offer", offer));
+    // A sessão fala em chamada crua; quem a veste para o integrador é aqui, que é onde o
+    // evento público nasce.
+    private bindDeviceEvents(device: DeviceSession) {
+        device.on("incomingCall", (call) => this.events.emit("offer", IncomingCallProxy(call)));
     }
 }
 

@@ -10,24 +10,13 @@ function runtime(): WavoipRuntime {
     return new FakeAudioRuntime() as unknown as WavoipRuntime;
 }
 
-vi.mock("@/modules/device/DeviceConnection", () => {
-    return {
-        DeviceConnection: class {
-            token: string;
-            transportOptions: unknown;
-            platform: string | undefined;
-            constructor(_mm: unknown, token: string, platform?: string, transportOptions?: unknown) {
-                this.token = token;
-                this.platform = platform;
-                this.transportOptions = transportOptions;
-                deviceConnectionInstances.push(this);
-            }
-            on() {
-                return () => {};
-            }
-        },
-    };
-});
+vi.mock("@/modules/device/connectDevice", () => ({
+    connectDevice: (_runtime: unknown, token: string, platform?: string, transportOptions?: unknown) => {
+        const device = { token, platform, transportOptions, on: () => () => {} };
+        deviceConnectionInstances.push(device);
+        return device;
+    },
+}));
 
 describe("Wavoip iceConfig", () => {
     beforeEach(() => {

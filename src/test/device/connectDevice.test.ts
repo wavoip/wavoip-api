@@ -85,25 +85,27 @@ vi.mock("@/modules/media/webrtc/Transport", () => ({
     },
 }));
 
-import { DeviceConnection, type Device } from "@/modules/device/DeviceConnection";
+import type { Device } from "@/domain/device/contract";
+import { connectDevice } from "@/modules/device/connectDevice";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
 import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
 import type { CallType } from "@/domain/call/types";
-import type { IncomingCall } from "@/modules/call/IncomingCall";
+import type { CallSession } from "@/application/call/CallSession";
+import type { DeviceSession } from "@/application/device/DeviceSession";
+import { IncomingCallProxy } from "@/modules/call/IncomingCall";
 
 const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
 
 function makeDeviceConnection() {
     // O transporte é mockado neste arquivo, então nada aqui chega a tocar no runtime.
-    const dc = new DeviceConnection(new FakeAudioRuntime() as unknown as WavoipRuntime, "test-token");
+    const dc = connectDevice(new FakeAudioRuntime() as unknown as WavoipRuntime, "test-token");
     const socket = getSocket();
     return { dc, socket };
 }
 
 // A tabela de chamadas roteadas vive no CallRegistry da sessão do device.
-function callsMap(dc: DeviceConnection): Map<string, unknown> {
-    const session = (dc as unknown as { session: { registry: { routed: Map<string, unknown> } } }).session;
-    return session.registry.routed;
+function callsMap(session: DeviceSession): Map<string, unknown> {
+    return (session as unknown as { registry: { routed: Map<string, unknown> } }).registry.routed;
 }
 
 const offerProps = (id: string) => ({
@@ -235,14 +237,14 @@ describe("DeviceConnection — calls map cleanup", () => {
 
         it("removes call from map when consumer rejects the offer", async () => {
             const { dc, socket } = makeDeviceConnection();
-            const received: Array<{ reject: () => Promise<unknown> }> = [];
-            dc.on("incomingCall", (offer) => received.push(offer));
+            const received: CallSession[] = [];
+            dc.on("incomingCall", (call) => received.push(call));
 
             socket.receive("call:offer", offerProps("call-1"), vi.fn());
             expect(callsMap(dc).has("call-1")).toBe(true);
             expect(received).toHaveLength(1);
 
-            await received[0].reject();
+            await IncomingCallProxy(received[0]).reject();
 
             expect(callsMap(dc).has("call-1")).toBe(false);
         });
@@ -264,11 +266,11 @@ describe("DeviceConnection — calls map cleanup", () => {
     describe("accepting an official offer", () => {
         it("reads ACTIVE once accepted and sends the WebRTC answer", async () => {
             const { dc, socket } = makeDeviceConnection();
-            const received: IncomingCall[] = [];
-            dc.on("incomingCall", (offer) => received.push(offer));
+            const received: CallSession[] = [];
+            dc.on("incomingCall", (call) => received.push(call));
             socket.receive("call:offer", offerProps("call-1"), vi.fn());
 
-            const { data, error } = await received[0].accept();
+            const { data, error } = await IncomingCallProxy(received[0]).accept();
 
             expect(error).toBeNull();
             expect(data?.status).toBe("ACTIVE");

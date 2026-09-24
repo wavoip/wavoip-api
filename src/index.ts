@@ -26,7 +26,7 @@ export type { IncomingCall, IncomingCallEvents } from "@/modules/call/IncomingCa
 export type { CallPeer } from "@/modules/call/Peer";
 
 export type { ConnectionStatus, DeviceStatus, Contact } from "@/modules/device/Device";
-export type { Device, DeviceEvents } from "@/modules/device/DeviceConnection";
+export type { Device, DeviceEvents } from "@/domain/device/contract";
 
 export type { TransportStatus } from "@/modules/media/ITransport";
 export type { IceServer } from "@/ports/runtime/PeerConnectionPort";
