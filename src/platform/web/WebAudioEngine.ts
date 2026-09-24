@@ -24,7 +24,14 @@ export class WebAudioEngine implements AudioEnginePort {
     prepare(): Promise<void> {
         if (this.worklets) return this.worklets;
         const sources = [libSampleRateWorkletSource, micWorkletSource, outWorkletSource];
-        this.worklets = Promise.all(sources.map((source) => this.addWorklet(source))).then(() => this.suspend());
+        // Guardar a preparação que falhou faria a segunda tentativa reusar o fracasso: uma CSP
+        // que bloqueia `blob:` derrubaria o motor para sempre, sem chance de tentar de novo.
+        this.worklets = Promise.all(sources.map((source) => this.addWorklet(source)))
+            .then(() => this.suspend())
+            .catch((failure) => {
+                this.worklets = null;
+                throw failure;
+            });
         return this.worklets;
     }
 

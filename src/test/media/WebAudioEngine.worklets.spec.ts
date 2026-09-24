@@ -59,6 +59,19 @@ describe("WebAudioEngine — lazy worklet bootstrap (D2)", () => {
         expect(suspend).toHaveBeenCalledTimes(1);
     });
 
+    it("retries after a failed load, instead of caching the failure", async () => {
+        const { WebAudioEngine } = await import("@/platform/web/WebAudioEngine");
+        const engine = new WebAudioEngine();
+        // É o que uma CSP sem `blob:` faz: o addModule recusa o módulo.
+        addModule.mockRejectedValueOnce(new Error("blocked by CSP"));
+
+        await expect(engine.prepare()).rejects.toThrow("blocked by CSP");
+        await engine.prepare();
+
+        // três da primeira tentativa, três da segunda
+        expect(addModule).toHaveBeenCalledTimes(6);
+    });
+
     it("memoises the worklet load (second prepare reuses the same promise)", async () => {
         const { WebAudioEngine } = await import("@/platform/web/WebAudioEngine");
         const engine = new WebAudioEngine();
