@@ -1,7 +1,7 @@
 import type { ServerCallStats } from "@/domain/call/stats";
 import type { CallStatus, CallType, MediaPlan, Peer } from "@/domain/call/types";
 import type { CallFailureCode, CommandErrorCode, WavoipError } from "@/domain/shared/errors";
-import type { Contact, DeviceStatus } from "@/domain/device/model";
+import type { Contact, DeviceRestriction, DeviceStatus } from "@/domain/device/model";
 
 /**
  * A sinalização da chamada como a biblioteca precisa dela, sem socket.io no meio. O
@@ -66,8 +66,7 @@ export type ServerDeviceEvent =
           readonly callType: CallType;
           readonly contact: Contact | null;
           readonly qrCode: string | null;
-          readonly restricted: boolean;
-          readonly restrictedUntil: Date | null;
+          readonly restriction: DeviceRestriction | null;
           readonly activeCalls: number;
       }
     | { readonly type: "building" }
@@ -76,7 +75,7 @@ export type ServerDeviceEvent =
     | { readonly type: "close" }
     | { readonly type: "restarting" }
     | { readonly type: "hibernating" }
-    | { readonly type: "restriction"; readonly restricted: boolean; readonly restrictedUntil: Date | null }
+    | { readonly type: "restriction"; readonly restriction: DeviceRestriction | null }
     | { readonly type: "activeCalls"; readonly count: number };
 
 export interface DeviceSignalingPort {

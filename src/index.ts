@@ -25,7 +25,7 @@ export type { OutgoingCall, OutgoingCallEvents, OutgoingCallFailure } from "@/mo
 export type { IncomingCall, IncomingCallEvents } from "@/modules/call/IncomingCall";
 export type { CallPeer } from "@/modules/call/Peer";
 
-export type { ConnectionStatus, DeviceStatus, Contact } from "@/domain/device/model";
+export type { ConnectionStatus, Contact, DeviceRestriction, DeviceStatus } from "@/domain/device/model";
 export type { Device, DeviceEvents } from "@/domain/device/contract";
 
 export type { TransportStatus } from "@/modules/media/ITransport";

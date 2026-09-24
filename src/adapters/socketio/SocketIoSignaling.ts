@@ -1,4 +1,5 @@
 import { CallFailure } from "@/domain/call/failure";
+import type { DeviceRestriction } from "@/domain/device/model";
 import { Status } from "@/domain/call/status";
 import type { MediaPlan } from "@/domain/call/types";
 import type { ClientEvents, DeviceSocket, ServerEvents, WssResponse } from "@/adapters/socketio/DeviceSocket";
@@ -151,8 +152,7 @@ export class SocketIoSignaling implements CallSignalingPort, DeviceSignalingPort
                 callType,
                 contact: contact ?? null,
                 qrCode: qrCode ?? null,
-                restricted,
-                restrictedUntil: restrictedUntil ? new Date(restrictedUntil) : null,
+                restriction: restrictionOf(restricted, restrictedUntil),
                 activeCalls: activeCalls ?? 0,
             }),
         );
@@ -163,7 +163,7 @@ export class SocketIoSignaling implements CallSignalingPort, DeviceSignalingPort
         this.bind("device:restarting", () => this.tell({ type: "restarting" }));
         this.bind("device:hibernating", () => this.tell({ type: "hibernating" }));
         this.bind("device:restriction:changed", (restricted, until) =>
-            this.tell({ type: "restriction", restricted, restrictedUntil: until ? new Date(until) : null }),
+            this.tell({ type: "restriction", restriction: restrictionOf(restricted, until) }),
         );
         this.bind("device:calls", (count) => this.tell({ type: "activeCalls", count }));
     }
@@ -225,4 +225,13 @@ const REFUSALS: Record<string, RefusalCode> = {
 function refusalOf(raw: string): SignalAck<never> {
     const code = REFUSALS[raw];
     return code ? Ack.Refuse(code) : Ack.Refuse("UNKNOWN", raw);
+}
+
+/**
+ * O servidor fala em dois campos; a biblioteca fala em um valor que existe ou não. A
+ * instance antiga não manda o prazo, e aí a restrição existe sem data.
+ */
+function restrictionOf(restricted: boolean, until?: string | null): DeviceRestriction | null {
+    if (!restricted) return null;
+    return { until: until ? new Date(until) : null };
 }

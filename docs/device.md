@@ -18,10 +18,9 @@ Os dispositivos são retornados por `wavoip.getDevices()`, `wavoip.addDevices()`
 | `token`            | `string`               | Token único do dispositivo (somente leitura).                                              |
 | `status`           | `DeviceStatus`         | Estado da conta WhatsApp.                                                                  |
 | `connectionStatus` | `ConnectionStatus`     | Estado do WebSocket entre SDK e backend (`connected` / `disconnected` / `reconnecting`).   |
-| `qrCode`           | `string \| undefined`  | String do QR code quando o dispositivo está em `connecting`.                               |
-| `contact`          | `Contact \| undefined` | Número WhatsApp vinculado quando o dispositivo está `open`.                                |
-| `restricted`       | `boolean`              | `true` quando a conta WhatsApp está restrita. Sinal informativo para a UI; o SDK não bloqueia a chamada — o backend decide (uma conta restrita ainda pode ligar para contatos conhecidos). |
-| `restrictedUntil`  | `Date \| null`         | Data em que a restrição expira. `null` quando não há restrição ativa ou data informada.    |
+| `qrCode`           | `string \| null`       | String do QR code quando o dispositivo está em `connecting`.                               |
+| `contact`          | `Contact \| null`      | Número WhatsApp vinculado quando o dispositivo está `open`.                                |
+| `restriction`      | `DeviceRestriction \| null` | Presente enquanto a conta WhatsApp está restrita, com `until` sendo o prazo (`null` quando o servidor não informa). Sinal informativo: o SDK não bloqueia a chamada — o backend decide, e uma conta restrita ainda liga para contatos conhecidos. |
 | `activeCalls`      | `number`               | Quantidade de chamadas ativas no momento (apenas `ACTIVE`; ofertas não contam).            |
 
 ---
@@ -91,13 +90,15 @@ device.on("connectionStatusChanged", (status: ConnectionStatus) => {
 })
 ```
 
-### `restrictedChanged`
+### `restrictionChanged`
 
-Emitido quando o estado de restrição da conta muda. O segundo argumento é a data em que a restrição expira, quando informada pelo servidor — pode ser `null` em instâncias mais antigas que não enviam essa data.
+Emitido quando a restrição da conta aparece ou some. O payload é a própria restrição, ou `null`
+quando a conta está livre de novo.
 
 ```typescript
-device.on("restrictedChanged", (restricted: boolean, restrictedUntil: Date | null) => {
-    if (restricted && restrictedUntil) console.log("Restrito até:", restrictedUntil)
+device.on("restrictionChanged", (restriction) => {
+    if (!restriction) return hideRestrictionBanner()
+    showRestrictionBanner(restriction.until)   // `null` em instâncias que não informam o prazo
 })
 ```
 

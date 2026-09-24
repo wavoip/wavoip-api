@@ -1,62 +1,107 @@
+import { describe, expect, it, vi } from "vitest";
+
+const { getSocket } = vi.hoisted(() => {
+    type SocketListener = (...args: unknown[]) => void;
+    let last: { receive(event: string, ...args: unknown[]): void } | null = null;
+
+    function make() {
+        const listeners = new Map<string, SocketListener[]>();
+        const socket = {
+            connected: false,
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+            emit: vi.fn(),
+            timeout: () => ({ emitWithAck: async () => ({ type: "success" }) }),
+            on(event: string, cb: SocketListener) {
+                if (!listeners.has(event)) listeners.set(event, []);
+                listeners.get(event)?.push(cb);
+                return socket;
+            },
+            off: () => socket,
+            receive(event: string, ...args: unknown[]) {
+                for (const cb of listeners.get(event) ?? []) cb(...args);
+            },
+        };
+        last = socket;
+        return socket;
+    }
+
+    return { makeSocket: make, getSocket: () => last ?? make() };
+});
+
+vi.mock("@/adapters/socketio/DeviceSocket", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@/adapters/socketio/DeviceSocket")>();
+    return { ...actual, DeviceWebSocketFactory: vi.fn(() => getSocket()) };
+});
+
 import { Wavoip } from "@/Wavoip";
+import type { IceServer, PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
 import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { buildMockPeerConnection } from "@/test/media/ice-test-helpers";
 
-const deviceConnectionInstances: Array<{ token: string; transportOptions?: unknown; platform?: string }> = [];
+const peerFactory = buildMockPeerConnection();
 
-/** Sem runtime injetado o `Wavoip` montaria o do navegador, que carrega worklet. */
-function runtime(): WavoipRuntime {
-    return new FakeAudioRuntime() as unknown as WavoipRuntime;
+/**
+ * O `iceConfig` só importa se chegar na conexão de verdade, e é lá que este teste olha —
+ * o caminho inteiro, do construtor do `Wavoip` até a fábrica que o runtime injetou.
+ */
+function wavoipWith(iceServers?: IceServer[]) {
+    peerFactory.reset();
+    const runtime = new FakeAudioRuntime() as unknown as WavoipRuntime & { createPeer: unknown };
+    const seen: Array<{ iceServers: IceServer[] }> = [];
+    runtime.createPeer = (config: { iceServers: IceServer[] }) => {
+        seen.push(config);
+        // O mock tem a forma do `RTCPeerConnection` do navegador, não a da porta.
+        return new peerFactory.MockRTCPeerConnection() as unknown as PeerConnectionLike;
+    };
+
+    const wavoip = new Wavoip({
+        tokens: ["token-a"],
+        runtime,
+        ...(iceServers ? { iceConfig: { iceServers } } : {}),
+    });
+    return { wavoip, seen, socket: getSocket() };
 }
 
-vi.mock("@/modules/device/connectDevice", () => ({
-    connectDevice: (_runtime: unknown, token: string, platform?: string, transportOptions?: unknown) => {
-        const device = { token, platform, transportOptions, on: () => () => {} };
-        deviceConnectionInstances.push(device);
-        return device;
-    },
-}));
+/** Uma oferta WebRTC monta o transporte na hora, que é quando a conexão nasce. */
+function receiveOffer(socket: { receive(event: string, ...args: unknown[]): void }) {
+    socket.receive("device:init", "open", "OFFICIAL", null, null, false);
+    socket.receive(
+        "call:offer",
+        { id: "call-1", peer: { phone: "5511", displayName: null, profilePicture: null }, offer: { type: "webRTC", sdp: "v=0" } },
+        vi.fn(),
+    );
+}
 
-describe("Wavoip iceConfig", () => {
-    beforeEach(() => {
-        deviceConnectionInstances.length = 0;
+describe("iceConfig", () => {
+    it("reaches the peer connection the runtime builds", () => {
+        const custom = [{ urls: "stun:custom.example:3478" }];
+        const { seen, socket } = wavoipWith(custom);
+
+        receiveOffer(socket);
+
+        expect(seen).toHaveLength(1);
+        expect(seen[0].iceServers).toEqual(custom);
     });
 
-    afterEach(() => {
-        deviceConnectionInstances.length = 0;
+    it("falls back to the library's own STUN servers", () => {
+        const { seen, socket } = wavoipWith();
+
+        receiveOffer(socket);
+
+        // O padrão da biblioteca é um servidor com várias URLs de STUN.
+        expect(seen[0].iceServers).not.toHaveLength(0);
+        expect(String(seen[0].iceServers[0].urls)).toContain("stun:");
     });
 
-    it("passes iceConfig through to every DeviceConnection on construction", () => {
-        const iceConfig = {
-            gatheringTimeoutMs: 1500,
-            iceServers: [{ urls: "stun:custom.example:3478" }],
-        };
-        new Wavoip({ tokens: ["a", "b"], iceConfig, runtime: runtime() });
+    it("reaches devices added after construction", () => {
+        const custom = [{ urls: "stun:late.example:3478" }];
+        const { wavoip, seen } = wavoipWith(custom);
 
-        expect(deviceConnectionInstances).toHaveLength(2);
-        expect(deviceConnectionInstances[0].transportOptions).toEqual({ iceConfig });
-        expect(deviceConnectionInstances[1].transportOptions).toEqual({ iceConfig });
-    });
+        wavoip.addDevices(["token-b"]);
+        receiveOffer(getSocket());
 
-    it("passes iceConfig through to DeviceConnection added via addDevices", () => {
-        const iceConfig = { gatheringTimeoutMs: 2000 };
-        const wavoip = new Wavoip({ tokens: [], iceConfig, runtime: runtime() });
-        wavoip.addDevices(["c"]);
-
-        expect(deviceConnectionInstances).toHaveLength(1);
-        expect(deviceConnectionInstances[0].transportOptions).toEqual({ iceConfig });
-    });
-
-    it("does not require iceConfig", () => {
-        expect(() => new Wavoip({ tokens: ["a"], runtime: runtime() })).not.toThrow();
-        expect(deviceConnectionInstances[0].transportOptions).toBeUndefined();
-    });
-
-    it("preserves platform alongside iceConfig", () => {
-        new Wavoip({ tokens: ["a"], platform: "web", iceConfig: { gatheringTimeoutMs: 1000 }, runtime: runtime() });
-
-        expect(deviceConnectionInstances[0].platform).toBe("web");
-        expect(deviceConnectionInstances[0].transportOptions).toEqual({ iceConfig: { gatheringTimeoutMs: 1000 } });
+        expect(seen[0].iceServers).toEqual(custom);
     });
 });

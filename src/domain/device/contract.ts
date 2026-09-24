@@ -1,4 +1,9 @@
-import type { ConnectionStatus, Contact, DeviceStatus } from "@/domain/device/model";
+import type {
+    ConnectionStatus,
+    Contact,
+    DeviceRestriction,
+    DeviceStatus,
+} from "@/domain/device/model";
 import type { CommandFailure, DeviceApiFailure } from "@/domain/shared/errors";
 import type { Result } from "@/domain/shared/Result";
 import type { Unsubscribe } from "@/modules/shared/EventEmitter";
@@ -6,9 +11,10 @@ import type { Unsubscribe } from "@/modules/shared/EventEmitter";
 export type DeviceEvents = {
     statusChanged: [status: DeviceStatus];
     connectionStatusChanged: [status: ConnectionStatus];
-    qrCodeChanged: [qrCode?: string];
-    contactChanged: [contact?: Contact];
-    restrictedChanged: [restricted: boolean, restrictedUntil: Date | null];
+    qrCodeChanged: [qrCode: string | null];
+    contactChanged: [contact: Contact | null];
+    /** `null` means the account is free again. */
+    restrictionChanged: [restriction: DeviceRestriction | null];
     activeCallsChanged: [count: number];
 };
 
@@ -16,12 +22,13 @@ export type DeviceEvents = {
 export interface Device {
     readonly token: string;
     /** Always current: read it whenever you draw, including inside a handler. */
-    readonly qrCode?: string;
-    readonly contact?: Contact;
     readonly status: DeviceStatus;
     readonly connectionStatus: ConnectionStatus;
-    readonly restricted: boolean;
-    readonly restrictedUntil: Date | null;
+    /** The code to be scanned while `status` is `"connecting"`. */
+    readonly qrCode: string | null;
+    readonly contact: Contact | null;
+    /** Present while WhatsApp is holding the account back. */
+    readonly restriction: DeviceRestriction | null;
     readonly activeCalls: number;
     on<T extends keyof DeviceEvents>(event: T, callback: (...args: DeviceEvents[T]) => void): Unsubscribe;
     restart(): Promise<Result<void, DeviceApiFailure>>;

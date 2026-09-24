@@ -5,7 +5,7 @@ import { ReconnectPolicy } from "@/domain/device/reconnectPolicy";
 import { CallPolicy } from "@/domain/call/policy";
 import type { CommandFailure, DeviceApiFailure, StartCallErrorCode, WavoipError } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
-import type { ConnectionStatus, Contact, DeviceStatus } from "@/domain/device/model";
+import type { ConnectionStatus, Contact, DeviceRestriction, DeviceStatus } from "@/domain/device/model";
 import { DeviceModel } from "@/domain/device/model";
 import { EventEmitter, type Subscribable, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import type { DeviceApiPort } from "@/ports/DeviceApiPort";
@@ -14,9 +14,9 @@ import type { CallSignalingPort, DeviceSignalingPort, IncomingOffer, ServerDevic
 export type DeviceSessionEvents = {
     statusChanged: [status: DeviceStatus];
     connectionStatusChanged: [status: ConnectionStatus];
-    qrCodeChanged: [qrCode?: string];
-    contactChanged: [contact?: Contact];
-    restrictedChanged: [restricted: boolean, restrictedUntil: Date | null];
+    qrCodeChanged: [qrCode: string | null];
+    contactChanged: [contact: Contact | null];
+    restrictionChanged: [restriction: DeviceRestriction | null];
     activeCallsChanged: [count: number];
     incomingCall: [call: CallSession];
 };
@@ -68,11 +68,11 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device 
         return this.device.token;
     }
 
-    get qrCode(): string | undefined {
+    get qrCode(): string | null {
         return this.device.qrCode;
     }
 
-    get contact(): Contact | undefined {
+    get contact(): Contact | null {
         return this.device.contact;
     }
 
@@ -84,12 +84,8 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device 
         return this.device.connectionStatus;
     }
 
-    get restricted(): boolean {
-        return this.device.restricted;
-    }
-
-    get restrictedUntil(): Date | null {
-        return this.device.restrictedUntil;
+    get restriction(): DeviceRestriction | null {
+        return this.device.restriction;
     }
 
     get activeCalls(): number {
@@ -177,65 +173,48 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device 
                 this.applyUnlinked();
                 return;
             case "restriction":
-                this.applyRestriction(event.restricted, event.restrictedUntil);
+                this.applyRestriction(event.restriction);
                 return;
             case "activeCalls":
-                this.device.activeCalls = event.count;
+                this.device.countCalls(event.count);
                 this.events.emit("activeCallsChanged", event.count);
                 return;
         }
     }
 
     private applyInit(event: Extract<ServerDeviceEvent, { type: "init" }>): void {
-        this.device.status = event.status;
-        this.device.callType = event.callType;
-        this.device.contact = event.contact ?? undefined;
-        this.device.qrCode = event.qrCode ?? undefined;
-        this.device.restricted = event.restricted;
-        this.device.restrictedUntil = event.restrictedUntil;
-        this.device.activeCalls = event.activeCalls;
+        this.device.describe(event);
 
         this.announceConnection("connected");
         this.events.emit("statusChanged", this.device.status);
         this.events.emit("contactChanged", this.device.contact);
         this.events.emit("qrCodeChanged", this.device.qrCode);
-        this.events.emit("restrictedChanged", this.device.restricted, this.device.restrictedUntil);
+        this.events.emit("restrictionChanged", this.device.restriction);
         this.events.emit("activeCallsChanged", this.device.activeCalls);
     }
 
     private applyLinked(contact: Contact): void {
-        this.device.status = "open";
-        this.device.contact = contact;
-        this.device.qrCode = undefined;
+        this.device.linkTo(contact);
         this.announceLink();
     }
 
     private applyPairing(qrCode: string | null): void {
-        this.device.status = "connecting";
-        this.device.contact = undefined;
-        this.device.qrCode = qrCode ?? undefined;
-        this.device.restricted = false;
-        this.device.restrictedUntil = null;
+        this.device.awaitPairing(qrCode);
         this.announceLink();
     }
 
     private applyUnlinked(): void {
-        this.device.status = "close";
-        this.device.contact = undefined;
-        this.device.qrCode = undefined;
-        this.device.restricted = false;
-        this.device.restrictedUntil = null;
+        this.device.unlink();
         this.announceLink();
     }
 
-    private applyRestriction(restricted: boolean, restrictedUntil: Date | null): void {
-        this.device.restricted = restricted;
-        this.device.restrictedUntil = restrictedUntil;
-        this.events.emit("restrictedChanged", restricted, restrictedUntil);
+    private applyRestriction(restriction: DeviceRestriction | null): void {
+        this.device.restrict(restriction);
+        this.events.emit("restrictionChanged", restriction);
     }
 
     private announceStatus(status: DeviceStatus): void {
-        this.device.status = status;
+        this.device.moveTo(status);
         this.events.emit("statusChanged", status);
     }
 
@@ -246,8 +225,7 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device 
     }
 
     private announceConnection(status: ConnectionStatus): void {
-        if (this.device.connectionStatus === status) return;
-        this.device.connectionStatus = status;
+        if (!this.device.connectAs(status)) return;
         this.events.emit("connectionStatusChanged", status);
     }
 

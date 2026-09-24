@@ -411,3 +411,30 @@ traz é o runtime. O `webRuntime()` faz exatamente o que a v2 fazia escondido.
 
 Um runtime sem WebRTC (`createPeer` ausente) ou sem socket binário (`openSocket` ausente) diz
 isso na hora de abrir a chamada daquele tipo, em vez de falhar no meio da ligação.
+
+---
+
+## 12. A restrição do device virou um valor só
+
+```typescript
+// v2 — dois campos que só fazem sentido juntos
+if (device.restricted) showBanner(device.restrictedUntil)
+device.on("restrictedChanged", (restricted, until) => …)
+
+// v3
+if (device.restriction) showBanner(device.restriction.until)
+device.on("restrictionChanged", (restriction) => …)
+```
+
+| v2 | v3 |
+| --- | --- |
+| `device.restricted` + `device.restrictedUntil` | `device.restriction` (`{ until } \| null`) |
+| `restrictedChanged(restricted, until)` | `restrictionChanged(restriction)` |
+| `qrCode?: string`, `contact?: Contact` | `qrCode: string \| null`, `contact: Contact \| null` |
+
+Dois campos que só fazem sentido juntos abrem estado impossível — `restricted: false` com uma
+data, ou `true` sem ela — e obrigam quem lê a checar os dois. Um valor que existe ou não fecha
+essa porta, e o prazo mora dentro dele.
+
+O vocabulário do servidor (`restricted` + `restrictedUntil`) continua igual no fio; a tradução
+acontece no adaptador, como já vale para os códigos de erro.

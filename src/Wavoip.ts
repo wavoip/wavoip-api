@@ -4,10 +4,16 @@ import { Result } from "@/domain/shared/Result";
 import { type OutgoingCall, OutgoingCallProxy } from "@/modules/call/OutgoingCall";
 import { type IncomingCall, IncomingCallProxy } from "@/modules/call/IncomingCall";
 import type { Device } from "@/domain/device/contract";
-import { connectDevice } from "@/modules/device/connectDevice";
+
 import type { IceConfig } from "@/modules/media/ICEDiagnostics";
 import type { TransportOptions } from "@/modules/media/ITransport";
-import type { DeviceSession } from "@/application/device/DeviceSession";
+import { FetchDeviceApi } from "@/adapters/http/FetchDeviceApi";
+import { DeviceWebSocketFactory } from "@/adapters/socketio/DeviceSocket";
+import { SocketIoSignaling } from "@/adapters/socketio/SocketIoSignaling";
+import type { TransportFactory } from "@/application/call/CallSession";
+import { DeviceSession } from "@/application/device/DeviceSession";
+import { WebsocketTransport } from "@/modules/media/relay/Transport";
+import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 
@@ -48,7 +54,7 @@ export class Wavoip {
         this.platform = params.platform;
 
         for (const token of [...new Set(params.tokens)]) {
-            const device = connectDevice(this.runtime, token, this.platform, this.transportOptions);
+            const device = this.connect(token);
             this.bindDeviceEvents(device);
             this._devices.push(device);
         }
@@ -113,7 +119,7 @@ export class Wavoip {
         const added: DeviceSession[] = [];
         for (const token of tokens) {
             if (this._devices.some((d) => d.token === token)) continue;
-            const device = connectDevice(this.runtime, token, this.platform, this.transportOptions);
+            const device = this.connect(token);
             this._devices.push(device);
             added.push(device);
             this.bindDeviceEvents(device);
@@ -170,6 +176,48 @@ export class Wavoip {
 
     on<T extends keyof Events>(event: T, callback: (...args: Events[T]) => void): Unsubscribe {
         return this.events.on(event, callback);
+    }
+
+    /**
+     * O raiz de composição: é o único lugar que escolhe implementação. A sessão só conhece
+     * portas, e é por isto que ela roda igual em qualquer plataforma.
+     */
+    private connect(token: string): DeviceSession {
+        const session = new DeviceSession(
+            {
+                signaling: new SocketIoSignaling(DeviceWebSocketFactory(token, this.platform)),
+                api: new FetchDeviceApi(token),
+                transports: this.transportsFor(token),
+                setLocalMuted: (muted) => this.runtime.microphone.setMuted(muted),
+            },
+            token,
+        );
+
+        session.connect();
+        return session;
+    }
+
+    /**
+     * O device decide o transporte da chamada que sai: OFFICIAL fala WebRTC, UNOFFICIAL fala
+     * relay. Na oferta recebida, quem decide é o plano que veio nela.
+     */
+    private transportsFor(token: string): TransportFactory {
+        const { runtime, transportOptions } = this;
+        return {
+            forCall: (type) =>
+                type === "OFFICIAL"
+                    ? new WebRTCTransport(runtime, undefined, transportOptions)
+                    : new WebsocketTransport(runtime, token),
+            forOffer: (plan, deviceToken) => {
+                if (plan.type === "webRTC") return new WebRTCTransport(runtime, plan.sdp, transportOptions);
+                if (plan.type === "relay") {
+                    const relay = new WebsocketTransport(runtime, deviceToken);
+                    relay.useRelay(plan);
+                    return relay;
+                }
+                throw new Error(`Unsupported media plan type: ${plan.type}`);
+            },
+        };
     }
 
     // A sessão fala em chamada crua; quem a veste para o integrador é aqui, que é onde o

@@ -214,6 +214,14 @@ type ConnectionStatus =
     | "reconnecting"  // Tentando reabrir o WebSocket após queda
 ```
 
+### `DeviceRestriction`
+
+```typescript
+type DeviceRestriction = {
+    until: Date | null    // `null` quando o servidor não informa o prazo
+}
+```
+
 ### `Contact`
 
 ```typescript
@@ -292,9 +300,9 @@ type ActiveCallEvents = {
 type DeviceEvents = {
     statusChanged:           [status: DeviceStatus]
     connectionStatusChanged: [status: ConnectionStatus]
-    qrCodeChanged:           [qrCode?: string]
-    contactChanged:          [contact?: Contact]
-    restrictedChanged:       [restricted: boolean, restrictedUntil: Date | null]
+    qrCodeChanged:           [qrCode: string | null]
+    contactChanged:          [contact: Contact | null]
+    restrictionChanged:      [restriction: DeviceRestriction | null]
     activeCallsChanged:      [count: number]
 }
 ```

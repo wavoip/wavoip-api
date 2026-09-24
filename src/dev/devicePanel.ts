@@ -21,7 +21,9 @@ export function devicePanel(device: Device, log: Log): HTMLElement {
 }
 
 function describeDevice(device: Device): string {
-    const restriction = device.restricted ? `restrito até ${device.restrictedUntil?.toLocaleString("pt-BR") ?? "?"}` : "sem restrição";
+    const restriction = device.restriction
+        ? `restrito até ${device.restriction.until?.toLocaleString("pt-BR") ?? "?"}`
+        : "sem restrição";
     return `${device.status} · ${device.connectionStatus} · ${device.contact?.phone ?? "sem número"} · ${device.activeCalls} em curso · ${restriction}`;
 }
 
@@ -35,8 +37,9 @@ function bindDeviceEvents(device: Device, describe: () => void, log: Log): void 
         watch(event);
     }
     device.on("qrCodeChanged", describe);
-    device.on("restrictedChanged", (restricted, until) => {
-        log.write(`device ${short(device.token)}: restrito=${restricted} até ${until?.toISOString() ?? "—"}`);
+    device.on("restrictionChanged", (restriction) => {
+        const until = restriction?.until?.toISOString() ?? "sem prazo";
+        log.write(`device ${short(device.token)}: ${restriction ? `restrito (${until})` : "sem restrição"}`);
         describe();
     });
 }
