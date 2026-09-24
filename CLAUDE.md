@@ -134,7 +134,10 @@ pnpm build
 ```
 
 O `pnpm build` começa pelo `scripts/check-env.mjs`, que quebra se faltar alguma env do
-`src/config/config.ts`. As URLs de produção moram no `.env` versionado; para apontar para
+`src/config/config.ts`, e termina no `scripts/check-public-types.mjs`, que cobra duas coisas do
+`dist/index.d.ts`: que ele compile **sem DOM** (um `AnalyserNode` ali quebra o build de quem
+instala no React Native) e que o JSDoc dele esteja **em inglês**. O porquê de uma decisão vai
+num `//` dentro do `.ts`, que não sai no `.d.ts`. As URLs de produção moram no `.env` versionado; para apontar para
 outro ambiente, use um `.env.local`, que o git ignora e o Vite carrega por cima.
 
 O `pnpm lint` também roda `tsc -p tsconfig.core.json`: compila o `src/domain/` sem DOM e sem

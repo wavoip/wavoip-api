@@ -30,6 +30,7 @@ export type { ConnectionStatus, DeviceStatus, Contact } from "@/modules/device/D
 export type { Device, DeviceEvents } from "@/modules/device/DeviceConnection";
 
 export type { TransportStatus } from "@/modules/media/ITransport";
+export type { IceServer } from "@/ports/runtime/PeerConnectionPort";
 export type {
     ConnectivityIssue,
     IceCandidateKind,

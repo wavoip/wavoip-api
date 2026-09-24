@@ -14,11 +14,11 @@ type Events = {
     offer: [offer: IncomingCall];
 };
 
-/** O resultado do wake-up de um device, na ordem em que foram pedidos. */
+/** What waking one device answered. */
 export type DeviceWakeUp = { readonly token: string; readonly result: Result<void, DeviceApiFailure> };
 
 export class Wavoip extends EventEmitter<Events> {
-    /** Os aparelhos de áudio que a biblioteca enxerga. */
+    /** The audio devices the library can see. */
     readonly audio: AudioControl;
 
     private readonly mediaManager: MediaManager;
@@ -151,8 +151,8 @@ export class Wavoip extends EventEmitter<Events> {
         return devices.map((device) => device.wakeUp().then((result) => ({ token: device.token, result })));
     }
 
-    /** Sem `fromTokens`, todos; com ele, só os que existem, na ordem pedida. */
     private devicesFor(tokens?: string[]): DeviceConnection[] {
+        // Sem `fromTokens`, todos; com ele, só os que existem, na ordem pedida.
         if (!tokens?.length) return this._devices;
         return tokens
             .map((token) => this._devices.find((d) => d.token === token))

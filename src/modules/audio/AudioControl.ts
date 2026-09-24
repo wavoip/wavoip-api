@@ -1,10 +1,7 @@
 import type { AudioDevice } from "@/domain/audio/device";
 import type { MediaManager } from "@/modules/media/MediaManager";
 
-/**
- * Os aparelhos de áudio que a biblioteca enxerga. Escolher o aparelho, testar o microfone
- * e controlar o volume entram aqui na DEV-526 PR H.
- */
+/** The audio devices the library can see. */
 export interface AudioControl {
     /** Every microphone the platform reports. Labels need microphone permission first. */
     listInputDevices(): AudioDevice[];
@@ -14,6 +11,7 @@ export interface AudioControl {
     readonly currentOutput: AudioDevice | null;
 }
 
+// Escolher o aparelho, testar o microfone e controlar o volume entram aqui na PR H.
 export function AudioControlProxy(media: MediaManager): AudioControl {
     const control = {
         listInputDevices: () => media.listDevices("input"),

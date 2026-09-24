@@ -1,9 +1,6 @@
 import type { ErrorCode, WavoipError } from "@/domain/shared/errors";
 
-/**
- * O que um comando devolve: ou `data`, ou `error`, nunca os dois. Substitui os cinco
- * formatos que a biblioteca tinha (`{ call, err }`, `{ err }`, `boolean`, exceção…).
- */
+/** What every command answers: either `data` or `error`, never both. */
 export type Result<T, E extends WavoipError = WavoipError> =
     | { readonly data: T; readonly error: null }
     | { readonly data: null; readonly error: E };

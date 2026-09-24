@@ -1,88 +1,104 @@
 /**
- * O vocabulário de erro da biblioteca, agrupado por origem. O `code` é estável: é nele
- * que o integrador decide o fluxo e é ele que ele traduz para o usuário dele.
+ * Every error the library reports, grouped by where it comes from. The `code` is the
+ * contract: it is stable, it is what you branch on, and it is what you translate.
  *
- * Código de protocolo — da instance, do UWP, da API central — é traduzido para cá na
- * borda (no adaptador que o recebe) e nunca vaza para quem consome a biblioteca. O que
- * não tem tradução vira `UNKNOWN`, com o valor bruto no `cause`.
+ * Protocol codes — from the device, from WhatsApp, from the Wavoip API — are translated at
+ * the library's edge and never reach you. Anything without a translation arrives as
+ * `UNKNOWN`, carrying the raw value in `cause`.
  */
 
-/** O device não pode atender ao pedido, ou não foi encontrado. */
+/** The device cannot take the request, or was not found. */
 export type DeviceErrorCode =
+    /** No phone number is linked to the device yet. */
     | "DEVICE_NOT_LINKED"
+    /** The device is restarting. */
     | "DEVICE_RESTARTING"
+    /** The device is in an error state, or disabled. */
     | "DEVICE_ERROR"
+    /** No device matches the token. */
     | "DEVICE_NOT_FOUND"
+    /** Too many wake-up requests in a row. */
     | "WAKE_UP_RATE_LIMITED"
+    /** No device is available for the operation. */
     | "NO_DEVICES";
 
-/** O comando saiu, mas o servidor não o aceitou — ou não respondeu. */
+/** The command went out, but the server did not take it — or never answered. */
 export type CommandErrorCode =
+    /** The server did not confirm the command within ten seconds. */
     | "ACK_TIMEOUT"
+    /** The peer answered between the click and the confirmation. */
     | "CALL_ALREADY_ANSWERED"
+    /** The server does not know this call. */
     | "CALL_NOT_FOUND"
+    /** The device is already on another call. */
     | "DEVICE_BUSY"
-    /** O pedido não chegou ao servidor: rede, DNS ou TLS. */
+    /** The request never reached the server: network, DNS or TLS. */
     | "NETWORK_ERROR";
 
-/** O áudio local: permissão, aparelho e negociação de mídia. */
+/** Local audio: permission, devices and media negotiation. */
 export type MediaErrorCode =
+    /** The user denied the microphone. */
     | "MICROPHONE_PERMISSION_DENIED"
+    /** The requested audio device does not exist. */
     | "AUDIO_DEVICE_NOT_FOUND"
+    /** This browser cannot choose where audio plays. */
     | "OUTPUT_SELECTION_UNSUPPORTED"
+    /** Volume outside the accepted range; `details` carries it. */
     | "VOLUME_OUT_OF_RANGE"
+    /** Media negotiation failed; the original exception is in `cause`. */
     | "MEDIA_NEGOTIATION_FAILED"
+    /** The server offered a transport this library does not speak. */
     | "UNSUPPORTED_MEDIA_PLAN";
 
-/** Por que uma chamada que estava de pé caiu. */
+/** Why a call that was up came down. */
 export type CallFailureCode =
-    /** O microfone daqui parou de enviar áudio. */
+    /** Your microphone stopped sending audio. */
     | "LOCAL_AUDIO_TIMEOUT"
-    /** O contato parou de enviar áudio. */
+    /** The contact stopped sending audio. */
     | "REMOTE_AUDIO_TIMEOUT"
-    /** A chamada perdeu contato com o servidor. */
+    /** The call lost contact with the server. */
     | "CONNECTION_TIMEOUT"
-    /** Não foi possível estabelecer a chamada com segurança. */
+    /** The call could not be secured. */
     | "ENCRYPTION_FAILED"
-    /** A conta do WhatsApp está restrita e não pode chamar. */
+    /** The WhatsApp account is restricted and cannot place calls. */
     | "ACCOUNT_RESTRICTED"
-    /** A conta não tem permissão para chamar. */
+    /** The account is not allowed to place calls. */
     | "NO_CALL_PERMISSION"
-    /** Algo deu errado do lado do servidor. */
+    /** Something went wrong on the server side. */
     | "SERVER_ERROR";
 
 /**
- * `UNKNOWN` é o motivo que esta versão da biblioteca ainda não conhece. Ele serve para o
- * log e para abrir uma issue, nunca para decidir o fluxo: o que aparecer com frequência
- * vira um código novo aqui.
+ * `UNKNOWN` is a reason this version of the library does not know yet. Use it for logs and
+ * for filing an issue, never to branch on: whatever shows up often becomes a code here.
  */
 export type ErrorCode = DeviceErrorCode | CommandErrorCode | MediaErrorCode | CallFailureCode | "UNKNOWN";
 
 export type WavoipError<C extends ErrorCode = ErrorCode> = {
     readonly code: C;
-    /** Os valores que a mensagem do integrador precisa, como `{ min, max }`. */
+    /** Values your message needs, such as `{ min, max }`. */
     readonly details?: Record<string, unknown>;
-    /** O valor bruto do protocolo ou da plataforma, só para diagnóstico. */
+    /** The raw protocol or platform value, for diagnostics only. */
     readonly cause?: unknown;
 };
 
-/** A falha de um comando que espera ack: ou ele não veio, ou o servidor recusou. */
+/** A command that waits for an ack either times out or is refused. */
 export type CommandFailure = WavoipError<CommandErrorCode | "UNKNOWN">;
 
-/** Atender soma a isso a mídia local, que sobe antes de o comando sair. */
+/** Answering adds local media to that, which comes up before the command goes out. */
 export type AcceptFailure = WavoipError<CommandErrorCode | "MEDIA_NEGOTIATION_FAILED" | "UNKNOWN">;
 
-/** A falha de uma rota HTTP do device. */
+/** A failure from one of the device's HTTP routes. */
 export type DeviceApiFailure = WavoipError<DeviceErrorCode | "NETWORK_ERROR" | "UNKNOWN">;
 
-/** Começar uma chamada passa pelo device, pela mídia local e pelo comando. */
+/** Placing a call goes through the device, through local media and through the command. */
 export type StartCallErrorCode = DeviceErrorCode | CommandErrorCode | "MEDIA_NEGOTIATION_FAILED" | "UNKNOWN";
 
-/** Por que um device não pôde chamar. */
+/** Why one device could not place the call. */
 export type DeviceAttempt = { readonly token: string; readonly error: WavoipError<StartCallErrorCode> };
 
 /**
- * A falha de `wavoip.startCall`, que tenta um device por vez. O `code` é o do primeiro que
- * falhou — com um device só, é o dele; a lista completa, na ordem tentada, vem em `devices`.
+ * The failure of `wavoip.startCall`, which tries one device at a time. The `code` is the
+ * first device that failed — with a single device, that device's own code — and `devices`
+ * lists every attempt, in the order they were made.
  */
 export type StartCallFailure = WavoipError<StartCallErrorCode> & { readonly devices: readonly DeviceAttempt[] };

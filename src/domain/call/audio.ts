@@ -1,22 +1,22 @@
 /**
- * Quem mede o áudio de um lado da chamada. Hoje só o nível; forma de onda e espectro
- * entram aqui quando forem pedidos, e valem para as duas direções de graça.
+ * Reads one direction of a call's audio. Today it reports the level; waveform and spectrum
+ * fit here later, and work for both directions at once.
  */
 export type AudioAnalyser = {
-    /** O nível do áudio agora, de 0 a 1. Síncrono, para ler num `requestAnimationFrame`. */
+    /** The audio level right now, from 0 to 1. Synchronous, for a `requestAnimationFrame`. */
     level(): number;
 };
 
 export type CallAudio = {
-    /** O que chega do outro lado. */
+    /** What comes in from the peer. */
     readonly in: AudioAnalyser;
-    /** O que sai do microfone. */
+    /** What goes out from the microphone. */
     readonly out: AudioAnalyser;
 };
 
 const SILENT: AudioAnalyser = { level: () => 0 };
 
-/** O que uma chamada sem mídia responde: zero, e não erro. */
+/** What a call with no media reads as: zero, rather than an error. */
 function silent(): CallAudio {
     return { in: SILENT, out: SILENT };
 }

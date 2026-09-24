@@ -1,10 +1,8 @@
-/**
- * Um aparelho de áudio como a biblioteca o entrega, sem os campos que só o navegador tem.
- * O `MediaDeviceInfo` do DOM não serve: ele não existe no React Native, e um `.d.ts` que
- * o cite não compila lá (DEV-277).
- */
+/** A microphone or a speaker, as the library reports it. */
 export type AudioDevice = {
+    /** The platform's own identifier for the device. */
     readonly id: string;
+    /** Human-readable name. Empty until microphone permission is granted. */
     readonly label: string;
     readonly kind: "input" | "output";
 };

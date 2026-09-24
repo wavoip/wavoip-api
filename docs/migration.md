@@ -353,3 +353,25 @@ Escolher o aparelho, testar o microfone e controlar o volume entram numa versão
 `setMicrophone`/`setSpeaker` que a documentação da v2 descrevia **nunca** esteve na API
 pública: era código interno sem chamador, e o texto estava errado.
 {% endhint %}
+
+---
+
+## 9. Nenhum tipo do navegador na superfície
+
+Esta é a mudança que sustenta todas as outras: **o `dist/index.d.ts` da v3 não cita nenhum tipo
+do DOM**. Na v2 ele citava quatro — `AnalyserNode`, `MediaDeviceInfo`, `MediaStream` e
+`RTCIceServer` —, e isso bastava para um projeto React Native não conseguir nem compilar a
+biblioteca, mesmo sem chamar nada de áudio.
+
+| v2 | v3 |
+| --- | --- |
+| `AnalyserNode` em `audioAnalyserIn`/`Out` | `AudioAnalyser` com `level()` |
+| `MediaDeviceInfo` em `multimedia` / `getMultimediaDevices` | `AudioDevice` |
+| `MediaStream` em `MediaManagerState` | tipo removido da superfície |
+| `RTCIceServer` em `iceConfig.iceServers` | `IceServer`, com os mesmos campos |
+
+O `IceServer` tem a **mesma forma** do `RTCIceServer`, então a sua configuração de STUN/TURN
+continua válida como está — muda só o nome do tipo, se você o anotava explicitamente.
+
+O `pnpm build` da biblioteca agora quebra se algum tipo do DOM voltar para a superfície, então
+isso não regride em silêncio.

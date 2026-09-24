@@ -1,16 +1,14 @@
 import type { CallStatus, TransportStatus } from "@/domain/call/types";
 
 /**
- * O estado da conexão de uma chamada ativa, com as duas pernas juntas: a mídia local
- * (o transporte) e a perna do WhatsApp (que o servidor anuncia como `call:disconnected`
- * e `call:connected`).
- *
- * Eram duas coisas separadas na v2, e ninguém tinha as duas na mão: a interface mostrava
- * "conectado" com a perna do WhatsApp caída, ou o contrário.
+ * How an active call is holding up, with both of its legs folded into one state: the local
+ * media and the leg between the server and WhatsApp. Either one dropping in a recoverable
+ * way reads as `"reconnecting"`; `"disconnected"` means the call is lost.
  */
 export type CallConnection = "connected" | "reconnecting" | "disconnected";
 
-/** Qualquer perna caindo de forma recuperável deixa a chamada em `reconnecting`. */
+// Na v2 as duas pernas eram campos separados, e ninguém tinha as duas na mão: dava para
+// mostrar "conectado" com a perna do WhatsApp caída.
 function merge(transport: TransportStatus, status: CallStatus): CallConnection {
     if (transport === "disconnected") return "disconnected";
     if (status === "DISCONNECTED") return "reconnecting";

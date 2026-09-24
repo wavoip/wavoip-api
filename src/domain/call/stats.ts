@@ -1,24 +1,24 @@
 /**
- * `null` quer dizer "não medido nesta plataforma ou neste tipo de chamada", e não zero:
- * um zero mentiria dizendo que a latência é nula.
+ * A snapshot of the call's quality. In every latency field, `null` means "not measured on
+ * this platform or for this kind of call" — it does not mean zero.
  */
 export type CallStats = {
-    /** RTT da perna cliente ⇔ servidor, acumulado ao longo da chamada. */
+    /** Round trip to the server, in ms, accumulated over the call. */
     rtt: {
         min: number;
         max: number;
         avg: number;
     };
     latency: {
-        /** A soma do que foi medido; é uma estimativa de ponta a ponta, não uma medida. */
+        /** The measured parts added up: an end-to-end estimate, not a measurement. */
         total_ms: number | null;
-        /** Metade do RTT mais recente da perna cliente ⇔ servidor. */
+        /** Half of the latest round trip between this client and the server. */
         network_ms: number | null;
-        /** Metade do RTT da perna servidor ⇔ WhatsApp, que só o servidor mede. */
+        /** Half of the round trip between the server and WhatsApp, which only the server sees. */
         whatsapp_ms: number | null;
-        /** O áudio que já chegou e espera a vez de tocar. */
+        /** Audio that has arrived and is waiting its turn to play. */
         jitter_buffer_ms: number | null;
-        /** Do motor de áudio até sair no aparelho. */
+        /** From the audio engine to the sound leaving the device. */
         playout_ms: number | null;
     };
     audio: {

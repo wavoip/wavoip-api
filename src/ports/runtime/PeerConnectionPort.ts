@@ -1,12 +1,10 @@
 import type { ConnectivityIssue } from "@/domain/call/ice";
 
-/**
- * O `RTCPeerConnection` como o núcleo precisa dele, com tipos nossos no formato do
- * navegador. O react-native-webrtc tem a mesma forma, então o adaptador de lá cabe aqui
- * sem o núcleo saber.
- *
- * Só `addEventListener`: os handlers `on*` do navegador não existem em toda implementação.
- */
+// O `RTCPeerConnection` como o núcleo precisa dele, com tipos nossos no formato do
+// navegador. O react-native-webrtc tem a mesma forma, então o adaptador de lá cabe aqui sem
+// o núcleo saber. Só `addEventListener`: os handlers `on*` não existem em toda implementação.
+
+/** A STUN or TURN server, in the same shape the browser expects. */
 export type IceServer = { urls: string | string[]; username?: string; credential?: string };
 
 export type SessionDescription = { type: "offer" | "answer" | "pranswer" | "rollback"; sdp?: string };
