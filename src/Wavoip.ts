@@ -41,11 +41,18 @@ export class Wavoip {
         platform?: string;
         iceConfig?: IceConfig;
         /**
-         * The platform to run on. Import one: `webRuntime()` from the browser adapter,
-         * or the React Native / Node.js one (DEV-277).
+         * The platform to run on. Import one from the adapter for your environment:
+         * `webRuntime()` from `@wavoip/wavoip-api/web`.
          */
         runtime: WavoipRuntime;
     }) {
+        // O TypeScript já cobra, mas quem chama de JavaScript puro só descobriria isso num
+        // `undefined` solto lá dentro, e sem pista de qual import faltou.
+        if (!params.runtime) {
+            const usage =
+                'new Wavoip({ tokens, runtime: webRuntime() }), com o webRuntime vindo de "@wavoip/wavoip-api/web"';
+            throw new TypeError(`Wavoip precisa de um runtime, e recebeu ${params.runtime}: ${usage}.`);
+        }
         this.runtime = params.runtime;
         // O tipo do campo é o que o integrador vê: por ele só dá para listar os aparelhos e
         // ler o que está em uso.

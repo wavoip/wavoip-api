@@ -3,7 +3,7 @@ import { devicePanel } from "@/dev/devicePanel";
 import { audioPanel, stunPanel } from "@/dev/diagnostics";
 import { dialer } from "@/dev/dialer";
 import { button, createLog, element, field, type Log } from "@/dev/ui";
-import { type ActiveCall, Wavoip, webRuntime } from "@/index";
+import { type ActiveCall, Wavoip, webRuntime } from "@/web";
 
 // Os tokens são de quem está testando, e este repositório é público: ficam no navegador.
 const TOKENS_KEY = "wavoip.dev.tokens";

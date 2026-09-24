@@ -11,7 +11,10 @@ icon: download
 * Um token de dispositivo Wavoip — obtido no [painel de controle Wavoip](https://wavoip.com)
 
 {% hint style="warning" %}
-Esta biblioteca funciona **apenas no navegador**. Ela depende de `navigator.mediaDevices`, `AudioContext`, `RTCPeerConnection` e Socket.IO — nenhum destes está disponível no Node.js.
+O único runtime pronto hoje é o do navegador. O núcleo da biblioteca não depende de nada do
+DOM, mas quem traz `AudioContext`, `getUserMedia`, `RTCPeerConnection` e o WebSocket é o
+runtime — e por enquanto só existe o `webRuntime()`. Os adaptadores de React Native e
+Node.js estão em andamento (DEV-277).
 {% endhint %}
 
 ## Instalar o pacote
@@ -35,6 +38,41 @@ yarn add @wavoip/wavoip-api
 ```
 {% endtab %}
 {% endtabs %}
+
+## Escolher o caminho de import
+
+O pacote tem dois caminhos. Quem está no navegador usa o `/web`, que traz o núcleo e o
+runtime juntos:
+
+```typescript
+import { Wavoip, webRuntime } from "@wavoip/wavoip-api/web"
+```
+
+| Import | O que vem | Para quem |
+| --- | --- | --- |
+| `@wavoip/wavoip-api/web` | o núcleo e o `webRuntime()` | navegador |
+| `@wavoip/wavoip-api` | só o núcleo, sem nada do navegador | quem traz o próprio runtime |
+
+Importar do `/web` é o que puxa a implementação do navegador para o seu bundle. O caminho
+raiz existe para quem vai rodar em outro ambiente: ele não cita um tipo do DOM sequer, e é
+por isso que um projeto React Native consegue compilá-lo.
+
+{% hint style="info" %}
+Importar o `/web` num servidor (SSR do Next.js, por exemplo) não quebra: nenhum global do
+navegador é tocado no momento do import. Só a chamada a `webRuntime()` precisa do navegador.
+{% endhint %}
+
+## Carregar por `<script>`
+
+```html
+<script src="https://unpkg.com/@wavoip/wavoip-api/dist/web.umd.js"></script>
+<script>
+    const wavoip = new WavoipAPI.Wavoip({
+        tokens: ["seu-token"],
+        runtime: WavoipAPI.webRuntime(),
+    })
+</script>
+```
 
 ## Notas sobre frameworks
 

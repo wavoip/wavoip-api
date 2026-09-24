@@ -35,7 +35,7 @@ layout:
 ## Início rápido
 
 ```typescript
-import { Wavoip, webRuntime } from "@wavoip/wavoip-api"
+import { Wavoip, webRuntime } from "@wavoip/wavoip-api/web"
 
 const wavoip = new Wavoip({ tokens: ["seu-token-de-dispositivo"], runtime: webRuntime() })
 

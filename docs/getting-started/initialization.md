@@ -8,11 +8,11 @@ icon: rocket
 ## Construtor
 
 ```typescript
-import { Wavoip } from "@wavoip/wavoip-api"
+import { Wavoip, webRuntime } from "@wavoip/wavoip-api/web"
 
 const wavoip = new Wavoip({
     tokens: ["token-1", "token-2"],
-    runtime: webRuntime(),    // a plataforma: `webRuntime()` vem de "@wavoip/wavoip-api"
+    runtime: webRuntime(),    // a plataforma: `webRuntime()` vem de "@wavoip/wavoip-api/web"
     platform?: string,        // opcional — identifica a plataforma do cliente
     iceConfig?: IceConfig,    // opcional — sobrescreve servidores STUN/TURN
 })

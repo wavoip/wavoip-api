@@ -46,4 +46,3 @@ export type { Unsubscribe } from "@/modules/shared/EventEmitter";
 
 export { Wavoip } from "@/Wavoip";
 export type { WavoipRuntime } from "@/ports/WavoipRuntime";
-export { webRuntime } from "@/platform/web/webRuntime";

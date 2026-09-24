@@ -180,7 +180,7 @@ if (error) {
 ## Exemplo completo
 
 ```typescript
-import { Wavoip } from "@wavoip/wavoip-api"
+import { Wavoip, webRuntime } from "@wavoip/wavoip-api/web"
 
 const wavoip = new Wavoip({ tokens: ["meu-token"], runtime: webRuntime() })
 

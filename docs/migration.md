@@ -406,7 +406,7 @@ biblioteca. Agora ele tem o emissor por dentro e expõe só o `on`.
 const wavoip = new Wavoip({ tokens })
 
 // v3
-import { Wavoip, webRuntime } from "@wavoip/wavoip-api"
+import { Wavoip, webRuntime } from "@wavoip/wavoip-api/web"
 
 const wavoip = new Wavoip({ tokens, runtime: webRuntime() })
 ```
@@ -417,6 +417,25 @@ traz é o runtime. O `webRuntime()` faz exatamente o que a v2 fazia escondido.
 
 Um runtime sem WebRTC (`createPeer` ausente) ou sem socket binário (`openSocket` ausente) diz
 isso na hora de abrir a chamada daquele tipo, em vez de falhar no meio da ligação.
+
+### O pacote agora tem dois caminhos
+
+| Import | O que vem | Para quem |
+| --- | --- | --- |
+| `@wavoip/wavoip-api` | só o núcleo, sem nada do navegador | React Native, Node.js, e quem traz o próprio runtime |
+| `@wavoip/wavoip-api/web` | o núcleo **e** o `webRuntime()` | navegador |
+
+Quem está no navegador troca o import por `/web` e segue; o resto da API é idêntico, porque o
+`/web` reexporta tudo o que o núcleo exporta.
+
+A separação é o que faz o núcleo caber fora do navegador: ele tem 54 kB e não cita um tipo do
+DOM sequer, enquanto a implementação web passa de 2 MB — quase tudo worklet de áudio com o
+reamostrador embutido. Um app React Native não baixa nada disso.
+
+{% hint style="warning" %}
+**Quem carrega por `<script>`**: o arquivo mudou de `dist/index.umd.js` para
+`dist/web.umd.js`. O global continua `WavoipAPI`.
+{% endhint %}
 
 ---
 
