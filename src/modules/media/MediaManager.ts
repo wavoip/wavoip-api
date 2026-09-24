@@ -1,6 +1,7 @@
 import { WebAudioEngine } from "@/platform/web/WebAudioEngine";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { AudioDevice } from "@/domain/audio/device";
+import type { AudioControl } from "@/modules/audio/AudioControl";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 
 export type MediaManagerEvents = {
@@ -11,7 +12,7 @@ export type MediaManagerEvents = {
 };
 
 /** O microfone e a lista de aparelhos do navegador. O áudio em si é do `WebAudioEngine`. */
-export class MediaManager extends EventEmitter<MediaManagerEvents> implements MicrophonePort {
+export class MediaManager extends EventEmitter<MediaManagerEvents> implements MicrophonePort, AudioControl {
     public devices: MediaDeviceInfo[] = [];
     public activeMic?: MediaDeviceInfo;
     public activeSpeaker?: MediaDeviceInfo;
@@ -30,13 +31,24 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> implements Mi
     }
 
     /** O que o navegador lista, já no tipo neutro que a API pública entrega. */
-    listDevices(kind: AudioDevice["kind"]): AudioDevice[] {
-        return this.devices.filter((device) => device.kind === kindOf(kind)).map(toAudioDevice);
+    listInputDevices(): AudioDevice[] {
+        return this.listDevices("audioinput");
     }
 
-    currentDevice(kind: AudioDevice["kind"]): AudioDevice | null {
-        const active = kind === "input" ? this.activeMic : this.activeSpeaker;
-        return active ? toAudioDevice(active) : null;
+    listOutputDevices(): AudioDevice[] {
+        return this.listDevices("audiooutput");
+    }
+
+    get currentInput(): AudioDevice | null {
+        return this.activeMic ? toAudioDevice(this.activeMic) : null;
+    }
+
+    get currentOutput(): AudioDevice | null {
+        return this.activeSpeaker ? toAudioDevice(this.activeSpeaker) : null;
+    }
+
+    private listDevices(kind: MediaDeviceKind): AudioDevice[] {
+        return this.devices.filter((device) => device.kind === kind).map(toAudioDevice);
     }
 
     haveMedia(): boolean {
@@ -247,10 +259,6 @@ function buildAudioConstraints(deviceId?: string): MediaStreamConstraints {
         },
         video: false,
     };
-}
-
-function kindOf(kind: AudioDevice["kind"]): MediaDeviceKind {
-    return kind === "input" ? "audioinput" : "audiooutput";
 }
 
 function toAudioDevice(device: MediaDeviceInfo): AudioDevice {

@@ -1,4 +1,4 @@
-import { AudioControlProxy } from "@/modules/audio/AudioControl";
+import type { AudioControl } from "@/modules/audio/AudioControl";
 import { MediaManager } from "@/modules/media/MediaManager";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,7 +17,7 @@ async function makeControl() {
     const media = new MediaManager();
     // O construtor enumera sem esperar; uma volta na fila basta para a lista chegar.
     await Promise.resolve();
-    return { media, control: AudioControlProxy(media) };
+    return { media, control: media as AudioControl };
 }
 
 beforeEach(() => {

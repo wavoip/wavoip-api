@@ -1,4 +1,4 @@
-import { type AudioControl, AudioControlProxy } from "@/modules/audio/AudioControl";
+import type { AudioControl } from "@/modules/audio/AudioControl";
 import type { DeviceApiFailure, DeviceAttempt, StartCallFailure } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
 import type { OutgoingCall } from "@/modules/call/OutgoingCall";
@@ -36,7 +36,9 @@ export class Wavoip {
     }) {
 
         this.mediaManager = new MediaManager();
-        this.audio = AudioControlProxy(this.mediaManager);
+        // O `MediaManager` é quem enxerga os aparelhos; o tipo do campo é o que o
+        // integrador vê, e por ele só dá para listar e ler o que está em uso.
+        this.audio = this.mediaManager;
         this.transportOptions = collectTransportOptions(params);
         this.platform = params.platform;
 
