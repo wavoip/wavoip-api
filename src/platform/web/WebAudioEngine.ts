@@ -1,5 +1,5 @@
 import libSampleRateWorkletSource from "@alexanderolsen/libsamplerate-js/dist/libsamplerate.worklet.js?worklet";
-import type { AudioEnginePort, AudioHandle, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
+import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 import micWorkletSource from "../../modules/worklets/AudioWorkletMic.ts?worklet";
 import outWorkletSource from "../../modules/worklets/AudioWorkletOut.ts?worklet";
@@ -59,7 +59,7 @@ export class WebAudioEngine implements AudioEnginePort {
      * segurando o `MediaStream`, a cadeia analyser/destination da track remota não recebe
      * áudio. O elemento fica mudo — ele só serve de âncora.
      */
-    playStream(stream: MediaStreamLike): AudioHandle {
+    playStream(stream: MediaStreamLike): AudioMeter {
         const anchor = new Audio();
         anchor.muted = true;
         anchor.srcObject = stream as unknown as MediaStream;
@@ -70,7 +70,7 @@ export class WebAudioEngine implements AudioEnginePort {
         analyser.connect(this.context.destination);
 
         return {
-            meter: analyser,
+            level: () => levelOf(analyser),
             stop: () => {
                 source.disconnect();
                 analyser.disconnect();
@@ -79,14 +79,23 @@ export class WebAudioEngine implements AudioEnginePort {
         };
     }
 
-    monitorStream(stream: MediaStreamLike): AudioHandle {
+    /**
+     * O `AnalyserNode` lê vazio sem caminho até o destination; o ganho zero mantém o grafo
+     * renderizando sem devolver o microfone no alto-falante.
+     */
+    monitorStream(stream: MediaStreamLike): AudioMeter {
         const source = this.sourceOf(stream);
-        const meter = this.meterSilently(source);
+        const analyser = this.createMeter();
+        const silence = this.silentSink();
+        source.connect(analyser);
+        analyser.connect(silence);
+
         return {
-            meter: meter.meter,
+            level: () => levelOf(analyser),
             stop: () => {
                 source.disconnect();
-                meter.stop();
+                analyser.disconnect();
+                silence.disconnect();
             },
         };
     }
@@ -101,27 +110,28 @@ export class WebAudioEngine implements AudioEnginePort {
         resampler.port.onmessage = (event) => onFrame(event.data as ArrayBuffer);
         source.connect(resampler);
 
-        const meter = this.meterSilently(source);
+        // O reamostrador não vai ao destination, e um ramo solto não é renderizado: o ganho
+        // zero é o que mantém o microfone rendendo quadros sem ecoar no alto-falante.
+        const silence = this.silentSink();
+        source.connect(silence);
+
         return {
-            meter: meter.meter,
             stop: () => {
                 resampler.port.onmessage = null;
                 resampler.disconnect();
                 source.disconnect();
-                meter.stop();
+                silence.disconnect();
             },
         };
     }
 
-    playPcm(): PcmPlayback & AudioHandle {
+    playPcm(): PcmPlayback {
         const playback = new AudioWorkletNode(this.context, "audio-data-worklet-stream", {
             numberOfInputs: 0,
             numberOfOutputs: 1,
             channelCount: 1,
         });
-        const analyser = this.createMeter();
-        playback.connect(analyser);
-        analyser.connect(this.context.destination);
+        playback.connect(this.context.destination);
 
         let buffered: number | null = null;
         playback.port.onmessage = (event) => {
@@ -130,7 +140,6 @@ export class WebAudioEngine implements AudioEnginePort {
         };
 
         return {
-            meter: analyser,
             bufferedMs: () => buffered,
             write: (pcm) => {
                 // Copia antes de transferir: o event.data do WebSocket pode ser reutilizado.
@@ -141,30 +150,16 @@ export class WebAudioEngine implements AudioEnginePort {
                 playback.port.postMessage({ type: "clear" });
                 playback.port.onmessage = null;
                 playback.disconnect();
-                analyser.disconnect();
             },
         };
     }
 
-    /**
-     * O `AnalyserNode` lê vazio sem caminho até o destination; o ganho zero mantém o grafo
-     * renderizando sem devolver o microfone no alto-falante.
-     */
-    private meterSilently(source: AudioNode): AudioHandle {
-        const analyser = this.createMeter();
+    /** Um caminho mudo até o destination, que é o que faz o grafo renderizar o ramo. */
+    private silentSink(): GainNode {
         const silence = this.context.createGain();
         silence.gain.value = 0;
-        source.connect(analyser);
-        analyser.connect(silence);
         silence.connect(this.context.destination);
-
-        return {
-            meter: analyser,
-            stop: () => {
-                analyser.disconnect();
-                silence.disconnect();
-            },
-        };
+        return silence;
     }
 
     private sourceOf(stream: MediaStreamLike): MediaStreamAudioSourceNode {
@@ -176,4 +171,17 @@ export class WebAudioEngine implements AudioEnginePort {
         analyser.fftSize = METER_FFT_SIZE;
         return analyser;
     }
+}
+
+/** RMS do que o analisador tem agora, normalizado de 0 a 1 em cima do zero em 128. */
+function levelOf(analyser: AnalyserNode): number {
+    const samples = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(samples);
+
+    let sum = 0;
+    for (const sample of samples) {
+        const centred = (sample - 128) / 128;
+        sum += centred * centred;
+    }
+    return Math.sqrt(sum / samples.length);
 }

@@ -1,7 +1,8 @@
+import type { CallAudio } from "@/domain/call/audio";
 import { rmsInt16 } from "@/modules/media/audio-level";
 import type { AudioRuntime } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
+import type { AudioHandle, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 
 type AudioDataCallback = (data: ArrayBuffer) => void;
 
@@ -15,43 +16,33 @@ export type PipeEvents = {
 
 export class WSAudioPipe extends EventEmitter<PipeEvents> {
     peerMuted = false;
-    readonly meterIn: Promise<AudioMeter>;
-    readonly meterOut: Promise<AudioMeter>;
+    /** O nível sai do PCM que cruza o relay, que o transporte já mede frame a frame. */
+    readonly audio: CallAudio = { in: { level: () => this.rxLevel }, out: { level: () => this.txLevel } };
 
-    private readonly meterInResolver: PromiseWithResolvers<AudioMeter>;
-    private readonly meterOutResolver: PromiseWithResolvers<AudioMeter>;
     private capture: AudioHandle | null = null;
-    private playback: (PcmPlayback & AudioHandle) | null = null;
+    private playback: PcmPlayback | null = null;
     private txLevel = 0;
     private rxLevel = 0;
     private started = false;
     private stopped = false;
 
     constructor(
-        private readonly audio: AudioRuntime,
+        private readonly runtime: AudioRuntime,
         private readonly onMicData: AudioDataCallback,
     ) {
         super();
-
-        this.meterInResolver = Promise.withResolvers<AudioMeter>();
-        this.meterIn = this.meterInResolver.promise;
-        this.meterOutResolver = Promise.withResolvers<AudioMeter>();
-        this.meterOut = this.meterOutResolver.promise;
     }
 
     async start(): Promise<void> {
         if (this.started) return;
         this.started = true;
-        const micStream = await this.audio.microphone.open();
+        const micStream = await this.runtime.microphone.open();
 
-        this.capture = this.audio.engine.capturePcm(micStream, (pcm) => {
+        this.capture = this.runtime.engine.capturePcm(micStream, (pcm) => {
             this.txLevel = rmsInt16(pcm);
             this.onMicData(pcm);
         });
-        this.playback = this.audio.engine.playPcm();
-
-        this.meterOutResolver.resolve(this.capture.meter);
-        this.meterInResolver.resolve(this.playback.meter);
+        this.playback = this.runtime.engine.playPcm();
     }
 
     async stop(): Promise<void> {
@@ -63,7 +54,7 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> {
         this.playback = null;
         this.txLevel = 0;
         this.rxLevel = 0;
-        await this.audio.microphone.close();
+        await this.runtime.microphone.close();
     }
 
     playInbound(data: ArrayBuffer): void {

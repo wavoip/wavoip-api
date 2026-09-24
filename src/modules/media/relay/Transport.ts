@@ -1,3 +1,4 @@
+import type { CallAudio } from "@/domain/call/audio";
 import type { CallStats } from "@/domain/call/stats";
 import type { MediaPlan } from "@/domain/call/types";
 import type { RelayAddress } from "@/modules/media/ITransport";
@@ -6,16 +7,17 @@ import { WSConnection } from "@/modules/media/relay/Connection";
 import { WSStatsAdapter } from "@/modules/media/relay/StatsAdapter";
 import type { AudioRuntime, Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { AudioMeter } from "@/ports/runtime/AudioEnginePort";
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
     public readonly kind = "ws" as const;
     public peerMuted = false;
-    public meterIn: Promise<AudioMeter>;
-    public meterOut: Promise<AudioMeter>;
 
     get status(): TransportStatus {
         return this.connection.status;
+    }
+
+    get audio(): CallAudio {
+        return this.audioPipe.audio;
     }
 
     get stats(): CallStats {
@@ -35,8 +37,6 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
             this.connection.send(data);
             this.statsAdapter.noteSent(data.byteLength);
         });
-        this.meterIn = this.audioPipe.meterIn;
-        this.meterOut = this.audioPipe.meterOut;
 
         this.statsAdapter = new WSStatsAdapter(audio.engine, {
             readTxLevel: () => this.audioPipe.readTxLevel(),

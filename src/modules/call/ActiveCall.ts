@@ -3,6 +3,7 @@ import type { CallFailureCode, CommandFailure, WavoipError } from "@/domain/shar
 import type { Result } from "@/domain/shared/Result";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import type { CallStats } from "@/domain/call/stats";
+import { CallAudio } from "@/domain/call/audio";
 import { type CallConnection, Connection } from "@/domain/call/connection";
 import type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 import type { CallPeer } from "@/modules/call/Peer";
@@ -32,10 +33,11 @@ export interface ActiveCall {
     status: CallStatus;
     /** Both legs of the call in one state: local media and the WhatsApp side. */
     connection: CallConnection;
-    /** Inbound (peer → local speaker) AnalyserNode. */
-    audioAnalyserIn: Promise<AnalyserNode>;
-    /** Outbound (local mic → peer) AnalyserNode. */
-    audioAnalyserOut: Promise<AnalyserNode>;
+    /**
+     * Reads the audio going each way, right now. Both levels are synchronous, so they can
+     * be read from a `requestAnimationFrame` to drive a live meter.
+     */
+    audio: CallAudio;
     mute(): Promise<Result<void, CommandFailure>>;
     unmute(): Promise<Result<void, CommandFailure>>;
     /** Hangs up. The peer hanging up arrives as the `ended` event instead. */
@@ -86,8 +88,7 @@ export function ActiveCallProxy(session: CallSession): ActiveCall {
         type: session.type,
         deviceToken: session.deviceToken,
         direction: session.direction,
-        audioAnalyserIn: session.media?.meterIn as Promise<AnalyserNode>,
-        audioAnalyserOut: session.media?.meterOut as Promise<AnalyserNode>,
+        audio: session.media?.audio ?? CallAudio.silent(),
 
         mute(): Promise<Result<void, CommandFailure>> {
             return session.mute(true);

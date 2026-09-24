@@ -1,9 +1,10 @@
+import type { CallAudio } from "@/domain/call/audio";
 import type { CallStats } from "@/domain/call/stats";
 import type { MediaPlan } from "@/domain/call/types";
 import type { TransportStatus } from "@/domain/call/types";
 import type { ConnectivityIssue, IceConfig, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { AudioEnginePort, AudioMeter } from "@/ports/runtime/AudioEnginePort";
+import type { AudioEnginePort } from "@/ports/runtime/AudioEnginePort";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 
 export type { TransportStatus } from "@/domain/call/types";
@@ -31,9 +32,8 @@ export interface ITransport extends EventEmitter<Events> {
     readonly kind: TransportKind;
     status: TransportStatus;
     peerMuted: boolean;
-    /** O que mede o que chega e o que sai; vira `audioAnalyserIn`/`Out` na API pública. */
-    meterIn: Promise<AudioMeter>;
-    meterOut: Promise<AudioMeter>;
+    /** O que mede o áudio das duas direções; é o `call.audio` da API pública. */
+    readonly audio: CallAudio;
     stats: CallStats;
 
     /**

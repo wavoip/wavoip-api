@@ -281,3 +281,36 @@ medido aqui". Um zero afirmava latência nula, o que é bem diferente de não te
 O `whatsapp_ms` é informação que a v2 recebia e jogava fora: o `call:stats` sempre trouxe o RTT
 da perna servidor ⇔ WhatsApp, e a projeção interna só aproveitava a perna do cliente.
 {% endhint %}
+
+---
+
+## 7. `call.audio` no lugar dos `AnalyserNode`
+
+```typescript
+// v2 — dois AnalyserNode do Web Audio, atrás de Promises
+const [analyserIn, analyserOut] = await Promise.all([call.audioAnalyserIn, call.audioAnalyserOut])
+const buf = new Uint8Array(analyserIn.frequencyBinCount)
+analyserIn.getByteFrequencyData(buf)
+
+// v3 — um objeto por direção, leitura síncrona
+call.audio.in.level()     // 0 a 1
+call.audio.out.level()
+```
+
+| v2 | v3 |
+| --- | --- |
+| `call.audioAnalyserIn` | `call.audio.in` |
+| `call.audioAnalyserOut` | `call.audio.out` |
+| `call.audio_analyser` (deprecated) | `call.audio.in` |
+
+**Por que trocar.** O `AnalyserNode` é um tipo do navegador: enquanto ele estava na assinatura,
+um projeto React Native não conseguia nem compilar o `.d.ts` da biblioteca. O `level()` é
+neutro, e é o que a maior parte dos integradores extraía do analisador de qualquer forma.
+
+**Se você desenhava espectro ou forma de onda**, o `level()` não cobre — abra uma issue
+dizendo o que você desenha. O objeto existe para isso crescer: `waveform()` e `spectrum()`
+entram nele sem quebrar de novo, e valem para as duas direções.
+
+Duas coisas ficaram melhores de quebra: as leituras são síncronas (davam `await` antes, o que
+não combina com `requestAnimationFrame`) e respondem `0` antes de a mídia subir, em vez de
+deixar a Promise pendente.

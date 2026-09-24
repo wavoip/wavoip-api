@@ -339,6 +339,24 @@ type ErrorCode = DeviceErrorCode | CommandErrorCode | MediaErrorCode | CallFailu
 
 ---
 
+## Áudio da chamada
+
+`call.audio` entrega um analisador por direção. Hoje eles medem o nível; a análise que vier
+depois (forma de onda, espectro) entra no mesmo objeto e vale para as duas direções.
+
+```typescript
+type AudioAnalyser = {
+    level(): number    // 0 a 1, síncrono
+}
+
+type CallAudio = {
+    in:  AudioAnalyser    // o que chega do outro lado
+    out: AudioAnalyser    // o que sai do microfone
+}
+```
+
+---
+
 ## Utilitários
 
 ### `Unsubscribe`

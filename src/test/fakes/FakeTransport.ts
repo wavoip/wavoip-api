@@ -3,14 +3,15 @@ import { type CallStats, Stats } from "@/domain/call/stats";
 import type { MediaPlan, TransportStatus } from "@/domain/call/types";
 import type { Events, IRTCTransport, IWSTransport } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { AudioMeter } from "@/ports/runtime/AudioEnginePort";
+import type { CallAudio } from "@/domain/call/audio";
 
 /** O que os dois transportes falsos têm em comum: sem rede, sem áudio, e contando chamadas. */
 abstract class FakeTransportBase extends EventEmitter<Events> {
     status: TransportStatus = "connected";
     peerMuted = false;
-    meterIn: Promise<AudioMeter> = Promise.resolve({});
-    meterOut: Promise<AudioMeter> = Promise.resolve({});
+    /** O teste ajusta os níveis mexendo direto nestes campos. */
+    levels = { in: 0, out: 0 };
+    readonly audio: CallAudio = { in: { level: () => this.levels.in }, out: { level: () => this.levels.out } };
     stats: CallStats = Stats.empty();
     starts = 0;
     stops = 0;

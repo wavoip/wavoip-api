@@ -206,22 +206,34 @@ describe("WebRTCTransport", () => {
     });
 
     describe("ontrack event", () => {
-        it("resolves meterIn promise after ontrack fires", async () => {
+        it("reads the incoming level once the remote stream plays", async () => {
             vi.useFakeTimers();
             const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio, "offer-sdp");
             await startTransport(transport);
 
-            await expect(transport.meterIn).resolves.toBeDefined();
+            audio.engine.played[0].reading = 0.6;
+
+            expect(transport.audio.in.level()).toBe(0.6);
         });
 
-        it("resolves meterOut promise once mic stream is wired", async () => {
+        it("reads the outgoing level once the mic is monitored", async () => {
             vi.useFakeTimers();
             const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio, "offer-sdp");
             await startTransport(transport);
 
-            await expect(transport.meterOut).resolves.toBeDefined();
+            audio.engine.monitored[0].reading = 0.3;
+
+            expect(transport.audio.out.level()).toBe(0.3);
+        });
+
+        it("reads zero before the media is up, instead of failing", () => {
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio, "offer-sdp");
+
+            expect(transport.audio.in.level()).toBe(0);
+            expect(transport.audio.out.level()).toBe(0);
         });
 
         it("meters both directions: the remote stream plays and the mic is monitored", async () => {

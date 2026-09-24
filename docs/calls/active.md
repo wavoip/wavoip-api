@@ -114,31 +114,29 @@ setInterval(async () => {
 
 ## Análise de áudio
 
-Dois `AnalyserNode` do Web Audio são expostos — um por direção. Use-os para visualizar a forma de onda da chamada ou detectar silêncio em cada lado independentemente.
+`call.audio` lê o áudio das duas direções, agora:
 
-- `audioAnalyserIn` — áudio **recebido** do par (vai para o alto-falante local).
-- `audioAnalyserOut` — áudio **enviado** pelo microfone local (vai para o par).
+- `call.audio.in` — o que **chega** do outro lado (vai para o alto-falante).
+- `call.audio.out` — o que **sai** do seu microfone.
+
+Os dois têm `level()`, que devolve de 0 a 1 e é **síncrono** — feito para ler dentro de um
+`requestAnimationFrame` sem `await` no meio do desenho:
 
 ```typescript
-const [analyserIn, analyserOut] = await Promise.all([
-    call.audioAnalyserIn,
-    call.audioAnalyserOut,
-])
-
-const inBuf = new Uint8Array(analyserIn.frequencyBinCount)
-const outBuf = new Uint8Array(analyserOut.frequencyBinCount)
-
 function frame() {
-    analyserIn.getByteFrequencyData(inBuf)
-    analyserOut.getByteFrequencyData(outBuf)
-    // Desenhe inBuf (par falando) e outBuf (usuário falando) em canvas separados…
+    drawMeter(peerMeter, call.audio.in.level())
+    drawMeter(micMeter, call.audio.out.level())
     requestAnimationFrame(frame)
 }
 frame()
 ```
 
+Antes de a mídia subir, os dois respondem `0` em vez de falhar — dá para começar a desenhar
+assim que a chamada existe.
+
 {% hint style="info" %}
-O grafo do microfone é ancorado por um `GainNode(0)` ligado ao `destination` para que o `AudioContext` renderize amostras no `audioAnalyserOut` — o ganho zero garante que o seu próprio áudio **não** seja reproduzido no alto-falante.
+O nível de cada direção é medido onde ele é mais fiel: numa chamada oficial, no grafo de áudio
+do navegador; numa chamada por relay, no próprio PCM que cruza o transporte.
 {% endhint %}
 
 ---

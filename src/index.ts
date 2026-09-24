@@ -1,3 +1,4 @@
+export type { AudioAnalyser, CallAudio } from "@/domain/call/audio";
 export type { CallConnection } from "@/domain/call/connection";
 export type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 export type { CallEndOutcome } from "@/modules/device/WebSocket";

@@ -1,5 +1,5 @@
 import type { AudioRuntime } from "@/modules/media/ITransport";
-import type { AudioEnginePort, AudioHandle, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
+import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 import type { MediaStreamLike, MediaTrackLike } from "@/ports/runtime/PeerConnectionPort";
 
@@ -63,9 +63,13 @@ export class FakeMicrophone implements MicrophonePort {
 }
 
 /** Um handle que só registra que foi fechado. */
-class FakeAudioHandle implements AudioHandle {
+class FakeAudioHandle implements AudioMeter {
     stopped = false;
-    readonly meter = { kind: "fake-meter" };
+    reading = 0;
+
+    level(): number {
+        return this.reading;
+    }
 
     stop(): void {
         this.stopped = true;
@@ -118,13 +122,13 @@ export class FakeAudioEngine implements AudioEnginePort {
         this.closed += 1;
     }
 
-    playStream(): AudioHandle {
+    playStream(): AudioMeter {
         const handle = new FakeAudioHandle();
         this.played.push(handle);
         return handle;
     }
 
-    monitorStream(): AudioHandle {
+    monitorStream(): AudioMeter {
         const handle = new FakeAudioHandle();
         this.monitored.push(handle);
         return handle;
@@ -137,7 +141,7 @@ export class FakeAudioEngine implements AudioEnginePort {
         return handle;
     }
 
-    playPcm(): PcmPlayback & AudioHandle {
+    playPcm(): PcmPlayback {
         const playback = new FakePcmPlayback();
         this.playbacks.push(playback);
         return playback;

@@ -1,17 +1,13 @@
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 
-/**
- * O medidor de nível que a plataforma usa — na web, um `AnalyserNode`. O núcleo não lê
- * nada dele: ele só é repassado a quem consome a biblioteca, em
- * `ActiveCall.audioAnalyserIn`/`Out`. Quem sabe o que é são o adaptador que o cria e o
- * integrador que o recebe, e por isso o tipo dele não mora aqui.
- */
-export type AudioMeter = unknown;
-
 /** Tudo que o motor abre se fecha pelo próprio handle. */
 export interface AudioHandle {
-    readonly meter: AudioMeter;
     stop(): void;
+}
+
+/** Um handle que também mede o nível do que passa por ele, de 0 a 1. */
+export interface AudioMeter extends AudioHandle {
+    level(): number;
 }
 
 /** A reprodução do PCM que chega pelo relay. */
@@ -45,11 +41,14 @@ export interface AudioEnginePort {
     resume(): Promise<void>;
     suspend(): Promise<void>;
     close(): Promise<void>;
-    /** Toca no alto-falante o stream que o WebRTC recebe do outro lado. */
-    playStream(stream: MediaStreamLike): AudioHandle;
+    /** Toca no alto-falante o stream que o WebRTC recebe do outro lado, medindo o nível. */
+    playStream(stream: MediaStreamLike): AudioMeter;
     /** Mede o microfone sem devolvê-lo no alto-falante. */
-    monitorStream(stream: MediaStreamLike): AudioHandle;
-    /** Liga o microfone ao reamostrador e entrega cada frame de PCM pronto para o relay. */
+    monitorStream(stream: MediaStreamLike): AudioMeter;
+    /**
+     * Liga o microfone ao reamostrador e entrega cada frame de PCM pronto para o relay.
+     * Não mede: o nível do relay sai do próprio PCM (ver `rmsInt16`).
+     */
     capturePcm(stream: MediaStreamLike, onFrame: (pcm: ArrayBuffer) => void): AudioHandle;
     playPcm(): PcmPlayback;
 }
