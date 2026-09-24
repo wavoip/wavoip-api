@@ -1,7 +1,7 @@
 import type { ServerCallStats } from "@/domain/call/stats";
-import type { CallStatus, CallType, MediaPlan, Peer } from "@/domain/call/types";
+import type { CallStatus, MediaPlan, Peer } from "@/domain/call/types";
 import type { CallFailureCode, CommandErrorCode, WavoipError } from "@/domain/shared/errors";
-import type { Contact, DeviceRestriction, DeviceStatus } from "@/domain/device/model";
+import type { Contact, DeviceDescription, DeviceRestriction } from "@/domain/device/types";
 
 /**
  * A sinalização da chamada como a biblioteca precisa dela, sem socket.io no meio. O
@@ -60,15 +60,7 @@ export type Unsubscribe = () => void;
 
 /** O que o servidor conta sobre o device, já no vocabulário da biblioteca. */
 export type ServerDeviceEvent =
-    | {
-          readonly type: "init";
-          readonly status: DeviceStatus;
-          readonly callType: CallType;
-          readonly contact: Contact | null;
-          readonly qrCode: string | null;
-          readonly restriction: DeviceRestriction | null;
-          readonly activeCalls: number;
-      }
+    | ({ readonly type: "init" } & DeviceDescription)
     | { readonly type: "building" }
     | { readonly type: "open"; readonly contact: Contact }
     | { readonly type: "connecting"; readonly qrCode: string | null }

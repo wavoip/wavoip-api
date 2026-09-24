@@ -3,7 +3,7 @@ import type {
     Contact,
     DeviceRestriction,
     DeviceStatus,
-} from "@/domain/device/model";
+} from "@/domain/device/types";
 import type { CommandFailure, DeviceApiFailure } from "@/domain/shared/errors";
 import type { Result } from "@/domain/shared/Result";
 import type { Unsubscribe } from "@/modules/shared/EventEmitter";

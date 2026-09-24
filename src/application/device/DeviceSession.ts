@@ -1,12 +1,12 @@
 import { CallRegistry } from "@/application/call/CallRegistry";
 import { CallSession, type CallSessionDeps, type TransportFactory } from "@/application/call/CallSession";
+import type { CallType } from "@/domain/call/types";
 import type { Device } from "@/domain/device/contract";
-import { ReconnectPolicy } from "@/domain/device/reconnectPolicy";
+import { DevicePolicy } from "@/domain/device/policy";
 import { CallPolicy } from "@/domain/call/policy";
 import type { CommandFailure, DeviceApiFailure, StartCallErrorCode, WavoipError } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
-import type { ConnectionStatus, Contact, DeviceRestriction, DeviceStatus } from "@/domain/device/model";
-import { DeviceModel } from "@/domain/device/model";
+import type { ConnectionStatus, Contact, DeviceRestriction, DeviceStatus } from "@/domain/device/types";
 import { EventEmitter, type Subscribable, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import type { DeviceApiPort } from "@/ports/DeviceApiPort";
 import type { CallSignalingPort, DeviceSignalingPort, IncomingOffer, ServerDeviceEvent } from "@/ports/SignalingPort";
@@ -29,22 +29,31 @@ export type DeviceSessionDeps = {
 };
 
 /**
- * Dona de um device: o estado que o servidor anuncia, a conexão com ele e as chamadas que
- * passam por aí. É ela mesma o `Device` que o integrador recebe — o que o tipo público
- * esconde é a chamada crua, que só o `Wavoip` embrulha nas vistas de chamada.
+ * O device: o estado que o servidor anuncia, a conexão com ele e as chamadas que passam por
+ * aí. É ele mesmo o `Device` que o integrador recebe — o que o tipo público esconde é a
+ * chamada crua, que só o `Wavoip` veste nas vistas de chamada.
+ *
+ * Estado e transição moram juntos de propósito: cada `apply*` é o que aconteceu no mundo,
+ * escreve o que mudou e só então anuncia.
  */
 export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device {
     private readonly events = new EventEmitter<DeviceSessionEvents>();
-    private readonly device: DeviceModel;
     private readonly registry: CallRegistry;
     private readonly callDeps: CallSessionDeps;
     private stopped = false;
 
+    private _status: DeviceStatus = "BUILDING";
+    private _connectionStatus: ConnectionStatus = "disconnected";
+    private _callType: CallType = "OFFICIAL";
+    private _contact: Contact | null = null;
+    private _qrCode: string | null = null;
+    private _restriction: DeviceRestriction | null = null;
+    private _activeCalls = 0;
+
     constructor(
         private readonly deps: DeviceSessionDeps,
-        token: string,
+        readonly token: string,
     ) {
-        this.device = new DeviceModel(token);
         this.registry = new CallRegistry(deps.signaling);
         this.callDeps = {
             signaling: deps.signaling,
@@ -64,32 +73,28 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device 
         return this.events.on(event, listener);
     }
 
-    get token(): string {
-        return this.device.token;
-    }
-
-    get qrCode(): string | null {
-        return this.device.qrCode;
-    }
-
-    get contact(): Contact | null {
-        return this.device.contact;
-    }
-
     get status(): DeviceStatus {
-        return this.device.status;
+        return this._status;
     }
 
     get connectionStatus(): ConnectionStatus {
-        return this.device.connectionStatus;
+        return this._connectionStatus;
+    }
+
+    get qrCode(): string | null {
+        return this._qrCode;
+    }
+
+    get contact(): Contact | null {
+        return this._contact;
     }
 
     get restriction(): DeviceRestriction | null {
-        return this.device.restriction;
+        return this._restriction;
     }
 
     get activeCalls(): number {
-        return this.device.activeCalls;
+        return this._activeCalls;
     }
 
     connect(): void {
@@ -103,13 +108,13 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device 
     }
 
     async startCall(to: string): Promise<Result<CallSession, WavoipError<StartCallErrorCode>>> {
-        const blocked = this.device.canCall();
+        const blocked = DevicePolicy.canCall(this._status);
         if (blocked) return Result.fail(blocked);
 
         const started = await CallSession.Start(this.callDeps, {
             to,
-            type: this.device.callType,
-            deviceToken: this.device.token,
+            type: this._callType,
+            deviceToken: this.token,
         });
         if (started.data) this.registry.register(started.data);
         return started;
@@ -138,11 +143,11 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device 
         const session = new CallSession(this.callDeps, {
             id: offer.id,
             peer: offer.peer,
-            type: this.device.callType,
+            type: this._callType,
             direction: "INCOMING",
-            deviceToken: this.device.token,
+            deviceToken: this.token,
             status: "CALLING",
-            transport: this.deps.transports.forOffer(offer.plan, this.device.token),
+            transport: this.deps.transports.forOffer(offer.plan, this.token),
         });
         this.registry.register(session);
         this.events.emit("incomingCall", session);
@@ -176,56 +181,74 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device 
                 this.applyRestriction(event.restriction);
                 return;
             case "activeCalls":
-                this.device.countCalls(event.count);
+                this._activeCalls = event.count;
                 this.events.emit("activeCallsChanged", event.count);
                 return;
         }
     }
 
+    /** O device se apresentou: tudo que ele é chega de uma vez. */
     private applyInit(event: Extract<ServerDeviceEvent, { type: "init" }>): void {
-        this.device.describe(event);
+        this._status = event.status;
+        this._callType = event.callType;
+        this._contact = event.contact;
+        this._qrCode = event.qrCode;
+        this._restriction = event.restriction;
+        this._activeCalls = event.activeCalls;
 
         this.announceConnection("connected");
-        this.events.emit("statusChanged", this.device.status);
-        this.events.emit("contactChanged", this.device.contact);
-        this.events.emit("qrCodeChanged", this.device.qrCode);
-        this.events.emit("restrictionChanged", this.device.restriction);
-        this.events.emit("activeCallsChanged", this.device.activeCalls);
+        this.announceLink();
+        this.events.emit("restrictionChanged", this._restriction);
+        this.events.emit("activeCallsChanged", this._activeCalls);
     }
 
+    /** Vinculou um número: o QR não serve mais. */
     private applyLinked(contact: Contact): void {
-        this.device.linkTo(contact);
+        this._status = "open";
+        this._contact = contact;
+        this._qrCode = null;
         this.announceLink();
     }
 
+    /** Esperando alguém ler o QR. Sem vínculo não há restrição de conta a carregar. */
     private applyPairing(qrCode: string | null): void {
-        this.device.awaitPairing(qrCode);
+        this._status = "connecting";
+        this._contact = null;
+        this._qrCode = qrCode;
+        this._restriction = null;
         this.announceLink();
     }
 
+    /** O vínculo caiu: não sobra contato, QR nem restrição. */
     private applyUnlinked(): void {
-        this.device.unlink();
+        this._status = "close";
+        this._contact = null;
+        this._qrCode = null;
+        this._restriction = null;
         this.announceLink();
     }
 
     private applyRestriction(restriction: DeviceRestriction | null): void {
-        this.device.restrict(restriction);
+        this._restriction = restriction;
         this.events.emit("restrictionChanged", restriction);
     }
 
+    /** Mudou de fase sem mexer no vínculo: reiniciando, hibernando, subindo. */
     private announceStatus(status: DeviceStatus): void {
-        this.device.moveTo(status);
+        this._status = status;
         this.events.emit("statusChanged", status);
     }
 
     private announceLink(): void {
-        this.events.emit("statusChanged", this.device.status);
-        this.events.emit("contactChanged", this.device.contact);
-        this.events.emit("qrCodeChanged", this.device.qrCode);
+        this.events.emit("statusChanged", this._status);
+        this.events.emit("contactChanged", this._contact);
+        this.events.emit("qrCodeChanged", this._qrCode);
     }
 
+    /** Anunciar a mesma conexão duas vezes faria a interface piscar. */
     private announceConnection(status: ConnectionStatus): void {
-        if (!this.device.connectAs(status)) return;
+        if (this._connectionStatus === status) return;
+        this._connectionStatus = status;
         this.events.emit("connectionStatusChanged", status);
     }
 
@@ -247,7 +270,7 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device 
      * O status novo chega no `device:init` da reconexão.
      */
     private reconnect(attempt: number): void {
-        const delayMs = ReconnectPolicy.nextDelayMs(attempt);
+        const delayMs = DevicePolicy.nextReconnectDelayMs(attempt);
         if (delayMs === null || this.stopped || this.deps.signaling.isConnected()) return;
 
         this.announceConnection("reconnecting");
