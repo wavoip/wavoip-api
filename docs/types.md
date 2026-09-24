@@ -44,20 +44,20 @@ type CallStatus =
 ```
 
 {% hint style="info" %}
-`CANCELLED` chega pelo mesmo evento `ended` dos demais desfechos — não há um evento
-próprio. Instâncias antigas não informam o desfecho e reportam `ENDED`.
+Numa chamada recebida, `CANCELLED` tem evento próprio: `cancelled`. Instâncias antigas não
+informam o desfecho e reportam `ENDED`, que chega como `ended`.
 {% endhint %}
 
 ### `CallType`
 
 ```typescript
-type CallType = "official" | "unofficial"
+type CallType = "OFFICIAL" | "UNOFFICIAL"
 ```
 
 | Valor          | Transporte          | Descrição                                          |
 | -------------- | ------------------- | -------------------------------------------------- |
-| `"official"`   | WebRTC              | Chamada nativa do WhatsApp usando SRTP.            |
-| `"unofficial"` | Relay via WebSocket | Áudio retransmitido pelos servidores Wavoip.       |
+| `"OFFICIAL"`   | WebRTC              | Chamada nativa do WhatsApp usando SRTP.            |
+| `"UNOFFICIAL"` | Relay via WebSocket | Áudio retransmitido pelos servidores Wavoip.       |
 
 ### `CallDirection`
 
@@ -124,6 +124,24 @@ type ServerCallStats = {
 ## Diagnóstico ICE
 
 Emitido como parte do ciclo de vida da chamada para ajudar a investigar problemas de conexão de mídia.
+
+O que o construtor do `Wavoip` aceita:
+
+```typescript
+type IceConfig = {
+    gatheringTimeoutMs?: number      // teto da coleta de candidatos; padrão 2500
+    iceServers?: IceServer[]         // padrão: STUN do Google e da Cloudflare
+}
+
+type IceServer = {
+    urls: string | string[]
+    username?: string
+    credential?: string
+}
+```
+
+Mesma forma do `RTCIceServer` do navegador, mas declarado pela biblioteca — assim o `.d.ts`
+não depende dos tipos do DOM.
 
 ```typescript
 type IceCandidateKind = "host" | "srflx" | "prflx" | "relay"
@@ -278,7 +296,41 @@ type DeviceEvents = {
     qrCodeChanged:           [qrCode?: string]
     contactChanged:          [contact?: Contact]
     restrictedChanged:       [restricted: boolean, restrictedUntil: Date | null]
+    activeCallsChanged:      [count: number]
 }
+```
+
+## Result e erros
+
+### `Result`
+
+O retorno de todo método que pode falhar.
+
+```typescript
+type Result<T, E extends WavoipError = WavoipError> =
+    | { data: T;    error: null }
+    | { data: null; error: E }
+```
+
+Cada método declara o subconjunto de códigos que **ele** pode devolver, então o autocomplete
+não oferece código impossível naquele ponto:
+
+| Alias | Onde aparece | Códigos |
+| --- | --- | --- |
+| `CommandFailure` | `mute`, `unmute`, `cancel`, `end`, `reject`, `pairingCode` | `CommandErrorCode \| "UNKNOWN"` |
+| `AcceptFailure` | `offer.accept()` | os de comando mais `MEDIA_NEGOTIATION_FAILED` |
+| `DeviceApiFailure` | `restart`, `logout`, `wakeUp` | `DeviceErrorCode \| "NETWORK_ERROR" \| "UNKNOWN"` |
+| `OutgoingCallFailure` | evento `failed` da chamada que sai | `CallFailureCode \| "MEDIA_NEGOTIATION_FAILED" \| "UNKNOWN"` |
+| `StartCallFailure` | `wavoip.startCall()` | `StartCallErrorCode`, mais a lista `devices` |
+
+```typescript
+type StartCallFailure = WavoipError<StartCallErrorCode> & {
+    devices: DeviceAttempt[]      // o motivo de cada dispositivo, na ordem tentada
+}
+
+type DeviceAttempt = { token: string; error: WavoipError<StartCallErrorCode> }
+
+type DeviceWakeUp = { token: string; result: Result<void, DeviceApiFailure> }
 ```
 
 ### `WavoipError`
@@ -336,6 +388,27 @@ type ErrorCode = DeviceErrorCode | CommandErrorCode | MediaErrorCode | CallFailu
 {% hint style="info" %}
 `LOCAL_AUDIO_TIMEOUT` e `REMOTE_AUDIO_TIMEOUT` substituem os antigos `PEER_TX_TIMEOUT` e `PEER_RX_TIMEOUT`. Os nomes `TX` e `RX` eram do ponto de vista do motor de VoIP do servidor, e a v2 os documentava invertidos.
 {% endhint %}
+
+---
+
+## Aparelhos de áudio
+
+```typescript
+type AudioDevice = {
+    id: string                       // identificador da plataforma
+    label: string                    // vazio antes da permissão de microfone
+    kind: "input" | "output"
+}
+
+interface AudioControl {
+    listInputDevices(): AudioDevice[]
+    listOutputDevices(): AudioDevice[]
+    readonly currentInput: AudioDevice | null
+    readonly currentOutput: AudioDevice | null
+}
+```
+
+Veja [Mídia](media.md) para o uso.
 
 ---
 

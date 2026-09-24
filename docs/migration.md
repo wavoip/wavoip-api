@@ -37,7 +37,7 @@ v2, então dá para fazer esta parte **antes** de subir para a v3.
 | `outgoing.onPeerAccept(cb)`, `onPeerReject`, `onUnanswered`, `onEnd`, `onStatus` | `outgoing.on("<evento>", cb)` |
 | `device.onStatus(cb)`, `onQRCode`, `onContact` | `device.on("statusChanged" \| "qrCodeChanged" \| "contactChanged", cb)` |
 | `call.device_token`, `offer.device_token`, `outgoing.device_token` | `deviceToken` |
-| `call.connection_status` | `call.connectionStatus` |
+| `call.connection_status` | `call.connection` (ver a seção das duas pernas) |
 | `call.audio_analyser` | `call.audio.in` (ver a seção de áudio) |
 | `outgoing.end()` | `outgoing.cancel()` |
 | `CallFailReason` com `"AUDIO_TIMEOUT"` | `ErrorCode` com `"LOCAL_AUDIO_TIMEOUT"` |
@@ -162,7 +162,7 @@ antes de o comando sair.
 | `device.pairingCode(phone)` → `{ pairingCode, err }` | `Result<string, CommandFailure>` |
 | `wavoip.startCall()` → `{ call, err: { message, devices } }` | `Result<OutgoingCall, StartCallFailure>` |
 | `wavoip.startCallIterator()` → yield `{ call, token, err }` | yield `DeviceAttempt` (`{ token, error }`) |
-| `wavoip.wakeUpDevices()` → `{ token, waken }[]` | `{ token, result }[]` |
+| `wavoip.wakeUpDevices()` → `Promise<{ token, waken }>[]` | `Promise<DeviceWakeUp>[]`, com `{ token, result }` |
 
 O `restart()` e o `logout()` da v2 devolviam `Promise<void>`: se a rota respondesse 500, o seu
 código não tinha como saber. Agora a falha aparece.
@@ -375,3 +375,17 @@ continua válida como está — muda só o nome do tipo, se você o anotava expl
 
 O `pnpm build` da biblioteca agora quebra se algum tipo do DOM voltar para a superfície, então
 isso não regride em silêncio.
+
+---
+
+## 10. Miudezas que também saíram
+
+| v2 | v3 |
+| --- | --- |
+| `wavoip.emit(...)`, `once`, `off`, `removeAllListeners` | só `wavoip.on(...)` |
+| `CallEndOutcome` | removido — era o payload cru do `call:ended`, não API |
+| `MediaManagerState` | removido |
+
+O `Wavoip` herdava de um `EventEmitter` interno, e com isso o `emit` e o `removeAllListeners`
+ficavam na mão de quem consome: dava para forjar um `offer` ou desligar os listeners da própria
+biblioteca. Agora ele tem o emissor por dentro e expõe só o `on`.

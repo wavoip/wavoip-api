@@ -33,11 +33,13 @@ Os dispositivos são retornados por `wavoip.getDevices()`, `wavoip.addDevices()`
 | `close`                      | Conectado, mas sem número WhatsApp vinculado. Pode entrar em hibernação.     |
 | `connecting`                 | QR code pronto — aguardando leitura pelo WhatsApp.                           |
 | `open`                       | Vinculado e pronto para realizar/receber chamadas.                           |
+| `error`                      | Dispositivo em estado de erro; chamadas bloqueadas.                          |
 | `restarting`                 | Dispositivo está reiniciando; novas chamadas estão bloqueadas.               |
 | `hibernating`                | Inativo por 2,5+ minutos. Chame `wakeUp()` para reativar.                   |
 | `BUILDING`                   | Dispositivo inicializando; chamadas indisponíveis.                           |
 | `WAITING_PAYMENT`            | Pagamento da conta necessário.                                               |
 | `EXTERNAL_INTEGRATION_ERROR` | Erro de integração externa com o WhatsApp; reinicialização necessária.       |
+| `UP`                         | Legado. O servidor ainda pode enviá-lo; trate como `open`.                   |
 
 {% hint style="info" %}
 O dispositivo se reconecta automaticamente em quedas inesperadas do WebSocket. `disconnected` é transitório — a biblioteca tenta até duas reconexões antes de desistir.

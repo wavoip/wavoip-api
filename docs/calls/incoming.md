@@ -33,7 +33,7 @@ wavoip.on("offer", async (offer) => {
 | Propriedade                       | Tipo            | Descrição                                               |
 | --------------------------------- | --------------- | ------------------------------------------------------- |
 | `id`                              | `string`        | Identificador único da chamada.                         |
-| `type`                            | `CallType`      | `"official"` (WebRTC) ou `"unofficial"` (relay).        |
+| `type`                            | `CallType`      | `"OFFICIAL"` (WebRTC) ou `"UNOFFICIAL"` (relay).        |
 | `direction`                       | `CallDirection` | Sempre `"INCOMING"` para ofertas.                       |
 | `peer`                            | `CallPeer`      | Telefone, nome de exibição e foto de perfil do chamador.|
 | `deviceToken`                     | `string`        | Token do dispositivo que recebeu a chamada.             |
@@ -50,12 +50,12 @@ Aceita a chamada. Inicia a captura de áudio e retorna um objeto de chamada ativ
 ```typescript
 const { data, error } = await offer.accept()
 // data:  ActiveCall | null
-// error: WavoipError<AcceptFailure> | null
+// error: AcceptFailure | null
 ```
 
-Os códigos possíveis aqui são os de comando (`ACK_TIMEOUT`, `CALL_ALREADY_ANSWERED`,
-`CALL_NOT_FOUND`, `UNKNOWN`) mais `MEDIA_NEGOTIATION_FAILED`, que é a mídia local falhando
-antes de o aceite sair — a exceção original vem em `error.cause`.
+O `AcceptFailure` são os códigos de comando (`ACK_TIMEOUT`, `CALL_ALREADY_ANSWERED`,
+`CALL_NOT_FOUND`, `DEVICE_BUSY`, `NETWORK_ERROR`, `UNKNOWN`) mais `MEDIA_NEGOTIATION_FAILED`,
+que é a mídia local falhando antes de o aceite sair — a exceção original vem em `error.cause`.
 
 {% hint style="warning" %}
 `accept()` solicita permissão de microfone se ainda não concedida. Certifique-se de chamá-la a partir de um contexto de gesto do usuário (clique em botão, etc.) para evitar restrições de política de autoplay do navegador.

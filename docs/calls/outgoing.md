@@ -58,7 +58,7 @@ call.on("unanswered", () => console.log("Sem resposta"))
 | Propriedade                       | Tipo            | Descrição                                                  |
 | --------------------------------- | --------------- | ---------------------------------------------------------- |
 | `id`                              | `string`        | Identificador único da chamada.                            |
-| `type`                            | `CallType`      | `"official"` ou `"unofficial"`.                            |
+| `type`                            | `CallType`      | `"OFFICIAL"` ou `"UNOFFICIAL"`.                            |
 | `direction`                       | `CallDirection` | Sempre `"OUTGOING"`.                                       |
 | `peer`                            | `CallPeer`      | Telefone, nome de exibição e foto de perfil do destinatário.|
 | `deviceToken`                     | `string`        | Token do dispositivo que está realizando a chamada.        |
@@ -75,7 +75,7 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 | `accepted`          | `ActiveCall`        | Destinatário atendeu — a chamada continua no `ActiveCall` que vem no payload.                                   |
 | `rejected`          | —                   | Destinatário recusou a chamada.                                                                                 |
 | `unanswered`        | —                   | Tocou até o fim sem ninguém atender.                                                                            |
-| `failed`            | `WavoipError`       | A chamada não subiu: falha de mídia local ou do servidor.                                                       |
+| `failed`            | `OutgoingCallFailure` | A chamada não subiu: falha de mídia local ou do servidor.                                                     |
 | `ended`             | —                   | O servidor encerrou a oferta — um reinício ou uma hibernação do dispositivo, por exemplo.                       |
 | `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE realizada antes do par atender.                                                       |
 | `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado durante a chamada. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
@@ -161,21 +161,25 @@ de `CANCELLED` para encerrar a interface.
 Use `startCallIterator` para exibir feedback por dispositivo enquanto tenta em sequência:
 
 ```typescript
-const iter = wavoip.startCallIterator({ to: "+5511999999999" })
+const attempts = wavoip.startCallIterator({ to: "+5511999999999" })
 
-// Yield para cada tentativa falha
-for await (const attempt of iter) {
-    console.warn(`Dispositivo ${attempt.token} indisponível: ${attempt.error.code}`)
+// Cada yield é um dispositivo que não pôde chamar.
+let step = await attempts.next()
+while (!step.done) {
+    console.warn(`Dispositivo ${step.value.token} indisponível:`, step.value.error.code)
     updateUI({ tryingNext: true })
+    step = await attempts.next()
 }
 
-// Resultado final
-const final = await iter.return(undefined)
-if (final.value?.call) {
-    handleOutgoingCall(final.value.call)
-} else {
-    showError("Todos os dispositivos falharam")
-}
+// Terminou: `step.value` é o mesmo Result que o `startCall` devolveria.
+const { data: call, error } = step.value
+if (error) showError(error.code)
+else handleOutgoingCall(call)
 ```
+
+{% hint style="warning" %}
+Não use `for await` aqui. Ele descarta o valor de **retorno** do gerador — que é justamente o
+resultado da chamada — e você fica só com as tentativas que falharam.
+{% endhint %}
 
 Após o destinatário atender, veja [Chamada Ativa](active.md) para gerenciar a chamada em andamento.

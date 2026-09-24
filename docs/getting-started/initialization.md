@@ -120,17 +120,25 @@ Veja [Chamadas Realizadas](../calls/outgoing.md) para a API completa de `Outgoin
 Variante de gerador assíncrono de `startCall` que emite cada tentativa de dispositivo antes de retornar o resultado final. Útil para exibir feedback por dispositivo na interface.
 
 ```typescript
-const iter = wavoip.startCallIterator({ to: "+5511999999999" })
+const attempts = wavoip.startCallIterator({ to: "+5511999999999" })
 
-// Cada yield é uma tentativa falha em um dispositivo
-for await (const attempt of iter) {
-    console.warn(`Dispositivo ${attempt.token} falhou:`, attempt.error.code)
+// Cada yield é um dispositivo que não pôde chamar.
+let step = await attempts.next()
+while (!step.done) {
+    console.warn(`Dispositivo ${step.value.token} indisponível:`, step.value.error.code)
+    step = await attempts.next()
 }
 
-// .return() contém o resultado final
-const finished = await iter.return(undefined)
-const call = finished.value?.data
+// Terminou: `step.value` é o mesmo Result que o `startCall` devolveria.
+const { data: call, error } = step.value
+if (error) showError(error.code)
+else handleOutgoingCall(call)
 ```
+
+{% hint style="warning" %}
+Não use `for await` aqui. Ele descarta o valor de **retorno** do gerador — que é justamente o
+resultado da chamada — e você fica só com as tentativas que falharam.
+{% endhint %}
 
 {% hint style="info" %}
 `startCall` é mais simples para a maioria dos casos. Use `startCallIterator` apenas quando o progresso por dispositivo importa para o usuário.
