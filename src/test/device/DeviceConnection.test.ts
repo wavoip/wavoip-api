@@ -85,7 +85,7 @@ vi.mock("@/modules/media/webrtc/Transport", () => ({
     },
 }));
 
-import { DeviceConnection } from "@/modules/device/DeviceConnection";
+import { DeviceConnection, type Device } from "@/modules/device/DeviceConnection";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
 import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
 import type { CallType } from "@/domain/call/types";
@@ -458,5 +458,16 @@ describe("DeviceConnection — calls map cleanup", () => {
             expect(result.error).toBeNull();
             expect(callsMap(dc).has("call-restricted")).toBe(true);
         });
+    });
+});
+
+describe("the Device handed to the integrator", () => {
+    it("keeps reading the device as it changes, and not as it was when listed", () => {
+        const { dc, socket } = makeDeviceConnection();
+        const device: Device = dc;
+
+        socket.receive("device:init", "open", "OFFICIAL", null, null, false);
+
+        expect(device.status).toBe("open");
     });
 });

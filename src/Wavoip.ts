@@ -4,7 +4,6 @@ import { Result } from "@/domain/shared/Result";
 import type { OutgoingCall } from "@/modules/call/OutgoingCall";
 import type { IncomingCall } from "@/modules/call/IncomingCall";
 import { type Device, DeviceConnection } from "@/modules/device/DeviceConnection";
-import { DeviceProxy } from "@/modules/device/DeviceProxy";
 import type { IceConfig } from "@/modules/media/ICEDiagnostics";
 import type { TransportOptions } from "@/modules/media/ITransport";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
@@ -97,11 +96,11 @@ export class Wavoip {
     }
 
     get devices(): Device[] {
-        return this._devices.map((d) => DeviceProxy(d));
+        return [...this._devices];
     }
 
     getDevices(): Device[] {
-        return this._devices.map((d) => DeviceProxy(d));
+        return [...this._devices];
     }
 
     /**
@@ -117,7 +116,7 @@ export class Wavoip {
             added.push(device);
             this.bindDeviceEvents(device);
         }
-        return added.map((d) => DeviceProxy(d));
+        return [...added];
     }
 
     /**
@@ -125,7 +124,7 @@ export class Wavoip {
      * @param tokens - Device tokens to remove.
      */
     removeDevices(tokens: string[]): Device[] {
-        if (!tokens.length) return this._devices.map((d) => DeviceProxy(d));
+        if (!tokens.length) return [...this._devices];
 
         const remaining: DeviceConnection[] = [];
         for (const device of this._devices) {
@@ -136,7 +135,7 @@ export class Wavoip {
             remaining.push(device);
         }
         this._devices = remaining;
-        return this._devices.map((d) => DeviceProxy(d));
+        return [...this._devices];
     }
 
     /**
