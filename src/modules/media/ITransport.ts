@@ -4,17 +4,16 @@ import type { MediaPlan } from "@/domain/call/types";
 import type { TransportStatus } from "@/domain/call/types";
 import type { ConnectivityIssue, IceConfig, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { AudioEnginePort } from "@/ports/runtime/AudioEnginePort";
-import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
+import type { WavoipRuntime } from "@/ports/WavoipRuntime";
 
 export type { TransportStatus } from "@/domain/call/types";
 export type TransportKind = "webrtc" | "ws";
 
-/** O áudio da plataforma como o transporte o usa. */
-export type AudioRuntime = {
-    readonly engine: AudioEnginePort;
-    readonly microphone: MicrophonePort;
-};
+/**
+ * O que o transporte usa da plataforma. É um recorte do `WavoipRuntime`: o transporte não
+ * enxerga a lista de aparelhos, que é assunto da API pública.
+ */
+export type MediaRuntime = Pick<WavoipRuntime, "engine" | "microphone" | "createPeer" | "openSocket">;
 
 /** Só o WebRTC tem opção; o relay não recebe nenhuma. */
 export type TransportOptions = {

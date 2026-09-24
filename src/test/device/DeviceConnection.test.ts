@@ -86,19 +86,16 @@ vi.mock("@/modules/media/webrtc/Transport", () => ({
 }));
 
 import { DeviceConnection } from "@/modules/device/DeviceConnection";
-import type { MediaManager } from "@/modules/media/MediaManager";
+import type { WavoipRuntime } from "@/ports/WavoipRuntime";
+import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
 import type { CallType } from "@/domain/call/types";
 import type { IncomingCall } from "@/modules/call/IncomingCall";
 
 const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
 
-function makeMockMediaManager(): MediaManager {
-    return {} as MediaManager;
-}
-
 function makeDeviceConnection() {
-    const mm = makeMockMediaManager();
-    const dc = new DeviceConnection(mm, "test-token");
+    // O transporte é mockado neste arquivo, então nada aqui chega a tocar no runtime.
+    const dc = new DeviceConnection(new FakeAudioRuntime() as unknown as WavoipRuntime, "test-token");
     const socket = getSocket();
     return { dc, socket };
 }

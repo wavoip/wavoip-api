@@ -1,6 +1,6 @@
 import type { CallAudio } from "@/domain/call/audio";
 import { rmsInt16 } from "@/modules/media/audio-level";
-import type { AudioRuntime } from "@/modules/media/ITransport";
+import type { MediaRuntime } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { AudioHandle, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 
@@ -27,7 +27,7 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> {
     private stopped = false;
 
     constructor(
-        private readonly runtime: AudioRuntime,
+        private readonly runtime: MediaRuntime,
         private readonly onMicData: AudioDataCallback,
     ) {
         super();

@@ -13,9 +13,9 @@ npm install @wavoip/wavoip-api
 ## Quick start
 
 ```typescript
-import { Wavoip } from "@wavoip/wavoip-api";
+import { Wavoip, webRuntime } from "@wavoip/wavoip-api";
 
-const wavoip = new Wavoip({ tokens: ["your-device-token"] });
+const wavoip = new Wavoip({ tokens: ["your-device-token"], runtime: webRuntime() });
 
 // Answer what comes in.
 wavoip.on("offer", async (offer) => {

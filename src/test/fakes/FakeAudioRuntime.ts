@@ -1,7 +1,10 @@
-import type { AudioRuntime } from "@/modules/media/ITransport";
+import type { MediaRuntime } from "@/modules/media/ITransport";
 import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
-import type { MediaStreamLike, MediaTrackLike } from "@/ports/runtime/PeerConnectionPort";
+import type { MediaSocketFactory } from "@/ports/runtime/MediaSocketPort";
+import type { MediaStreamLike, MediaTrackLike, PeerConnectionFactory } from "@/ports/runtime/PeerConnectionPort";
+import { webMediaSocket } from "@/platform/web/webMediaSocket";
+import { webPeerConnection } from "@/platform/web/webPeerConnection";
 
 /** Uma track de microfone que só guarda o `enabled`, que é o que o mute mexe. */
 export class FakeAudioTrack implements MediaTrackLike {
@@ -59,6 +62,10 @@ export class FakeMicrophone implements MicrophonePort {
 
     async close(): Promise<void> {
         this.closes += 1;
+    }
+
+    setMuted(muted: boolean): void {
+        this.muted = muted;
     }
 }
 
@@ -148,7 +155,11 @@ export class FakeAudioEngine implements AudioEnginePort {
     }
 }
 
-export class FakeAudioRuntime implements AudioRuntime {
+export class FakeAudioRuntime implements MediaRuntime {
     readonly engine = new FakeAudioEngine();
     readonly microphone = new FakeMicrophone();
+    // Os testes de WebRTC e de relay trocam o global; a fábrica padrão é a da web para eles
+    // continuarem valendo. Quem quer provar ambiente sem WebRTC zera o campo.
+    createPeer: PeerConnectionFactory | undefined = webPeerConnection;
+    openSocket: MediaSocketFactory | undefined = webMediaSocket;
 }

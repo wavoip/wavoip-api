@@ -3,7 +3,7 @@ import { devicePanel } from "@/dev/devicePanel";
 import { audioPanel, stunPanel } from "@/dev/diagnostics";
 import { dialer } from "@/dev/dialer";
 import { button, createLog, element, field, type Log } from "@/dev/ui";
-import { type ActiveCall, Wavoip } from "@/index";
+import { type ActiveCall, Wavoip, webRuntime } from "@/index";
 
 // Os tokens são de quem está testando, e este repositório é público: ficam no navegador.
 const TOKENS_KEY = "wavoip.dev.tokens";
@@ -31,6 +31,7 @@ function start(tokens: string[], gatheringTimeoutMs: number | undefined, calls: 
     const wavoip = new Wavoip({
         tokens,
         platform: "playground",
+        runtime: webRuntime(),
         ...(gatheringTimeoutMs ? { iceConfig: { gatheringTimeoutMs } } : {}),
     });
 

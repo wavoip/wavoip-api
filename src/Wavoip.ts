@@ -1,4 +1,4 @@
-import type { AudioControl } from "@/modules/audio/AudioControl";
+import type { AudioControl } from "@/domain/audio/control";
 import type { DeviceApiFailure, DeviceAttempt, StartCallFailure } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
 import type { OutgoingCall } from "@/modules/call/OutgoingCall";
@@ -7,7 +7,7 @@ import { type Device, DeviceConnection } from "@/modules/device/DeviceConnection
 import { DeviceProxy } from "@/modules/device/DeviceProxy";
 import type { IceConfig } from "@/modules/media/ICEDiagnostics";
 import type { TransportOptions } from "@/modules/media/ITransport";
-import { MediaManager } from "@/modules/media/MediaManager";
+import type { WavoipRuntime } from "@/ports/WavoipRuntime";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 
 type Events = {
@@ -21,7 +21,7 @@ export class Wavoip {
     /** The audio devices the library can see. */
     readonly audio: AudioControl;
 
-    private readonly mediaManager: MediaManager;
+    private readonly runtime: WavoipRuntime;
     private readonly transportOptions?: TransportOptions;
     private readonly platform?: string;
     private _devices: DeviceConnection[] = [];
@@ -33,17 +33,21 @@ export class Wavoip {
         tokens: string[];
         platform?: string;
         iceConfig?: IceConfig;
+        /**
+         * The platform to run on. Import one: `webRuntime()` from the browser adapter,
+         * or the React Native / Node.js one (DEV-277).
+         */
+        runtime: WavoipRuntime;
     }) {
-
-        this.mediaManager = new MediaManager();
-        // O `MediaManager` é quem enxerga os aparelhos; o tipo do campo é o que o
-        // integrador vê, e por ele só dá para listar e ler o que está em uso.
-        this.audio = this.mediaManager;
+        this.runtime = params.runtime;
+        // O tipo do campo é o que o integrador vê: por ele só dá para listar os aparelhos e
+        // ler o que está em uso.
+        this.audio = this.runtime.audio;
         this.transportOptions = collectTransportOptions(params);
         this.platform = params.platform;
 
         for (const token of [...new Set(params.tokens)]) {
-            const device = new DeviceConnection(this.mediaManager, token, this.platform, this.transportOptions);
+            const device = new DeviceConnection(this.runtime, token, this.platform, this.transportOptions);
             this.bindDeviceEvents(device);
             this._devices.push(device);
         }
@@ -108,7 +112,7 @@ export class Wavoip {
         const added: DeviceConnection[] = [];
         for (const token of tokens) {
             if (this._devices.some((d) => d.token === token)) continue;
-            const device = new DeviceConnection(this.mediaManager, token, this.platform, this.transportOptions);
+            const device = new DeviceConnection(this.runtime, token, this.platform, this.transportOptions);
             this._devices.push(device);
             added.push(device);
             this.bindDeviceEvents(device);

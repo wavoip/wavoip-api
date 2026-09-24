@@ -1,7 +1,7 @@
-import { WebAudioEngine } from "@/platform/web/WebAudioEngine";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { AudioDevice } from "@/domain/audio/device";
-import type { AudioControl } from "@/modules/audio/AudioControl";
+import type { AudioControl } from "@/domain/audio/control";
+import type { AudioEnginePort } from "@/ports/runtime/AudioEnginePort";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 
 export type MediaManagerEvents = {
@@ -18,13 +18,12 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> implements Mi
     public activeSpeaker?: MediaDeviceInfo;
     public stream?: MediaStream;
     public muted = false;
-    public readonly engine = new WebAudioEngine();
 
     private attachedElements: Set<HTMLAudioElement> = new Set();
     private activeSpeakerId?: string;
     private permissionGranted = false;
 
-    constructor() {
+    constructor(public readonly engine: AudioEnginePort) {
         super();
         // Fora de contexto seguro o navegador não expõe `mediaDevices`. Quebrar aqui derrubaria
         // o `new Wavoip()` inteiro e esconderia o motivo; a lista fica vazia e quem pedir áudio

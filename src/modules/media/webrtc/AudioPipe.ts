@@ -1,5 +1,5 @@
 import type { CallAudio } from "@/domain/call/audio";
-import type { AudioRuntime } from "@/modules/media/ITransport";
+import type { MediaRuntime } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { AudioMeter } from "@/ports/runtime/AudioEnginePort";
 import type { MediaStreamLike, PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
@@ -28,7 +28,7 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> {
 
     constructor(
         private readonly pc: PeerConnectionLike,
-        private readonly runtime: AudioRuntime,
+        private readonly runtime: MediaRuntime,
     ) {
         super();
 

@@ -181,7 +181,7 @@ if (error) {
 ```typescript
 import { Wavoip } from "@wavoip/wavoip-api"
 
-const wavoip = new Wavoip({ tokens: ["meu-token"] })
+const wavoip = new Wavoip({ tokens: ["meu-token"], runtime: webRuntime() })
 
 const [device] = wavoip.getDevices()
 

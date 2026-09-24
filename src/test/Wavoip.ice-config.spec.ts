@@ -1,20 +1,14 @@
 import { Wavoip } from "@/Wavoip";
+import type { WavoipRuntime } from "@/ports/WavoipRuntime";
+import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const deviceConnectionInstances: Array<{ token: string; transportOptions?: unknown; platform?: string }> = [];
 
-vi.mock("@/modules/media/MediaManager", () => {
-    return {
-        MediaManager: class {
-            devices: never[] = [];
-            activeMic = undefined;
-            activeSpeaker = undefined;
-            on() {
-                return () => {};
-            }
-        },
-    };
-});
+/** Sem runtime injetado o `Wavoip` montaria o do navegador, que carrega worklet. */
+function runtime(): WavoipRuntime {
+    return new FakeAudioRuntime() as unknown as WavoipRuntime;
+}
 
 vi.mock("@/modules/device/DeviceConnection", () => {
     return {
@@ -49,7 +43,7 @@ describe("Wavoip iceConfig", () => {
             gatheringTimeoutMs: 1500,
             iceServers: [{ urls: "stun:custom.example:3478" }],
         };
-        new Wavoip({ tokens: ["a", "b"], iceConfig });
+        new Wavoip({ tokens: ["a", "b"], iceConfig, runtime: runtime() });
 
         expect(deviceConnectionInstances).toHaveLength(2);
         expect(deviceConnectionInstances[0].transportOptions).toEqual({ iceConfig });
@@ -58,7 +52,7 @@ describe("Wavoip iceConfig", () => {
 
     it("passes iceConfig through to DeviceConnection added via addDevices", () => {
         const iceConfig = { gatheringTimeoutMs: 2000 };
-        const wavoip = new Wavoip({ tokens: [], iceConfig });
+        const wavoip = new Wavoip({ tokens: [], iceConfig, runtime: runtime() });
         wavoip.addDevices(["c"]);
 
         expect(deviceConnectionInstances).toHaveLength(1);
@@ -66,12 +60,12 @@ describe("Wavoip iceConfig", () => {
     });
 
     it("does not require iceConfig", () => {
-        expect(() => new Wavoip({ tokens: ["a"] })).not.toThrow();
+        expect(() => new Wavoip({ tokens: ["a"], runtime: runtime() })).not.toThrow();
         expect(deviceConnectionInstances[0].transportOptions).toBeUndefined();
     });
 
     it("preserves platform alongside iceConfig", () => {
-        new Wavoip({ tokens: ["a"], platform: "web", iceConfig: { gatheringTimeoutMs: 1000 } });
+        new Wavoip({ tokens: ["a"], platform: "web", iceConfig: { gatheringTimeoutMs: 1000 }, runtime: runtime() });
 
         expect(deviceConnectionInstances[0].platform).toBe("web");
         expect(deviceConnectionInstances[0].transportOptions).toEqual({ iceConfig: { gatheringTimeoutMs: 1000 } });

@@ -7,8 +7,8 @@ import { type OutgoingCall, OutgoingCallProxy } from "@/modules/call/OutgoingCal
 import { type IncomingCall, IncomingCallProxy } from "@/modules/call/IncomingCall";
 import type { ConnectionStatus, Contact, DeviceStatus } from "@/modules/device/Device";
 import { DeviceWebSocketFactory } from "@/modules/device/WebSocket";
-import type { AudioRuntime, TransportOptions } from "@/modules/media/ITransport";
-import type { MediaManager } from "@/modules/media/MediaManager";
+import type { TransportOptions } from "@/modules/media/ITransport";
+import type { WavoipRuntime } from "@/ports/WavoipRuntime";
 import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
 import { WebsocketTransport } from "@/modules/media/relay/Transport";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
@@ -47,7 +47,7 @@ export interface Device {
 export class DeviceConnection extends EventEmitter<Events> implements Device {
     private readonly session: DeviceSession;
 
-    constructor(mediaManager: MediaManager, token: string, platform?: string, transportOptions?: TransportOptions) {
+    constructor(runtime: WavoipRuntime, token: string, platform?: string, transportOptions?: TransportOptions) {
         super();
 
         const signaling = new SocketIoSignaling(DeviceWebSocketFactory(token, platform));
@@ -55,12 +55,8 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
             {
                 signaling,
                 api: new FetchDeviceApi(token),
-                transports: transportsFor(
-                    { engine: mediaManager.engine, microphone: mediaManager },
-                    token,
-                    transportOptions,
-                ),
-                setLocalMuted: (muted) => mediaManager.setMuted(muted),
+                transports: transportsFor(runtime, token, transportOptions),
+                setLocalMuted: (muted) => runtime.microphone.setMuted(muted),
             },
             token,
         );
@@ -148,14 +144,16 @@ export class DeviceConnection extends EventEmitter<Events> implements Device {
  * O device decide o transporte da chamada que sai: OFFICIAL fala WebRTC, UNOFFICIAL fala
  * relay. Na oferta recebida, quem decide é o plano que veio nela.
  */
-function transportsFor(audio: AudioRuntime, token: string, options?: TransportOptions): TransportFactory {
+function transportsFor(runtime: WavoipRuntime, token: string, options?: TransportOptions): TransportFactory {
     return {
         forCall: (type) =>
-            type === "OFFICIAL" ? new WebRTCTransport(audio, undefined, options) : new WebsocketTransport(audio, token),
+            type === "OFFICIAL"
+                ? new WebRTCTransport(runtime, undefined, options)
+                : new WebsocketTransport(runtime, token),
         forOffer: (plan, deviceToken) => {
-            if (plan.type === "webRTC") return new WebRTCTransport(audio, plan.sdp, options);
+            if (plan.type === "webRTC") return new WebRTCTransport(runtime, plan.sdp, options);
             if (plan.type === "relay") {
-                const relay = new WebsocketTransport(audio, deviceToken);
+                const relay = new WebsocketTransport(runtime, deviceToken);
                 relay.useRelay(plan);
                 return relay;
             }

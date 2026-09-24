@@ -35,9 +35,9 @@ layout:
 ## Início rápido
 
 ```typescript
-import { Wavoip } from "@wavoip/wavoip-api"
+import { Wavoip, webRuntime } from "@wavoip/wavoip-api"
 
-const wavoip = new Wavoip({ tokens: ["seu-token-de-dispositivo"] })
+const wavoip = new Wavoip({ tokens: ["seu-token-de-dispositivo"], runtime: webRuntime() })
 
 // Receber chamadas
 wavoip.on("offer", async (offer) => {

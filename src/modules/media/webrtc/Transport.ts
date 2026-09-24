@@ -5,9 +5,9 @@ import { RTCAudioPipe } from "@/modules/media/webrtc/AudioPipe";
 import { RTCConnection } from "@/modules/media/webrtc/Connection";
 import { RTCStatsAdapter } from "@/modules/media/webrtc/StatsAdapter";
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
-import type { AudioRuntime, Events, ITransport, TransportOptions, TransportStatus } from "@/modules/media/ITransport";
+import type { MediaRuntime, Events, ITransport, TransportOptions, TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
+import type { PeerConnectionFactory, PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
 
 export class WebRTCTransport extends EventEmitter<Events> implements ITransport {
     readonly kind = "webrtc" as const;
@@ -47,13 +47,13 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         return this.statsAdapter.snapshot();
     }
 
-    constructor(audio: AudioRuntime, offer?: string, options?: TransportOptions) {
+    constructor(runtime: MediaRuntime, offer?: string, options?: TransportOptions) {
         super();
 
         this.hasRemoteOffer = !!offer;
-        this.connection = new RTCConnection(offer, options?.iceConfig);
-        this.audioPipe = new RTCAudioPipe(this.connection.pc, audio);
-        this.statsAdapter = new RTCStatsAdapter(this.connection.pc, audio.engine);
+        this.connection = new RTCConnection(offer, options?.iceConfig, peerFactoryOf(runtime));
+        this.audioPipe = new RTCAudioPipe(this.connection.pc, runtime);
+        this.statsAdapter = new RTCStatsAdapter(this.connection.pc, runtime.engine);
 
         this.audioPipe.on("peerMuted", (m) => this.emit("peerMuted", m));
         this.connection.on("iceDiagnostics", (d) => this.emit("iceDiagnostics", d));
@@ -104,4 +104,10 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         await this.statsAdapter.refresh();
         return this.statsAdapter.snapshot();
     }
+}
+
+/** Sem WebRTC na plataforma não há chamada OFFICIAL, e é melhor dizer isso do que tentar. */
+function peerFactoryOf(runtime: MediaRuntime): PeerConnectionFactory {
+    if (!runtime.createPeer) throw new Error("This runtime has no WebRTC: official calls are unavailable");
+    return runtime.createPeer;
 }

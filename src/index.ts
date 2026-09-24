@@ -1,6 +1,6 @@
 export type { AudioDevice } from "@/domain/audio/device";
 export type { AudioAnalyser, CallAudio } from "@/domain/call/audio";
-export type { AudioControl } from "@/modules/audio/AudioControl";
+export type { AudioControl } from "@/domain/audio/control";
 export type { CallConnection } from "@/domain/call/connection";
 export type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 export { Result } from "@/domain/shared/Result";
@@ -41,3 +41,5 @@ export { runStunProbe } from "@/modules/media/StunProbe";
 export type { Unsubscribe } from "@/modules/shared/EventEmitter";
 
 export { Wavoip } from "@/Wavoip";
+export type { WavoipRuntime } from "@/ports/WavoipRuntime";
+export { webRuntime } from "@/platform/web/webRuntime";

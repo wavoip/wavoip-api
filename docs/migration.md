@@ -390,3 +390,24 @@ isso não regride em silêncio.
 O `Wavoip` herdava de um `EventEmitter` interno, e com isso o `emit` e o `removeAllListeners`
 ficavam na mão de quem consome: dava para forjar um `offer` ou desligar os listeners da própria
 biblioteca. Agora ele tem o emissor por dentro e expõe só o `on`.
+
+---
+
+## 11. A plataforma passa a ser escolhida por você
+
+```typescript
+// v2
+const wavoip = new Wavoip({ tokens })
+
+// v3
+import { Wavoip, webRuntime } from "@wavoip/wavoip-api"
+
+const wavoip = new Wavoip({ tokens, runtime: webRuntime() })
+```
+
+Uma linha, e ela é o que permite a biblioteca sair do navegador: o núcleo deixou de construir
+`AudioContext`, `getUserMedia`, `RTCPeerConnection` e `WebSocket` por conta própria — quem os
+traz é o runtime. O `webRuntime()` faz exatamente o que a v2 fazia escondido.
+
+Um runtime sem WebRTC (`createPeer` ausente) ou sem socket binário (`openSocket` ausente) diz
+isso na hora de abrir a chamada daquele tipo, em vez de falhar no meio da ligação.

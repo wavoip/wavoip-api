@@ -1,4 +1,5 @@
 import { MediaManager } from "@/modules/media/MediaManager";
+import { WebAudioEngine } from "@/platform/web/WebAudioEngine";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../modules/worklets/AudioWorkletMic.ts?worklet", () => ({ default: "mic-worklet.js" }));
@@ -25,11 +26,11 @@ afterEach(() => {
 
 describe("MediaManager on a platform without mediaDevices", () => {
     it("still constructs, so the failure surfaces where it can be explained", () => {
-        expect(() => new MediaManager()).not.toThrow();
+        expect(() => new MediaManager(new WebAudioEngine())).not.toThrow();
     });
 
     it("lists no devices instead of rejecting", async () => {
-        const media = new MediaManager();
+        const media = new MediaManager(new WebAudioEngine());
 
         await Promise.resolve();
 
@@ -38,7 +39,7 @@ describe("MediaManager on a platform without mediaDevices", () => {
     });
 
     it("says what is missing when the microphone is asked for", async () => {
-        const media = new MediaManager();
+        const media = new MediaManager(new WebAudioEngine());
 
         await expect(media.open()).rejects.toThrow(/navigator\.mediaDevices is undefined/);
     });

@@ -1,11 +1,12 @@
 import type { CallAudio } from "@/domain/call/audio";
+import type { MediaSocketFactory } from "@/ports/runtime/MediaSocketPort";
 import type { CallStats } from "@/domain/call/stats";
 import type { MediaPlan } from "@/domain/call/types";
 import type { RelayAddress } from "@/modules/media/ITransport";
 import { WSAudioPipe } from "@/modules/media/relay/AudioPipe";
 import { WSConnection } from "@/modules/media/relay/Connection";
 import { WSStatsAdapter } from "@/modules/media/relay/StatsAdapter";
-import type { AudioRuntime, Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
+import type { MediaRuntime, Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
@@ -28,17 +29,17 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
     private readonly audioPipe: WSAudioPipe;
     private readonly statsAdapter: WSStatsAdapter;
 
-    constructor(audio: AudioRuntime, token: string) {
+    constructor(runtime: MediaRuntime, token: string) {
         super();
 
-        this.connection = new WSConnection(token);
+        this.connection = new WSConnection(token, socketFactoryOf(runtime));
 
-        this.audioPipe = new WSAudioPipe(audio, (data) => {
+        this.audioPipe = new WSAudioPipe(runtime, (data) => {
             this.connection.send(data);
             this.statsAdapter.noteSent(data.byteLength);
         });
 
-        this.statsAdapter = new WSStatsAdapter(audio.engine, {
+        this.statsAdapter = new WSStatsAdapter(runtime.engine, {
             readTxLevel: () => this.audioPipe.readTxLevel(),
             readRxLevel: () => this.audioPipe.readRxLevel(),
             readBufferedMs: () => this.audioPipe.readBufferedMs(),
@@ -86,4 +87,10 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         await this.statsAdapter.refresh();
         return this.statsAdapter.snapshot();
     }
+}
+
+/** Sem socket binário na plataforma não há chamada UNOFFICIAL. */
+function socketFactoryOf(runtime: MediaRuntime): MediaSocketFactory {
+    if (!runtime.openSocket) throw new Error("This runtime has no binary socket: unofficial calls are unavailable");
+    return runtime.openSocket;
 }

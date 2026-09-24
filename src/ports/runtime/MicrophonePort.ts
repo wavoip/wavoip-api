@@ -11,4 +11,6 @@ export interface MicrophonePort {
     open(): Promise<MediaStreamLike>;
     close(): Promise<void>;
     readonly muted: boolean;
+    /** O mute vale para todas as chamadas enquanto o stream for um só. */
+    setMuted(muted: boolean): void;
 }

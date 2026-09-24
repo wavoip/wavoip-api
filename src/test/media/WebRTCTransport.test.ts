@@ -448,3 +448,12 @@ describe("WebRTCTransport", () => {
         });
     });
 });
+
+describe("WebRTCTransport on a runtime without WebRTC", () => {
+    it("says official calls are unavailable instead of failing later", () => {
+        const audio = new FakeAudioRuntime();
+        audio.createPeer = undefined;
+
+        expect(() => new WebRTCTransport(audio, "offer-sdp")).toThrow(/no WebRTC/);
+    });
+});

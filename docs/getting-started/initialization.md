@@ -12,6 +12,7 @@ import { Wavoip } from "@wavoip/wavoip-api"
 
 const wavoip = new Wavoip({
     tokens: ["token-1", "token-2"],
+    runtime: webRuntime(),    // a plataforma: `webRuntime()` vem de "@wavoip/wavoip-api"
     platform?: string,        // opcional — identifica a plataforma do cliente
     iceConfig?: IceConfig,    // opcional — sobrescreve servidores STUN/TURN
 })
