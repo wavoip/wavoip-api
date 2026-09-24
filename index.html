@@ -1,12 +1,67 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>wavoip-api</title>
+    <title>wavoip-api — playground</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #12141a;
+        color: #e6e8ee;
+        font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        display: grid;
+        gap: 16px;
+      }
+      h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #8b93a7; }
+      .panel {
+        border: 1px solid #262b36;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 12px;
+        background: #171a21;
+        display: grid;
+        gap: 12px;
+      }
+      .panel.incoming { border-color: #3f7d4f; }
+      .state, .meters { margin: 0; color: #b9c0d0; white-space: pre; }
+      .field { display: grid; gap: 4px; margin-bottom: 8px; color: #8b93a7; }
+      input {
+        background: #0d0f14;
+        border: 1px solid #262b36;
+        border-radius: 6px;
+        padding: 8px;
+        color: inherit;
+        font: inherit;
+      }
+      .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+      .action {
+        background: #232936;
+        border: 1px solid #333a49;
+        border-radius: 6px;
+        padding: 8px 14px;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+      }
+      .action:hover { background: #2c3446; }
+      .log {
+        margin: 0;
+        padding: 12px;
+        max-height: 40vh;
+        overflow: auto;
+        background: #0d0f14;
+        border: 1px solid #262b36;
+        border-radius: 8px;
+        color: #9aa3b8;
+        white-space: pre-wrap;
+      }
+    </style>
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="/src/dev.ts"></script>
+    <script type="module" src="/src/dev/main.ts"></script>
   </body>
 </html>
