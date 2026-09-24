@@ -1,3 +1,4 @@
+import { type AudioControl, AudioControlProxy } from "@/modules/audio/AudioControl";
 import type { DeviceApiFailure, DeviceAttempt, StartCallFailure } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
 import type { OutgoingCall } from "@/modules/call/OutgoingCall";
@@ -17,6 +18,9 @@ type Events = {
 export type DeviceWakeUp = { readonly token: string; readonly result: Result<void, DeviceApiFailure> };
 
 export class Wavoip extends EventEmitter<Events> {
+    /** Os aparelhos de áudio que a biblioteca enxerga. */
+    readonly audio: AudioControl;
+
     private readonly mediaManager: MediaManager;
     private readonly transportOptions?: TransportOptions;
     private readonly platform?: string;
@@ -30,6 +34,7 @@ export class Wavoip extends EventEmitter<Events> {
         super();
 
         this.mediaManager = new MediaManager();
+        this.audio = AudioControlProxy(this.mediaManager);
         this.transportOptions = collectTransportOptions(params);
         this.platform = params.platform;
 
@@ -38,17 +43,6 @@ export class Wavoip extends EventEmitter<Events> {
             this.bindDeviceEvents(device);
             this._devices.push(device);
         }
-    }
-
-    get multimedia() {
-        return {
-            microphone: this.mediaManager.activeMic,
-            speaker: this.mediaManager.activeSpeaker,
-        };
-    }
-
-    getMultimediaDevices(): MediaDeviceInfo[] {
-        return this.mediaManager.devices;
     }
 
     /**

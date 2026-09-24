@@ -1,5 +1,6 @@
 import { WebAudioEngine } from "@/platform/web/WebAudioEngine";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
+import type { AudioDevice } from "@/domain/audio/device";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 
 export type MediaManagerEvents = {
@@ -8,14 +9,6 @@ export type MediaManagerEvents = {
     speakerChanged: [device: MediaDeviceInfo | null];
     muteChanged: [muted: boolean];
 };
-
-export interface MediaManagerState {
-    devices: MediaDeviceInfo[];
-    activeMic?: MediaDeviceInfo;
-    activeSpeaker?: MediaDeviceInfo;
-    stream?: MediaStream;
-    muted: boolean;
-}
 
 /** O microfone e a lista de aparelhos do navegador. O áudio em si é do `WebAudioEngine`. */
 export class MediaManager extends EventEmitter<MediaManagerEvents> implements MicrophonePort {
@@ -34,6 +27,16 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> implements Mi
         super();
         this.enumerateDevices();
         navigator.mediaDevices.addEventListener("devicechange", this.handleDeviceChange);
+    }
+
+    /** O que o navegador lista, já no tipo neutro que a API pública entrega. */
+    listDevices(kind: AudioDevice["kind"]): AudioDevice[] {
+        return this.devices.filter((device) => device.kind === kindOf(kind)).map(toAudioDevice);
+    }
+
+    currentDevice(kind: AudioDevice["kind"]): AudioDevice | null {
+        const active = kind === "input" ? this.activeMic : this.activeSpeaker;
+        return active ? toAudioDevice(active) : null;
     }
 
     haveMedia(): boolean {
@@ -181,16 +184,6 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> implements Mi
         this.emit("muteChanged", this.muted);
     }
 
-    getState(): MediaManagerState {
-        return {
-            devices: this.devices,
-            activeMic: this.activeMic,
-            activeSpeaker: this.activeSpeaker,
-            stream: this.stream,
-            muted: this.muted,
-        };
-    }
-
     private async enumerateDevices(): Promise<void> {
         const all = await navigator.mediaDevices.enumerateDevices();
         this.devices = all.filter((d) => d.kind === "audioinput" || d.kind === "audiooutput");
@@ -253,5 +246,17 @@ function buildAudioConstraints(deviceId?: string): MediaStreamConstraints {
             autoGainControl: true,
         },
         video: false,
+    };
+}
+
+function kindOf(kind: AudioDevice["kind"]): MediaDeviceKind {
+    return kind === "input" ? "audioinput" : "audiooutput";
+}
+
+function toAudioDevice(device: MediaDeviceInfo): AudioDevice {
+    return {
+        id: device.deviceId,
+        label: device.label,
+        kind: device.kind === "audioinput" ? "input" : "output",
     };
 }

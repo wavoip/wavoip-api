@@ -314,3 +314,42 @@ entram nele sem quebrar de novo, e valem para as duas direções.
 Duas coisas ficaram melhores de quebra: as leituras são síncronas (davam `await` antes, o que
 não combina com `requestAnimationFrame`) e respondem `0` antes de a mídia subir, em vez de
 deixar a Promise pendente.
+
+---
+
+## 8. `wavoip.audio` no lugar de `multimedia`
+
+```typescript
+// v2
+const devices = wavoip.getMultimediaDevices()           // MediaDeviceInfo[]
+const mics = devices.filter((d) => d.kind === "audioinput")
+const { microphone } = wavoip.multimedia
+
+// v3
+const mics = wavoip.audio.listInputDevices()            // AudioDevice[]
+const current = wavoip.audio.currentInput
+```
+
+| v2 | v3 |
+| --- | --- |
+| `wavoip.getMultimediaDevices()` | `wavoip.audio.listInputDevices()` + `listOutputDevices()` |
+| `wavoip.multimedia.microphone` | `wavoip.audio.currentInput` |
+| `wavoip.multimedia.speaker` | `wavoip.audio.currentOutput` |
+| `MediaManagerState` | removido — não havia como chegar nele pela API pública |
+
+O tipo mudou de `MediaDeviceInfo` (do navegador) para `AudioDevice`, que é da biblioteca:
+
+```typescript
+type AudioDevice = { id: string; label: string; kind: "input" | "output" }
+```
+
+O `deviceId` virou `id`, e o `kind` deixou de ser `"audioinput"`/`"audiooutput"` — a lista já
+vem separada por método, então o filtro que você fazia some junto. **Entrada e saída são listas
+separadas** porque o nome no plural era a única coisa distinguindo as duas na v2, e filtrar por
+string é fácil de errar.
+
+{% hint style="info" %}
+Escolher o aparelho, testar o microfone e controlar o volume entram numa versão seguinte. O
+`setMicrophone`/`setSpeaker` que a documentação da v2 descrevia **nunca** esteve na API
+pública: era código interno sem chamador, e o texto estava errado.
+{% endhint %}

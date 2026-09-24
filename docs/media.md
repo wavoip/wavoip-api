@@ -1,91 +1,95 @@
 ---
-description: Enumere e troque microfones e alto-falantes durante chamadas.
+description: Os microfones e alto-falantes que a biblioteca enxerga, e como o áudio é tratado.
 icon: microphone
 ---
 
 # Mídia
 
-A biblioteca gerencia todo o I/O de áudio através de um único `MediaManager` compartilhado. Você interage com ele através de métodos na instância `Wavoip`.
+`wavoip.audio` é por onde a biblioteca conta o que ela vê de áudio. Todas as chamadas
+compartilham a mesma captura, então o que está aqui vale para todas elas.
 
 ---
 
-## Listando dispositivos disponíveis
+## Listando os aparelhos
 
 ```typescript
-const devices = wavoip.getMultimediaDevices()
-// MediaDeviceInfo[]
-
-const mics     = devices.filter((d) => d.kind === "audioinput")
-const speakers = devices.filter((d) => d.kind === "audiooutput")
+const mics     = wavoip.audio.listInputDevices()
+const speakers = wavoip.audio.listOutputDevices()
 ```
 
-`MediaDeviceInfo` é o tipo padrão do navegador. Campos principais:
+Cada um é um `AudioDevice`:
 
-| Campo      | Descrição                                              |
-| ---------- | ------------------------------------------------------ |
-| `deviceId` | Identificador único do dispositivo.                    |
-| `kind`     | `"audioinput"` ou `"audiooutput"`.                     |
-| `label`    | Nome legível (ex: `"Microfone integrado"`).            |
+| Campo   | Descrição                                                        |
+| ------- | ---------------------------------------------------------------- |
+| `id`    | Identificador do aparelho, do jeito que a plataforma o nomeia.     |
+| `label` | Nome legível (ex.: `"Microfone integrado"`).                      |
+| `kind`  | `"input"` ou `"output"`.                                          |
 
----
-
-## Dispositivos ativos
-
-```typescript
-const { microphone, speaker } = wavoip.multimedia
-// MediaDeviceInfo | undefined
-```
-
-Retorna os dispositivos de entrada e saída atualmente selecionados.
-
----
-
-## Trocando o microfone
-
-Chame `setMicrophone` em um dispositivo obtido via `getDevices()`, ou acesse o `MediaManager` subjacente pelo socket interno do dispositivo. Na prática, o `MediaManager` é acessado indiretamente: a biblioteca realiza uma troca a quente sem interrupção enquanto uma chamada está ativa.
-
-{% hint style="info" %}
-A troca de microfone e alto-falante é tratada internamente pelo `MediaManager` compartilhado. As preferências de dispositivo são aplicadas a todas as chamadas ativas e futuras automaticamente.
+{% hint style="warning" %}
+**O `label` vem vazio antes da primeira permissão de microfone.** É assim que o navegador
+evita que uma página identifique o seu hardware sem você deixar. Depois da primeira chamada
+aceita, os nomes aparecem.
 {% endhint %}
 
 ---
 
-## Padrão típico de seletor de dispositivo
+## O aparelho em uso
 
 ```typescript
-async function buildDevicePicker(wavoip) {
-    const devices = wavoip.getMultimediaDevices()
-    const { microphone, speaker } = wavoip.multimedia
+wavoip.audio.currentInput    // AudioDevice | null
+wavoip.audio.currentOutput   // AudioDevice | null
+```
 
-    const mics     = devices.filter((d) => d.kind === "audioinput")
-    const speakers = devices.filter((d) => d.kind === "audiooutput")
+`null` quer dizer que nenhuma chamada abriu o microfone ainda. Depois disso, `currentInput`
+traz o aparelho que o sistema efetivamente entregou — que pode não ser o primeiro da lista.
 
-    // Renderize dropdowns usando mics / speakers
-    // Marque microphone.deviceId e speaker.deviceId como selecionados
+Os dois são getters vivos: leia-os quando for desenhar, e não guarde uma cópia.
+
+```typescript
+function renderDevicePicker() {
+    const mics = wavoip.audio.listInputDevices()
+    const current = wavoip.audio.currentInput
+
+    for (const mic of mics) {
+        addOption(mic.id, mic.label, { selected: mic.id === current?.id })
+    }
 }
 ```
 
----
-
-## Notas sobre o AudioContext
-
-Um único `AudioContext` é compartilhado entre todas as chamadas. Ele é criado na construção do `Wavoip` e suspenso até o início da primeira chamada. Retoma automaticamente quando a captura de áudio começa e suspende quando todas as chamadas terminam.
-
-{% hint style="warning" %}
-Os navegadores exigem um gesto do usuário antes que o `AudioContext` possa retomar. Certifique-se de que `offer.accept()` ou `wavoip.startCall()` seja chamado a partir de um handler de clique ou toque.
+{% hint style="info" %}
+Esta versão **lista** os aparelhos; escolher qual usar, testar o microfone antes da chamada e
+controlar o volume ainda não estão na API. Enquanto isso, quem decide o microfone é o padrão
+do sistema operacional.
 {% endhint %}
 
 ---
 
-## Estatísticas de qualidade de chamada
+## Notas sobre o áudio
 
-A qualidade de áudio por chamada é reportada pelo evento `stats` no `ActiveCall`:
+A biblioteca mantém um motor de áudio só, compartilhado entre todas as chamadas. Ele é criado
+junto com o `Wavoip` e fica suspenso até a primeira chamada: retoma quando a captura começa e
+suspende de novo quando a última chamada termina.
+
+{% hint style="warning" %}
+Os navegadores exigem um gesto do usuário para o áudio poder tocar. Chame `offer.accept()` ou
+`wavoip.startCall()` de dentro de um handler de clique ou toque.
+{% endhint %}
+
+O áudio que cruza uma chamada não oficial é PCM Int16 a 16 kHz, reamostrado dentro de um
+worklet — não é µ-law.
+
+---
+
+## Qualidade da chamada
+
+A qualidade por chamada sai do `getStats()` do `ActiveCall`, na cadência que você escolher:
 
 ```typescript
-call.on("stats", (stats) => {
-    console.log("Tempo de ida e volta:", stats.rtt.avg, "ms")
-    console.log("Perda de pacotes RX:", stats.rx.loss)
-})
+const { rtt, packets, latency } = await call.getStats()
+console.log("Ida e volta:", rtt.avg, "ms")
+console.log("Perda RX:", packets.rx.lost)
+console.log("Latência estimada:", latency.total_ms, "ms")
 ```
 
-Veja [Chamada Ativa → Estatísticas de chamada](calls/active.md#estatísticas-de-chamada) para o tipo completo de `CallStats`.
+Veja [Chamada Ativa → Estatísticas de chamada](calls/active.md#estatisticas-de-chamada) para o
+tipo completo de `CallStats`, e para de onde vem cada latência.

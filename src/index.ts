@@ -1,4 +1,6 @@
+export type { AudioDevice } from "@/domain/audio/device";
 export type { AudioAnalyser, CallAudio } from "@/domain/call/audio";
+export type { AudioControl } from "@/modules/audio/AudioControl";
 export type { CallConnection } from "@/domain/call/connection";
 export type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
 export type { CallEndOutcome } from "@/modules/device/WebSocket";
@@ -34,7 +36,6 @@ export type {
     IceConfig,
     IceDiagnostics,
 } from "@/modules/media/ICEDiagnostics";
-export type { MediaManagerState } from "@/modules/media/MediaManager";
 export type { StunProbeResult } from "@/modules/media/StunProbe";
 export { runStunProbe } from "@/modules/media/StunProbe";
 export type { Unsubscribe } from "@/modules/shared/EventEmitter";

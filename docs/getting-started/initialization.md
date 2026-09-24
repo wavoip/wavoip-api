@@ -163,23 +163,11 @@ for await (const { token, result } of wavoip.wakeUpDevicesIterator()) {
 
 ---
 
-### `getMultimediaDevices()`
+### `audio`
 
-Lista todos os microfones e alto-falantes disponíveis.
-
-```typescript
-const devices = wavoip.getMultimediaDevices()
-// MediaDeviceInfo[]
-```
-
----
-
-### `multimedia` (propriedade)
-
-Retorna o microfone e alto-falante ativos no momento.
+Os aparelhos de áudio que a biblioteca enxerga. Veja [Mídia](../media.md).
 
 ```typescript
-const { microphone, speaker } = wavoip.multimedia
-// microphone: MediaDeviceInfo | undefined
-// speaker:    MediaDeviceInfo | undefined
+wavoip.audio.listInputDevices()
+wavoip.audio.currentInput
 ```
