@@ -1,3 +1,4 @@
+import type { PeerConnectionFactory } from "@/ports/runtime/PeerConnectionPort";
 import { webPeerConnection } from "@/platform/web/webPeerConnection";
 export type StunProbeResult = {
     server: string;
@@ -12,6 +13,9 @@ const DEFAULT_PROBE_TIMEOUT_MS = 3000;
  * `reachable: true` when at least one `srflx` candidate is gathered before
  * the timeout fires. Each probe uses its own throwaway RTCPeerConnection.
  *
+ * Pass `createPeer` to probe from a runtime other than the browser; it defaults to the
+ * browser's own `RTCPeerConnection`.
+ *
  * @example
  *   const results = await runStunProbe([
  *       "stun:stun.l.google.com:19302",
@@ -21,14 +25,15 @@ const DEFAULT_PROBE_TIMEOUT_MS = 3000;
 export function runStunProbe(
     servers: string[],
     timeoutMs: number = DEFAULT_PROBE_TIMEOUT_MS,
+    createPeer: PeerConnectionFactory = webPeerConnection,
 ): Promise<StunProbeResult[]> {
-    return Promise.all(servers.map((server) => probeOne(server, timeoutMs)));
+    return Promise.all(servers.map((server) => probeOne(server, timeoutMs, createPeer)));
 }
 
-function probeOne(server: string, timeoutMs: number): Promise<StunProbeResult> {
+function probeOne(server: string, timeoutMs: number, createPeer: PeerConnectionFactory): Promise<StunProbeResult> {
     return new Promise((resolve) => {
         const startedAt = Date.now();
-        const pc = webPeerConnection({ iceServers: [{ urls: server }] });
+        const pc = createPeer({ iceServers: [{ urls: server }] });
         let settled = false;
 
         const cleanup = () => {
