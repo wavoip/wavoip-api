@@ -1,3 +1,4 @@
+import { Deferred } from "@/domain/shared/deferred";
 import {
     type ConnectivityIssue,
     DEFAULT_ICE_GATHERING_TIMEOUT_MS,
@@ -32,7 +33,7 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
     readonly answer: Promise<SessionDescription>;
     lastDiagnostics: IceDiagnostics | null = null;
 
-    private readonly answerResolver: PromiseWithResolvers<SessionDescription>;
+    private readonly answerResolver: Deferred<SessionDescription>;
     private readonly remoteOffer?: SessionDescription;
     private started = false;
     private offerCreated = false;
@@ -62,7 +63,7 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
         this.pc = createPeer({ iceServers });
         if (offer) this.remoteOffer = { type: "offer", sdp: offer };
 
-        this.answerResolver = Promise.withResolvers<SessionDescription>();
+        this.answerResolver = Deferred.of<SessionDescription>();
         this.answer = this.answerResolver.promise;
 
         this.pc.addEventListener("icecandidate", (event) => {
