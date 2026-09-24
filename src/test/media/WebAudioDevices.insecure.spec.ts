@@ -1,4 +1,4 @@
-import { MediaManager } from "@/modules/media/MediaManager";
+import { WebAudioDevices } from "@/platform/web/WebAudioDevices";
 import { WebAudioEngine } from "@/platform/web/WebAudioEngine";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -24,13 +24,13 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-describe("MediaManager on a platform without mediaDevices", () => {
+describe("WebAudioDevices on a platform without mediaDevices", () => {
     it("still constructs, so the failure surfaces where it can be explained", () => {
-        expect(() => new MediaManager(new WebAudioEngine())).not.toThrow();
+        expect(() => new WebAudioDevices(new WebAudioEngine())).not.toThrow();
     });
 
     it("lists no devices instead of rejecting", async () => {
-        const media = new MediaManager(new WebAudioEngine());
+        const media = new WebAudioDevices(new WebAudioEngine());
 
         await Promise.resolve();
 
@@ -39,7 +39,7 @@ describe("MediaManager on a platform without mediaDevices", () => {
     });
 
     it("says what is missing when the microphone is asked for", async () => {
-        const media = new MediaManager(new WebAudioEngine());
+        const media = new WebAudioDevices(new WebAudioEngine());
 
         await expect(media.open()).rejects.toThrow(/navigator\.mediaDevices is undefined/);
     });

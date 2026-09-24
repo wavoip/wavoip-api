@@ -1,5 +1,5 @@
 import type { AudioControl } from "@/domain/audio/control";
-import { MediaManager } from "@/modules/media/MediaManager";
+import { WebAudioDevices } from "@/platform/web/WebAudioDevices";
 import { WebAudioEngine } from "@/platform/web/WebAudioEngine";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,7 +15,7 @@ const browserDevices = [
 ] as MediaDeviceInfo[];
 
 async function makeControl() {
-    const media = new MediaManager(new WebAudioEngine());
+    const media = new WebAudioDevices(new WebAudioEngine());
     // O construtor enumera sem esperar: aguarda a lista chegar, em vez de contar microtasks.
     await vi.waitFor(() => expect(media.listInputDevices().length).toBeGreaterThan(0));
     return { media, control: media as AudioControl };

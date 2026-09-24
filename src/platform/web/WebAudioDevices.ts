@@ -4,7 +4,7 @@ import type { AudioControl } from "@/domain/audio/control";
 import type { AudioEnginePort } from "@/ports/runtime/AudioEnginePort";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 
-export type MediaManagerEvents = {
+export type WebAudioDevicesEvents = {
     devicesChanged: [devices: MediaDeviceInfo[]];
     micChanged: [device: MediaDeviceInfo | null];
     speakerChanged: [device: MediaDeviceInfo | null];
@@ -12,7 +12,7 @@ export type MediaManagerEvents = {
 };
 
 /** O microfone e a lista de aparelhos do navegador. O áudio em si é do `WebAudioEngine`. */
-export class MediaManager extends EventEmitter<MediaManagerEvents> implements MicrophonePort, AudioControl {
+export class WebAudioDevices extends EventEmitter<WebAudioDevicesEvents> implements MicrophonePort, AudioControl {
     public devices: MediaDeviceInfo[] = [];
     public activeMic?: MediaDeviceInfo;
     public activeSpeaker?: MediaDeviceInfo;
@@ -245,7 +245,7 @@ export class MediaManager extends EventEmitter<MediaManagerEvents> implements Mi
             try {
                 await (el as HTMLAudioElement & { setSinkId: (id: string) => Promise<void> }).setSinkId(deviceId);
             } catch (err) {
-                console.warn("[MediaManager] setSinkId failed:", err);
+                console.warn("[WebAudioDevices] setSinkId failed:", err);
             }
         }
     }

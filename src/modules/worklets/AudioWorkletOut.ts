@@ -74,7 +74,7 @@ class AudioDataWorkletStream extends AudioWorkletProcessor {
 
     /**
      * O resample é feito aqui, no worklet, e não com um segundo AudioContext a 16kHz: o
-     * AudioContext é um só, do MediaManager, para entrada e saída.
+     * AudioContext é um só, do `WebAudioEngine`, para entrada e saída.
      */
     private drainAndResample(): void {
         if (!this.src) return;
