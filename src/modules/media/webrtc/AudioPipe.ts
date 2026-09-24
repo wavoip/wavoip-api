@@ -68,7 +68,7 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> {
             remoteTrack.addEventListener("unmute", () => this.announcePeerMuted(false));
         }
 
-        this.remotePlayback = this.runtime.engine.playStream(remoteStream);
+        this.remotePlayback = this.runtime.engine.renderRemote(remoteStream);
     }
 
     private announcePeerMuted(muted: boolean): void {

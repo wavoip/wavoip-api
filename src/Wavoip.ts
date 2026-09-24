@@ -178,11 +178,9 @@ export class Wavoip {
         return this.events.on(event, callback);
     }
 
-    /**
-     * O raiz de composição: é o único lugar que escolhe implementação. A sessão só conhece
-     * portas, e é por isto que ela roda igual em qualquer plataforma.
-     */
     private connect(token: string): DeviceSession {
+        // O raiz de composição: é o único lugar que escolhe implementação. A sessão só
+        // conhece portas, e é por isto que ela roda igual em qualquer plataforma.
         const session = new DeviceSession(
             {
                 signaling: new SocketIoSignaling(DeviceWebSocketFactory(token, this.platform)),
@@ -197,11 +195,9 @@ export class Wavoip {
         return session;
     }
 
-    /**
-     * O device decide o transporte da chamada que sai: OFFICIAL fala WebRTC, UNOFFICIAL fala
-     * relay. Na oferta recebida, quem decide é o plano que veio nela.
-     */
     private transportsFor(token: string): TransportFactory {
+        // O device decide o transporte da chamada que sai: OFFICIAL fala WebRTC, UNOFFICIAL
+        // fala relay. Na oferta recebida, quem decide é o plano que veio nela.
         const { runtime, transportOptions } = this;
         return {
             forCall: (type) =>

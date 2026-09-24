@@ -129,7 +129,7 @@ export class FakeAudioEngine implements AudioEnginePort {
         this.closed += 1;
     }
 
-    playStream(): AudioMeter {
+    renderRemote(): AudioMeter {
         const handle = new FakeAudioHandle();
         this.played.push(handle);
         return handle;

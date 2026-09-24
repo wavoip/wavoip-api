@@ -66,7 +66,7 @@ export class WebAudioEngine implements AudioEnginePort {
      * segurando o `MediaStream`, a cadeia analyser/destination da track remota não recebe
      * áudio. O elemento fica mudo — ele só serve de âncora.
      */
-    playStream(stream: MediaStreamLike): AudioMeter {
+    renderRemote(stream: MediaStreamLike): AudioMeter {
         const anchor = new Audio();
         anchor.muted = true;
         anchor.srcObject = stream as unknown as MediaStream;

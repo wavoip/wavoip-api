@@ -1,8 +1,8 @@
 import type { ConnectivityIssue } from "@/domain/call/ice";
 
-// O `RTCPeerConnection` como o núcleo precisa dele, com tipos nossos no formato do
-// navegador. O react-native-webrtc tem a mesma forma, então o adaptador de lá cabe aqui sem
-// o núcleo saber. Só `addEventListener`: os handlers `on*` não existem em toda implementação.
+// `RTCPeerConnection` as the core needs it, in our own types but the browser's shape.
+// react-native-webrtc has the same shape, so its adapter fits here without the core
+// knowing. `addEventListener` only: the `on*` handlers are not in every implementation.
 
 /** A STUN or TURN server, in the same shape the browser expects. */
 export type IceServer = { urls: string | string[]; username?: string; credential?: string };
@@ -13,7 +13,7 @@ export type PeerConnectionState = "new" | "connecting" | "connected" | "disconne
 export type IceConnectionState = "new" | "checking" | "connected" | "completed" | "disconnected" | "failed" | "closed";
 export type IceGatheringState = "new" | "gathering" | "complete";
 
-/** Uma linha do `getStats`: o `type` diz o que ela é, e o resto varia com ele. */
+/** One `getStats` row: `type` says what it is, and the rest varies with it. */
 export type StatEntry = { readonly type: string; readonly kind?: string; readonly [field: string]: unknown };
 export type StatsReport = { values(): Iterable<StatEntry> };
 
@@ -25,7 +25,7 @@ export type PeerConnectionEvents = {
     icegatheringstatechange: unknown;
 };
 
-/** Subconjunto estrutural do `MediaStream`, que o react-native-webrtc também atende. */
+/** The structural subset of `MediaStream` that react-native-webrtc also satisfies. */
 export type MediaTrackLike = {
     enabled: boolean;
     stop(): void;
@@ -51,7 +51,7 @@ export interface PeerConnectionLike {
     setLocalDescription(description: SessionDescription): Promise<void>;
     setRemoteDescription(description: SessionDescription): Promise<void>;
     addTrack(track: MediaTrackLike, stream: MediaStreamLike): unknown;
-    /** Só a sonda de STUN usa: sem uma mídia, o ICE não junta candidato nenhum. */
+    /** Only the STUN probe uses it: with no media, ICE gathers no candidate at all. */
     createDataChannel(label: string): unknown;
     getStats(): Promise<StatsReport>;
     close(): void;
@@ -67,5 +67,5 @@ export interface PeerConnectionLike {
 
 export type PeerConnectionFactory = (config: { iceServers: IceServer[] }) => PeerConnectionLike;
 
-/** O que o diagnóstico de ICE precisa saber de um candidato, sem depender do tipo do navegador. */
+/** What ICE diagnostics need from a candidate, without depending on the browser's type. */
 export type CandidateKindOf = (candidate: { type?: string | null }) => ConnectivityIssue | null;

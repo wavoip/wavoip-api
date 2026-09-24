@@ -1,16 +1,16 @@
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 
 /**
- * O microfone que as chamadas compartilham. Na web é o `getUserMedia`; no React Native, o
- * módulo nativo equivalente.
+ * The microphone the calls share. On the web it is `getUserMedia`; on React Native, the
+ * equivalent native module.
  *
- * O stream é um só para todas as chamadas — por isso `open()` chamado duas vezes devolve o
- * mesmo. Cada chamada ganhar a própria track é a DEV-526 PR H.
+ * There is a single stream for every call, which is why calling `open()` twice hands back
+ * the same one.
  */
 export interface MicrophonePort {
     open(): Promise<MediaStreamLike>;
     close(): Promise<void>;
     readonly muted: boolean;
-    /** O mute vale para todas as chamadas enquanto o stream for um só. */
+    /** Muting applies to every call, as long as the stream is shared. */
     setMuted(muted: boolean): void;
 }

@@ -1,7 +1,3 @@
-/**
- * O WebSocket binário do relay. O React Native tem o mesmo global, então o adaptador web
- * serve aos dois; o que muda de plataforma é quem o cria.
- */
 export const SOCKET_OPEN = 1;
 
 export type MediaSocketEvents = {
@@ -11,6 +7,10 @@ export type MediaSocketEvents = {
     close: { code: number };
 };
 
+/**
+ * The relay's binary WebSocket. What changes between platforms is who creates it, not the
+ * shape: React Native ships the same global the browser does.
+ */
 export interface MediaSocketLike {
     readonly readyState: number;
     send(data: ArrayBuffer | string): void;
