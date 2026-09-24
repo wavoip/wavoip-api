@@ -1,12 +1,11 @@
 import { CallRegistry } from "@/application/call/CallRegistry";
 import { CallSession, type CallSessionDeps, type TransportFactory } from "@/application/call/CallSession";
 import type { CallType } from "@/domain/call/types";
-import type { Device } from "@/domain/device/contract";
 import { DevicePolicy } from "@/domain/device/policy";
 import { CallPolicy } from "@/domain/call/policy";
 import type { CommandFailure, DeviceApiFailure, StartCallErrorCode, WavoipError } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
-import type { ConnectionStatus, Contact, DeviceRestriction, DeviceStatus } from "@/domain/device/types";
+import type { ConnectionStatus, Contact, Device, DeviceRestriction, DeviceStatus } from "@/domain/device/Device";
 import { EventEmitter, type Subscribable, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import type { DeviceApiPort } from "@/ports/DeviceApiPort";
 import type { CallSignalingPort, DeviceSignalingPort, IncomingOffer, ServerDeviceEvent } from "@/ports/SignalingPort";

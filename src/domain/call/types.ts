@@ -21,11 +21,6 @@ export type Peer = {
     profilePicture: string | null;
 };
 
-export type MediaPlanRelay = { type: "relay"; host: string; port: string };
-export type MediaPlanWebRTC = { type: "webRTC"; sdp: string };
-export type MediaPlanNull = { type: "none" };
-export type MediaPlan = MediaPlanRelay | MediaPlanWebRTC | MediaPlanNull;
-
 /**
  * Which ending closed the call, and why. Rides along `call:ended`.
  *

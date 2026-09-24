@@ -1,6 +1,6 @@
 import type { CallAudio } from "@/domain/call/audio";
 import type { CallStats } from "@/domain/call/stats";
-import type { MediaPlan } from "@/domain/call/types";
+import type { MediaPlan } from "@/domain/call/mediaPlan";
 import type { TransportStatus } from "@/domain/call/types";
 import type { ConnectivityIssue, IceConfig, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { EventEmitter } from "@/modules/shared/EventEmitter";

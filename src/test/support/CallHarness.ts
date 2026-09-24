@@ -1,6 +1,6 @@
 import { CallRegistry } from "@/application/call/CallRegistry";
 import { CallSession, type CallSessionInit } from "@/application/call/CallSession";
-import type { MediaPlan } from "@/domain/call/types";
+import type { MediaPlan } from "@/domain/call/mediaPlan";
 import type { ITransport } from "@/modules/media/ITransport";
 import { FakeCallSignaling } from "@/test/fakes/FakeCallSignaling";
 import { FakeTransportFactory } from "@/test/fakes/FakeTransportFactory";

@@ -1,4 +1,4 @@
-import type { DeviceStatus } from "@/domain/device/types";
+import type { DeviceStatus } from "@/domain/device/Device";
 import type { DeviceErrorCode } from "@/domain/shared/errors";
 
 /**

@@ -3,7 +3,7 @@ import type { DeviceApiFailure, DeviceAttempt, StartCallFailure } from "@/domain
 import { Result } from "@/domain/shared/Result";
 import { type OutgoingCall, OutgoingCallProxy } from "@/modules/call/OutgoingCall";
 import { type IncomingCall, IncomingCallProxy } from "@/modules/call/IncomingCall";
-import type { Device } from "@/domain/device/contract";
+import type { Device } from "@/domain/device/Device";
 
 import type { IceConfig } from "@/modules/media/ICEDiagnostics";
 import type { TransportOptions } from "@/modules/media/ITransport";

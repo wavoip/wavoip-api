@@ -1,7 +1,7 @@
 import { CallFailure } from "@/domain/call/failure";
-import type { DeviceRestriction } from "@/domain/device/types";
+import type { DeviceRestriction } from "@/domain/device/Device";
 import { Status } from "@/domain/call/status";
-import type { MediaPlan } from "@/domain/call/types";
+import type { MediaPlan } from "@/domain/call/mediaPlan";
 import type { ClientEvents, DeviceSocket, ServerEvents, WssResponse } from "@/adapters/socketio/DeviceSocket";
 import {
     Ack,

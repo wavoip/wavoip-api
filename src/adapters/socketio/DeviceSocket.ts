@@ -1,16 +1,8 @@
 import type { CallPeer } from "@/modules/call/Peer";
 import type { ServerCallStats } from "@/domain/call/stats";
-import type { CallType } from "@/domain/call/types";
-import type { CallEndOutcome, MediaPlan } from "@/domain/call/types";
-
-export type {
-    CallEndOutcome,
-    MediaPlan,
-    MediaPlanNull,
-    MediaPlanRelay,
-    MediaPlanWebRTC,
-} from "@/domain/call/types";
-import type { Contact, DeviceStatus } from "@/domain/device/types";
+import type { MediaPlan } from "@/domain/call/mediaPlan";
+import type { CallEndOutcome, CallType } from "@/domain/call/types";
+import type { Contact, DeviceStatus } from "@/domain/device/Device";
 import { Config } from "@/config/config";
 import { io } from "socket.io-client";
 import type { Socket } from "socket.io-client";

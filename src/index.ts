@@ -25,8 +25,14 @@ export type { OutgoingCall, OutgoingCallEvents, OutgoingCallFailure } from "@/mo
 export type { IncomingCall, IncomingCallEvents } from "@/modules/call/IncomingCall";
 export type { CallPeer } from "@/modules/call/Peer";
 
-export type { ConnectionStatus, Contact, DeviceRestriction, DeviceStatus } from "@/domain/device/types";
-export type { Device, DeviceEvents } from "@/domain/device/contract";
+export type {
+    ConnectionStatus,
+    Contact,
+    Device,
+    DeviceEvents,
+    DeviceRestriction,
+    DeviceStatus,
+} from "@/domain/device/Device";
 
 export type { TransportStatus } from "@/modules/media/ITransport";
 export type { IceServer } from "@/ports/runtime/PeerConnectionPort";

@@ -1,4 +1,4 @@
-import type { MediaPlan } from "@/domain/call/types";
+import type { MediaPlan } from "@/domain/call/mediaPlan";
 import {
     Ack,
     type CallSignalingPort,

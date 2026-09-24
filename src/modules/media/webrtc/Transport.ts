@@ -1,6 +1,6 @@
 import type { CallAudio } from "@/domain/call/audio";
 import type { CallStats } from "@/domain/call/stats";
-import type { MediaPlan } from "@/domain/call/types";
+import type { MediaPlan } from "@/domain/call/mediaPlan";
 import { RTCAudioPipe } from "@/modules/media/webrtc/AudioPipe";
 import { RTCConnection } from "@/modules/media/webrtc/Connection";
 import { RTCStatsAdapter } from "@/modules/media/webrtc/StatsAdapter";

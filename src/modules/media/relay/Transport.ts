@@ -1,7 +1,7 @@
 import type { CallAudio } from "@/domain/call/audio";
 import type { MediaSocketFactory } from "@/ports/runtime/MediaSocketPort";
 import type { CallStats } from "@/domain/call/stats";
-import type { MediaPlan } from "@/domain/call/types";
+import type { MediaPlan } from "@/domain/call/mediaPlan";
 import type { RelayAddress } from "@/modules/media/ITransport";
 import { WSAudioPipe } from "@/modules/media/relay/AudioPipe";
 import { WSConnection } from "@/modules/media/relay/Connection";

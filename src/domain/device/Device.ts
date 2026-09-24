@@ -1,12 +1,40 @@
-import type {
-    ConnectionStatus,
-    Contact,
-    DeviceRestriction,
-    DeviceStatus,
-} from "@/domain/device/types";
+import type { CallType } from "@/domain/call/types";
 import type { CommandFailure, DeviceApiFailure } from "@/domain/shared/errors";
 import type { Result } from "@/domain/shared/Result";
 import type { Unsubscribe } from "@/modules/shared/EventEmitter";
+
+/**
+ * Account-level device status. WebSocket transport state is tracked separately
+ * via `ConnectionStatus` and `connectionStatusChanged`.
+ */
+export type DeviceStatus =
+    | "close"
+    | "connecting"
+    | "open"
+    | "error"
+    | "restarting"
+    | "hibernating"
+    | "BUILDING"
+    | "WAITING_PAYMENT"
+    | "EXTERNAL_INTEGRATION_ERROR";
+
+/** WebSocket transport state, independent of the account-level `DeviceStatus`. */
+export type ConnectionStatus = "connected" | "disconnected" | "reconnecting";
+
+export type Contact = { phone: string };
+
+/** WhatsApp is holding the account back. `until` is absent when the server does not say. */
+export type DeviceRestriction = { readonly until: Date | null };
+
+/** Everything a device announces about itself at once. */
+export type DeviceDescription = {
+    readonly status: DeviceStatus;
+    readonly callType: CallType;
+    readonly contact: Contact | null;
+    readonly qrCode: string | null;
+    readonly restriction: DeviceRestriction | null;
+    readonly activeCalls: number;
+};
 
 export type DeviceEvents = {
     statusChanged: [status: DeviceStatus];

@@ -85,7 +85,7 @@ vi.mock("@/modules/media/webrtc/Transport", () => ({
     },
 }));
 
-import type { Device } from "@/domain/device/contract";
+import type { Device } from "@/domain/device/Device";
 import { Wavoip } from "@/Wavoip";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
 import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";

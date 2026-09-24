@@ -1,5 +1,6 @@
 import type { TransportFactory } from "@/application/call/CallSession";
-import type { CallType, MediaPlan } from "@/domain/call/types";
+import type { MediaPlan } from "@/domain/call/mediaPlan";
+import type { CallType } from "@/domain/call/types";
 import type { ITransport } from "@/modules/media/ITransport";
 import { FakeRTCTransport, FakeTransport } from "@/test/fakes/FakeTransport";
 

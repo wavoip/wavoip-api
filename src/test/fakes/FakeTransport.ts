@@ -1,6 +1,7 @@
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import { type CallStats, Stats } from "@/domain/call/stats";
-import type { MediaPlan, TransportStatus } from "@/domain/call/types";
+import type { MediaPlan } from "@/domain/call/mediaPlan";
+import type { TransportStatus } from "@/domain/call/types";
 import type { Events, IRTCTransport, IWSTransport } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { CallAudio } from "@/domain/call/audio";

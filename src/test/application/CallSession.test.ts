@@ -1,5 +1,5 @@
 import { CallSession, type CallSessionInit } from "@/application/call/CallSession";
-import type { MediaPlan } from "@/domain/call/types";
+import type { MediaPlan } from "@/domain/call/mediaPlan";
 import { Ack } from "@/ports/SignalingPort";
 import { FakeCallSignaling } from "@/test/fakes/FakeCallSignaling";
 import type { FakeRTCTransport, FakeTransport } from "@/test/fakes/FakeTransport";

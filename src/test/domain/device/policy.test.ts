@@ -1,5 +1,5 @@
 import { DevicePolicy } from "@/domain/device/policy";
-import type { DeviceStatus } from "@/domain/device/types";
+import type { DeviceStatus } from "@/domain/device/Device";
 import type { DeviceErrorCode } from "@/domain/shared/errors";
 import { describe, expect, it } from "vitest";
 
