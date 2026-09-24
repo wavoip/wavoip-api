@@ -1,4 +1,5 @@
 import type { ActiveCall, IncomingCall, OutgoingCall } from "@/index";
+import { debugPanel } from "@/dev/debugPanel";
 import { button, element, type Log } from "@/dev/ui";
 
 /** Mostra o que a chamada ativa está fazendo, e deixa mexer nela. */
@@ -8,7 +9,7 @@ export function activePanel(call: ActiveCall, log: Log): HTMLElement {
 
     const state = element("p", "state");
     const meters = element("p", "meters");
-    panel.append(state, meters, activeActions(call, log));
+    panel.append(state, meters, activeActions(call, log), debugPanel(call, log));
 
     const frame = () => {
         state.textContent = `status ${call.status} · conexão ${call.connection} · peer ${call.peer.muted ? "mudo" : "falando"}`;
