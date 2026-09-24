@@ -42,8 +42,6 @@ export type {
     IceConfig,
     IceDiagnostics,
 } from "@/modules/media/ICEDiagnostics";
-export type { StunProbeResult } from "@/modules/media/StunProbe";
-export { runStunProbe } from "@/modules/media/StunProbe";
 export type { Unsubscribe } from "@/modules/shared/EventEmitter";
 
 export { Wavoip } from "@/Wavoip";

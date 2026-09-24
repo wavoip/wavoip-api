@@ -386,6 +386,12 @@ isso não regride em silêncio.
 | `CallEndOutcome` | removido — era o payload cru do `call:ended`, não API |
 | `DeviceStatus` com `"UP"` | removido — não era usado em lugar nenhum do sistema |
 | `MediaManagerState` | removido |
+| `runStunProbe`, `StunProbeResult` | saíram da superfície pública |
+
+O `runStunProbe` sondava servidores STUN e continua existindo por dentro, mas ele presumia o
+navegador: criava a conexão de teste com a implementação web, e era isso que prendia o pacote
+inteiro ao DOM. Sondar a rede volta como parte do diagnóstico de ambiente, que cobre mais que
+STUN e funciona em qualquer plataforma.
 
 O `Wavoip` herdava de um `EventEmitter` interno, e com isso o `emit` e o `removeAllListeners`
 ficavam na mão de quem consome: dava para forjar um `offer` ou desligar os listeners da própria

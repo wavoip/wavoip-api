@@ -1,6 +1,5 @@
 import type { TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import { webMediaSocket } from "@/platform/web/webMediaSocket";
 import { SOCKET_OPEN, type MediaSocketFactory, type MediaSocketLike } from "@/ports/runtime/MediaSocketPort";
 import type { RelayAddress } from "@/modules/media/ITransport";
 
@@ -30,7 +29,7 @@ export class WSConnection extends EventEmitter<WSConnectionEvents> {
 
     constructor(
         private readonly token: string,
-        private readonly openSocket: MediaSocketFactory = webMediaSocket,
+        private readonly openSocket: MediaSocketFactory,
     ) {
         super();
     }

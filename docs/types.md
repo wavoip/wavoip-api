@@ -16,7 +16,6 @@ import type {
     CallPeer, CallStats, ServerCallStats, CallStatus, CallType, CallDirection,
     DeviceStatus, Contact,
     IceDiagnostics, IceCandidateKind, ConnectivityIssue,
-    StunProbeResult,
     TransportStatus,
     Unsubscribe,
 } from "@wavoip/wavoip-api"
@@ -170,20 +169,6 @@ type ConnectivityIssue =
 {% hint style="info" %}
 `iceDiagnostics` e `connectivityIssue` são emitidos por `IncomingCall`, `OutgoingCall` e `ActiveCall`. Em `ActiveCall`, o último `iceDiagnostics` e todos os `connectivityIssue` recebidos até o momento são re-emitidos para listeners tardios, garantindo que consumidores que assinam após o início da chamada não percam o estado inicial.
 {% endhint %}
-
----
-
-## STUN
-
-```typescript
-type StunProbeResult = {
-    server:    string
-    reachable: boolean
-    latencyMs?: number
-}
-```
-
-Use `runStunProbe(servers, timeoutMs?)` para testar a alcançabilidade de servidores STUN em paralelo.
 
 ---
 

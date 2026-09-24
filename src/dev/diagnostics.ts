@@ -1,5 +1,9 @@
 import { button, element, field, type Log } from "@/dev/ui";
-import { runStunProbe, type Wavoip } from "@/index";
+import type { Wavoip } from "@/index";
+// Interno de propósito: o caminho público para sondar STUN é o `runDiagnostics()`, que
+// ainda não existe. Quando existir, este painel passa a chamá-lo.
+import { runStunProbe } from "@/modules/media/StunProbe";
+import { webPeerConnection } from "@/platform/web/webPeerConnection";
 
 const DEFAULT_STUN = "stun:stun.l.google.com:19302, stun:stun.cloudflare.com:3478";
 
@@ -27,7 +31,7 @@ export function stunPanel(log: Log): HTMLElement {
     const probe = button("Testar STUN", async () => {
         results.textContent = "testando…";
         const list = servers.input.value.split(",").map((server) => server.trim());
-        const probed = await runStunProbe(list);
+        const probed = await runStunProbe(list, webPeerConnection);
         results.textContent = probed
             .map((r) => `${r.server}: ${r.reachable ? `ok em ${r.latencyMs ?? "?"}ms` : "inalcançável"}`)
             .join("\n");

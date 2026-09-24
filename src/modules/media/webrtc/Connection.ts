@@ -9,7 +9,6 @@ import {
 } from "@/modules/media/ICEDiagnostics";
 import type { TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import { webPeerConnection } from "@/platform/web/webPeerConnection";
 import type { PeerConnectionFactory, PeerConnectionLike, SessionDescription } from "@/ports/runtime/PeerConnectionPort";
 
 const SYMMETRIC_NAT_DETECTION_WINDOW_MS = 10_000;
@@ -54,7 +53,7 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
         return this._emittedConnectivityIssues;
     }
 
-    constructor(offer?: string, iceConfig?: IceConfig, createPeer: PeerConnectionFactory = webPeerConnection) {
+    constructor(offer: string | undefined, iceConfig: IceConfig | undefined, createPeer: PeerConnectionFactory) {
         super();
 
         this.gatheringTimeoutMs = iceConfig?.gatheringTimeoutMs ?? DEFAULT_ICE_GATHERING_TIMEOUT_MS;
