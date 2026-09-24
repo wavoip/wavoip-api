@@ -9,7 +9,9 @@
     },
     "include": [
         "src/domain",
-        "src/ports"
+        "src/ports",
+        "src/application",
+        "types/core-globals.d.ts"
     ],
     "exclude": []
 }

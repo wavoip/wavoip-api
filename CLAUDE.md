@@ -141,7 +141,12 @@ Ele termina no `scripts/check-public-types.mjs`, que compila o `dist/index.d.ts`
 **sem DOM**: um `AnalyserNode` ou um `MediaDeviceInfo` na superfície quebra o build de quem
 instala a biblioteca no React Native, e não o nosso (DEV-277).
 
-O `pnpm lint` também roda `tsc -p tsconfig.core.json`: compila o `src/domain/` sem DOM e sem
-`@types/node` (que declara `WebSocket` e `performance` globais). O domínio é a parte que roda
-igual no navegador, no React Native e no desktop — regra pura, sem I/O e sem timer. O que
-depende de plataforma fica atrás de uma porta, injetada por quem orquestra (DEV-526).
+O `pnpm lint` também roda `tsc -p tsconfig.core.json`: compila `src/domain/`, `src/ports/` e
+`src/application/` sem DOM e sem `@types/node` (que declara `WebSocket` e `performance`
+globais). São as três camadas que rodam igual no navegador, no React Native e no desktop — o
+domínio é regra pura, e a aplicação só fala com portas. O que depende de plataforma fica atrás
+de uma porta, injetada por quem orquestra (DEV-526).
+
+O único global que o portão declara é o `setTimeout`, em `types/core-globals.d.ts`: ele existe
+em todo runtime, mas o tipo dele só vem junto com o DOM ou com o `@types/node`. O arquivo mora
+fora de `src/` para o build não o enxergar.
