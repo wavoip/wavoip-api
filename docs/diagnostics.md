@@ -19,9 +19,19 @@ if (!report.readiness.OFFICIAL.ready) {
 Responde a uma pergunta só: **este ambiente consegue fazer uma chamada agora?** E, quando não
 consegue, diz o que falta em código, para você escrever o texto.
 
-{% hint style="success" %}
-**Rodar não mexe com ninguém.** Nenhuma chamada é aberta e nenhuma permissão é pedida — dá
-para chamar no carregamento da página, numa tela de configurações ou num botão de suporte.
+{% hint style="warning" %}
+**O diagnóstico pede a permissão do microfone, e é de propósito.** Sem ela a plataforma não
+conta o que está ligado: devolve entradas sem nome, e às vezes nem isso. Um diagnóstico que não
+pede não consegue responder se a chamada vai sair.
+
+Então rode-o de um botão, e não no carregamento da página — a pessoa precisa entender por que
+o navegador está pedindo o microfone naquele instante.
+{% endhint %}
+
+{% hint style="info" %}
+**Rodar durante uma chamada é seguro.** O microfone é o mesmo de todas as chamadas, e o
+diagnóstico só fecha o que ele próprio abriu: se já havia uma chamada em curso, o áudio dela
+não é tocado.
 {% endhint %}
 
 ## O relatório
@@ -68,10 +78,16 @@ vez de esconder o caso.
 | --- | --- |
 | `MICROPHONE_FOUND` | há ao menos um; `details.count` diz quantos |
 | `MICROPHONE_MISSING` | não há nenhum — impede os dois tipos de chamada |
-| `MICROPHONE_PERMISSION_PENDING` | os aparelhos aparecem sem nome, o que só acontece antes da permissão |
+| `MICROPHONE_PERMISSION_DENIED` | a pessoa negou, ou a plataforma recusou — impede os dois tipos de chamada |
+| `SPEAKER_MISSING` | não há saída de áudio: a chamada acontece, mas ninguém ouve o contato |
 
-O diagnóstico **não pede a permissão**: ele lê a lista, e nome vazio já conta a história. Quem
-pede é a chamada, quando abrir.
+`MICROPHONE_FOUND` traz `details.count` e `details.names`, que só existem porque a permissão
+foi dada — antes dela a plataforma não diz o nome de nada.
+
+{% hint style="info" %}
+`SPEAKER_MISSING` é aviso, e não impedimento: um processo sem tela não tem alto-falante e não
+deve ser reprovado por isso.
+{% endhint %}
 
 ### Transporte
 
