@@ -8,6 +8,7 @@ import {
     reportEnvironment,
     requireToken,
     saveRecording,
+    waitForDevice,
     watchAudio,
 } from "./shared.ts";
 
@@ -29,6 +30,9 @@ async function main(): Promise<void> {
     await reportEnvironment(runtime);
 
     const wavoip = connect(requireToken(), runtime);
+    const device = await waitForDevice(wavoip);
+    console.log(`device pronto: ${device.status}`);
+
     await dial(wavoip, to, recording);
 }
 

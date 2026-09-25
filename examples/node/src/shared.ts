@@ -1,4 +1,11 @@
-import { type ActiveCall, Wavoip, type WavoipRuntime, nodeRuntime, runDiagnostics } from "@wavoip/wavoip-api/node";
+import {
+    type ActiveCall,
+    type Device,
+    Wavoip,
+    type WavoipRuntime,
+    nodeRuntime,
+    runDiagnostics,
+} from "@wavoip/wavoip-api/node";
 import { STUDIO_RATE, greetingSource, studioSink } from "./audio.ts";
 import { writeStereoWav } from "./wav.ts";
 
@@ -51,6 +58,27 @@ export function connect(token: string, runtime: WavoipRuntime): Wavoip {
     device?.on("statusChanged", (status) => console.log(`device: ${status}`));
     device?.on("connectionStatusChanged", (status) => console.log(`conexão: ${status}`));
     return wavoip;
+}
+
+/**
+ * Espera o servidor descrever o device antes de usá-lo.
+ *
+ * Ligar antes disso é recusado com `DEVICE_NOT_READY`: em `BUILDING` nem se sabe se o device
+ * faz chamada oficial ou não oficial, e a biblioteca não chuta o transporte.
+ */
+export function waitForDevice(wavoip: Wavoip, timeoutMs = 20_000): Promise<Device> {
+    const device = wavoip.devices[0];
+    if (!device) return Promise.reject(new Error("o token não corresponde a nenhum device"));
+    if (device.status !== "BUILDING") return Promise.resolve(device);
+
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`o device não saiu de BUILDING em ${timeoutMs}ms`)), timeoutMs);
+        device.on("statusChanged", (status) => {
+            if (status === "BUILDING") return;
+            clearTimeout(timer);
+            resolve(device);
+        });
+    });
 }
 
 /**
