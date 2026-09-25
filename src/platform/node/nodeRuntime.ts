@@ -65,6 +65,9 @@ export function nodeRuntime({ source, sink, resampleInWorker = false }: NodeRunt
         engine,
         microphone: new NodeMicrophone(shared),
         audio: NO_DEVICES,
+        // O áudio é o `source` e o `sink` do integrador: não há aparelho a listar, e a lista
+        // vazia não diz nada sobre a chamada poder acontecer.
+        usesAudioDevices: false,
         createPeer: nodePeerConnection,
         openSocket: nodeMediaSocket,
     };

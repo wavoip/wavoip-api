@@ -30,6 +30,7 @@ const wavoip = new Wavoip({ tokens, runtime })  // o runtime vem do seu ambiente
 | Estouro no diagnóstico | ✅ | ✅ | ✅ |
 | Sessão de áudio do sistema | do navegador | — (não há) | `InCallManager`, automático |
 | Listar aparelhos de áudio | ✅ | — (não há) | microfones ✅, saídas fone/viva-voz |
+| Lista vazia no diagnóstico | reprova: falta microfone | não significa nada | reprova: falta microfone |
 | Escolher aparelho | entrada e saída | — (não há) | só a saída: o microfone é do sistema |
 | Tamanho do adaptador | ~2 MB | ~9 kB | ~3 kB |
 | Reamostragem automática | do navegador | ✅, opcionalmente em outro thread | ✅ na não oficial, em JavaScript |

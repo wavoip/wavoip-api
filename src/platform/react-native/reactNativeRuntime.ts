@@ -34,6 +34,7 @@ export function reactNativeRuntime(): WavoipRuntime {
         engine: new RNAudioEngine(),
         microphone: new RNMicrophone(),
         audio: devices,
+        usesAudioDevices: true,
         createPeer: rnPeerConnection,
         openSocket: globalMediaSocket,
     };

@@ -318,7 +318,7 @@ wavoip.on("offer", async (offer) => {
 
 | Recurso | Comportamento |
 | --- | --- |
-| `wavoip.audio.listInputDevices()` | devolve `[]` — não há aparelho para listar |
+| `wavoip.audio.listInputDevices()` | devolve `[]` — não há aparelho para listar, e o diagnóstico sabe disso |
 | `wavoip.audio.currentInput` / `currentOutput` | `null` |
 | `call.stats.latency.playout_ms` | `null` — não há alto-falante para medir |
 

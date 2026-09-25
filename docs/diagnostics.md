@@ -77,7 +77,7 @@ vez de esconder o caso.
 | Código | O que significa |
 | --- | --- |
 | `MICROPHONE_FOUND` | há ao menos um; `details.count` e `details.names` dizem quais |
-| `MICROPHONE_MISSING` | a plataforma disse que não há aparelho — impede os dois tipos de chamada |
+| `MICROPHONE_MISSING` | não há microfone onde deveria haver — impede os dois tipos de chamada |
 | `MICROPHONE_PERMISSION_DENIED` | a pessoa negou, ou a plataforma recusou — impede os dois tipos de chamada |
 | `SPEAKER_MISSING` | não há saída de áudio: a chamada acontece, mas ninguém ouve o contato |
 | `MICROPHONE_CLIPPING` | o microfone está estourando; `details.clipping` traz a fração |
@@ -86,10 +86,16 @@ vez de esconder o caso.
 foi dada — antes dela a plataforma não diz o nome de nada.
 
 {% hint style="info" %}
-**Lista de aparelhos vazia não reprova o ambiente.** Quem prova que há entrada de áudio é o
-microfone ter aberto; a lista só diz o que existe para escolher. Num processo Node não há
-aparelho algum a enumerar — o áudio vem da fonte que você injetou —, e reprovar por isso diria
-que o ambiente não liga, quando ele liga.
+**O que uma lista vazia significa depende da plataforma**, e é ela quem diz, pelo campo
+`usesAudioDevices` do runtime:
+
+| Plataforma | Lista vazia quer dizer |
+| --- | --- |
+| Navegador, React Native | não há microfone ligado — e sem ele não há chamada: `MICROPHONE_MISSING` |
+| Node.js | nada: o áudio é o `source` que você injetou, e não há hardware a enumerar |
+
+Sem isso o diagnóstico teria de adivinhar, e reprovaria um servidor perfeitamente capaz de
+atender.
 {% endhint %}
 
 Para checar o ganho, o diagnóstico **escuta o microfone por uns 300 ms**. Se o sinal já chega

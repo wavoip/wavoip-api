@@ -42,6 +42,7 @@ function runtimeWith(overrides: Partial<WavoipRuntime> = {}): WavoipRuntime & {
             selectInput: async () => ({ data: null, error: { code: "INPUT_SELECTION_UNSUPPORTED" as const } }),
             selectOutput: async () => ({ data: null, error: { code: "OUTPUT_SELECTION_UNSUPPORTED" as const } }),
         },
+        usesAudioDevices: true,
         createPeer: fake.createPeer,
         openSocket: fake.openSocket,
         ...overrides,
@@ -116,11 +117,26 @@ describe("runDiagnostics", () => {
     });
 
     /**
-     * Num processo sem cabeça não há aparelho algum a enumerar: o áudio vem da fonte que o
-     * integrador injetou. Reprovar por lista vazia diria que o ambiente não liga, e ele liga.
+     * Num navegador ou num celular, lista vazia quer dizer que não há microfone ligado — e
+     * sem microfone não há chamada, mesmo que a permissão tenha sido dada.
      */
-    it("does not fail a platform that has audio but no devices to list", async () => {
+    it("fails a platform that lists devices and found none", async () => {
         const runtime = runtimeWith();
+        runtime.audio.listInputDevices = () => [];
+
+        const report = await runDiagnostics({ runtime, stunServers: [] });
+
+        expect(codesOf(report.checks)).toContain("MICROPHONE_MISSING");
+        expect(report.readiness.OFFICIAL.ready).toBe(false);
+    });
+
+    /**
+     * Num processo sem cabeça não há aparelho algum a enumerar: o áudio vem da fonte que o
+     * integrador injetou. A mesma lista vazia ali não diz nada sobre a chamada poder
+     * acontecer, e reprovar por ela diria que o ambiente não liga, quando ele liga.
+     */
+    it("does not fail a platform whose audio does not come from devices", async () => {
+        const runtime = runtimeWith({ usesAudioDevices: false });
         runtime.audio.listInputDevices = () => [];
         runtime.audio.listOutputDevices = () => [];
 
@@ -129,6 +145,13 @@ describe("runDiagnostics", () => {
         expect(codesOf(report.checks)).not.toContain("MICROPHONE_MISSING");
         expect(report.readiness.OFFICIAL.ready).toBe(true);
         expect(report.readiness.UNOFFICIAL.ready).toBe(true);
+    });
+
+    it("says nothing about devices at all where they do not exist", async () => {
+        const report = await runDiagnostics({ runtime: runtimeWith({ usesAudioDevices: false }), stunServers: [] });
+
+        expect(codesOf(report.checks)).not.toContain("MICROPHONE_FOUND");
+        expect(codesOf(report.checks)).not.toContain("SPEAKER_MISSING");
     });
 
     /**

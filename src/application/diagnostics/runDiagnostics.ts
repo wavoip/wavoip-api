@@ -126,20 +126,24 @@ function refusalOf(cause: unknown): DiagnosticCheck {
 /**
  * Com o microfone aberto, a lista diz o que existe — e nome só aparece depois da permissão.
  *
- * Lista vazia **não** reprova o ambiente: quem provou que há entrada de áudio foi o `open()`
- * que acabou de funcionar. Num processo sem cabeça não há aparelho algum a enumerar, porque o
- * áudio vem da fonte que o integrador injetou, e reprovar por isso seria falso.
+ * O que uma lista vazia significa depende da plataforma, e por isso ela é quem diz: num
+ * navegador ou num celular quer dizer que não há microfone ligado, e sem ele não há chamada;
+ * num processo sem cabeça não há aparelho algum a enumerar, porque o áudio é a fonte que o
+ * integrador injetou.
  */
 function deviceChecks(runtime: WavoipRuntime): DiagnosticCheck[] {
+    if (!runtime.usesAudioDevices) return [];
+
     const inputs = runtime.audio.listInputDevices();
-    const outputs = runtime.audio.listOutputDevices();
-    if (inputs.length === 0) return [];
+    if (inputs.length === 0) return [{ code: "MICROPHONE_MISSING", severity: "failure" }];
 
     const checks: DiagnosticCheck[] = [
         { code: "MICROPHONE_FOUND", severity: "ok", details: { count: inputs.length, names: nameOf(inputs) } },
     ];
     // Quem tem lista de entrada e não tem a de saída perdeu o aparelho no caminho.
-    if (outputs.length === 0) checks.push({ code: "SPEAKER_MISSING", severity: "warning" });
+    if (runtime.audio.listOutputDevices().length === 0) {
+        checks.push({ code: "SPEAKER_MISSING", severity: "warning" });
+    }
     return checks;
 }
 

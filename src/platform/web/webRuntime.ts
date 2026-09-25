@@ -17,6 +17,7 @@ export function webRuntime(): WavoipRuntime {
         engine: media.engine,
         microphone: media,
         audio: media,
+        usesAudioDevices: true,
         createPeer: webPeerConnection,
         openSocket: globalMediaSocket,
     };
