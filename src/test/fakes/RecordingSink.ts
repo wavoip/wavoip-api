@@ -5,6 +5,9 @@ export class RecordingSink implements AudioSink {
     readonly samples: number[] = [];
     ended = false;
 
+    /** A taxa em que o teste quer receber; sem ela, a da chamada. */
+    constructor(readonly sampleRate?: number) {}
+
     write(pcm: Int16Array): void {
         for (const sample of pcm) this.samples.push(sample);
     }

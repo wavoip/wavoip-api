@@ -1,8 +1,11 @@
 import { type ActiveCall, Wavoip, type WavoipRuntime, nodeRuntime, runDiagnostics } from "@wavoip/wavoip-api/node";
 import { STUDIO_RATE, greetingSource, studioSink } from "./audio.ts";
-import { writeWav } from "./wav.ts";
+import { writeStereoWav } from "./wav.ts";
 
 export type Recording = ReturnType<typeof studioSink>;
+
+/** Os dois lados da conversa: o que o contato falou e o que nós mandamos. */
+export type CallRecording = { readonly peer: Recording; readonly self: Recording };
 
 /**
  * Monta o runtime com conversão nos dois lados: entra o arquivo a 22,05 kHz e sai a 48 kHz.
@@ -15,11 +18,13 @@ export type Recording = ReturnType<typeof studioSink>;
  * algumas dezenas simultâneas que ela começa a segurar o event loop —, mas o exemplo liga
  * para mostrar onde fica a opção.
  */
-export function buildRuntime(): { runtime: WavoipRuntime; recording: Recording } {
-    const recording = studioSink();
+export function buildRuntime(): { runtime: WavoipRuntime; recording: CallRecording } {
+    const recording = { peer: studioSink(), self: studioSink() };
     const runtime = nodeRuntime({
         source: greetingSource(process.env.WAVOIP_AUDIO),
-        sink: recording,
+        sink: recording.peer,
+        // Sem isto a gravação teria só metade da conversa: o `sink` é o que o contato falou.
+        outgoingSink: recording.self,
         resampleInWorker: true,
     });
     return { runtime, recording };
@@ -83,16 +88,21 @@ function warnClipping(out: number, incoming: number): string {
     return "";
 }
 
-export function saveRecording(recording: Recording, prefix: string): void {
-    if (recording.blocks.length === 0) {
+/** Salva a conversa em dois canais: à esquerda o que mandamos, à direita o contato. */
+export function saveRecording(recording: CallRecording, prefix: string): void {
+    const { self, peer } = recording;
+    if (self.blocks.length === 0 && peer.blocks.length === 0) {
         console.log("nada foi gravado");
         return;
     }
 
     const path = `${prefix}-${Date.now()}.wav`;
-    writeWav(path, recording.blocks, STUDIO_RATE);
-    console.log(`${recording.seconds.toFixed(1)}s gravados em ${path} (${STUDIO_RATE} Hz)`);
-    recording.blocks.length = 0;
+    writeStereoWav(path, self.blocks, peer.blocks, STUDIO_RATE);
+    console.log(
+        `gravado em ${path}: ${self.seconds.toFixed(1)}s seus, ${peer.seconds.toFixed(1)}s do contato (${STUDIO_RATE} Hz, 2 canais)`,
+    );
+    self.blocks.length = 0;
+    peer.blocks.length = 0;
 }
 
 export function requireToken(): string {

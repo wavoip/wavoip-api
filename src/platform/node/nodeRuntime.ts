@@ -31,7 +31,20 @@ const NO_DEVICES: AudioControl = {
 
 export type NodeRuntimeOptions = {
     source: AudioSource;
+    /** Where the audio coming **from the far end** goes. */
     sink: AudioSink;
+    /**
+     * Where a copy of the audio **you are sending** goes, if you want one. Optional.
+     *
+     * Recording a call usually means recording both sides, and `sink` alone gives you half
+     * the conversation. What arrives here is what the far end actually hears: already
+     * downmixed, resampled and silenced while the microphone is muted — and at the rate this
+     * sink asks for, the same as the other one.
+     *
+     * Nothing is played or sent because of it: it only copies what the call is already
+     * carrying, so it never makes the microphone open on its own.
+     */
+    outgoingSink?: AudioSink;
     /**
      * Resample on a worker thread instead of the main one. Off by default.
      *
@@ -50,12 +63,23 @@ export type NodeRuntimeOptions = {
  * rate, mono or interleaved stereo — and declare the format on `source` and `sink`. The
  * conversion and the resampling happen here, with a proper anti-aliasing filter.
  */
-export function nodeRuntime({ source, sink, resampleInWorker = false }: NodeRuntimeOptions): WavoipRuntime {
+export function nodeRuntime({
+    source,
+    sink,
+    outgoingSink,
+    resampleInWorker = false,
+}: NodeRuntimeOptions): WavoipRuntime {
     const converterFor = converterFactory(resampleInWorker);
 
     const shared = new SharedAudioSource(
         new NormalizingSource(source, () => converterFor(NormalizingSource.rateOf(source), SAMPLE_RATE)),
     );
+    if (outgoingSink) {
+        const copy = new ResamplingSink(outgoingSink, () =>
+            converterFor(SAMPLE_RATE, ResamplingSink.rateOf(outgoingSink)),
+        );
+        shared.mirrorTo((pcm) => copy.write(pcm));
+    }
     const engine = new NodeAudioEngine(
         shared,
         new ResamplingSink(sink, () => converterFor(SAMPLE_RATE, ResamplingSink.rateOf(sink))),

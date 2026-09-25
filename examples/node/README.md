@@ -84,9 +84,13 @@ reamostragem começa a segurar o event loop. Está ligado para mostrar onde fica
 | `src/dial.ts` | `startCall`, os eventos da chamada que sai, desistir por tempo |
 | `src/shared.ts` | montar o runtime, rodar o diagnóstico, conectar o device |
 | `src/audio.ts` | as duas pontas de áudio, cada uma numa taxa diferente da chamada |
-| `src/wav.ts` | ler e escrever WAV sem nenhuma dependência |
+| `src/wav.ts` | ler e escrever WAV, mono ou estéreo, sem nenhuma dependência |
 
 ## O que reparar no código
+
+**A gravação tem os dois lados.** O `sink` é só o que o contato falou; o `outgoingSink` traz
+uma cópia do que você mandou. O exemplo grava em dois canais — esquerda você, direita o
+contato —, separados em vez de misturados para dar para ouvir cada um sozinho depois.
 
 **O áudio é seu, dos dois lados.** Num processo sem cabeça não há microfone nem alto-falante:
 você entrega um `source` e um `sink`, declara o formato, e a biblioteca converte. A fonte do

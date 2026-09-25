@@ -1,6 +1,6 @@
 import type { IncomingCall } from "@wavoip/wavoip-api/node";
 import {
-    type Recording,
+    type CallRecording,
     buildRuntime,
     connect,
     reportEnvironment,
@@ -26,7 +26,7 @@ async function main(): Promise<void> {
     console.log("\nesperando chamada… (ctrl+c para sair)");
 }
 
-async function answer(offer: IncomingCall, recording: Recording): Promise<void> {
+async function answer(offer: IncomingCall, recording: CallRecording): Promise<void> {
     console.log(`\nchamada de ${offer.peer.phone}`);
 
     const { data: call, error } = await offer.accept();

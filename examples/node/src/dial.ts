@@ -1,6 +1,6 @@
 import type { OutgoingCall } from "@wavoip/wavoip-api/node";
 import {
-    type Recording,
+    type CallRecording,
     buildRuntime,
     connect,
     exitWith,
@@ -30,7 +30,7 @@ async function main(): Promise<void> {
     await dial(wavoip, to, recording);
 }
 
-async function dial(wavoip: ReturnType<typeof connect>, to: string, recording: Recording): Promise<void> {
+async function dial(wavoip: ReturnType<typeof connect>, to: string, recording: CallRecording): Promise<void> {
     console.log(`\nligando para ${to}…`);
 
     const { data: outgoing, error } = await wavoip.startCall({ to });
@@ -44,7 +44,7 @@ async function dial(wavoip: ReturnType<typeof connect>, to: string, recording: R
     giveUpAfter(outgoing, RING_TIMEOUT_MS);
 }
 
-function watchOutgoing(outgoing: OutgoingCall, recording: Recording): void {
+function watchOutgoing(outgoing: OutgoingCall, recording: CallRecording): void {
     outgoing.on("accepted", (call) => {
         console.log("atenderam; tocando a saudação");
         call.on("ended", () => finish(recording));
@@ -68,7 +68,7 @@ function giveUpAfter(outgoing: OutgoingCall, ms: number): void {
     outgoing.on("ended", () => clearTimeout(timer));
 }
 
-function finish(recording: Recording, reason?: string): void {
+function finish(recording: CallRecording, reason?: string): void {
     if (reason) console.log(reason);
     saveRecording(recording, "feita");
     process.exit(0);

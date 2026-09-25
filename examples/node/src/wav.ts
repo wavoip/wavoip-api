@@ -10,31 +10,59 @@ const BITS_PER_SAMPLE = 16;
  * devolve já é exatamente o corpo do arquivo, sem conversão nenhuma.
  */
 export function writeWav(path: string, blocks: Int16Array[], sampleRate: number): void {
-    const samples = blocks.reduce((total, block) => total + block.length, 0);
-    const file = Buffer.alloc(HEADER_BYTES + samples * 2);
+    writeSamples(path, flatten(blocks), sampleRate, 1);
+}
 
-    writeHeader(file, samples, sampleRate);
-    let at = HEADER_BYTES;
-    for (const block of blocks) {
-        for (const sample of block) {
-            file.writeInt16LE(sample, at);
-            at += 2;
-        }
+/**
+ * Escreve os dois lados da conversa em canais separados, que é como se grava uma chamada:
+ * à esquerda quem atendeu, à direita o contato.
+ *
+ * Separados, e não misturados, porque assim dá para ouvir cada um sozinho depois — é o que
+ * uma auditoria ou uma transcrição por interlocutor precisa.
+ */
+export function writeStereoWav(path: string, left: Int16Array[], right: Int16Array[], sampleRate: number): void {
+    const a = flatten(left);
+    const b = flatten(right);
+    const frames = Math.max(a.length, b.length);
+
+    const interleaved = new Int16Array(frames * 2);
+    for (let i = 0; i < frames; i += 1) {
+        interleaved[i * 2] = a[i] ?? 0;
+        interleaved[i * 2 + 1] = b[i] ?? 0;
     }
+    writeSamples(path, interleaved, sampleRate, 2);
+}
+
+function writeSamples(path: string, samples: Int16Array, sampleRate: number, channels: number): void {
+    const file = Buffer.alloc(HEADER_BYTES + samples.length * 2);
+
+    writeHeader(file, samples.length, sampleRate, channels);
+    for (let i = 0; i < samples.length; i += 1) file.writeInt16LE(samples[i], HEADER_BYTES + i * 2);
     writeFileSync(path, file);
 }
 
-function writeHeader(file: Buffer, samples: number, sampleRate: number): void {
-    const bytesPerSecond = sampleRate * 2;
+function flatten(blocks: Int16Array[]): Int16Array {
+    const total = blocks.reduce((sum, block) => sum + block.length, 0);
+    const whole = new Int16Array(total);
+    let at = 0;
+    for (const block of blocks) {
+        whole.set(block, at);
+        at += block.length;
+    }
+    return whole;
+}
+
+function writeHeader(file: Buffer, samples: number, sampleRate: number, channels: number): void {
+    const bytesPerSecond = sampleRate * 2 * channels;
     file.write("RIFF", 0);
     file.writeUInt32LE(36 + samples * 2, 4);
     file.write("WAVEfmt ", 8);
     file.writeUInt32LE(16, 16); // tamanho do bloco de formato
     file.writeUInt16LE(1, 20); // 1 = PCM sem compressão
-    file.writeUInt16LE(1, 22); // mono
+    file.writeUInt16LE(channels, 22);
     file.writeUInt32LE(sampleRate, 24);
     file.writeUInt32LE(bytesPerSecond, 28);
-    file.writeUInt16LE(2, 32); // bytes por amostra
+    file.writeUInt16LE(2 * channels, 32); // bytes por frame
     file.writeUInt16LE(BITS_PER_SAMPLE, 34);
     file.write("data", 36);
     file.writeUInt32LE(samples * 2, 40);

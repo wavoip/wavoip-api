@@ -14,6 +14,7 @@ import type { Unsubscribe } from "@/modules/shared/EventEmitter";
  */
 export class SharedAudioSource {
     private readonly listeners = new Set<(pcm: Int16Array) => void>();
+    private mirror: ((pcm: Int16Array) => void) | null = null;
     private running = false;
     private silenced = false;
 
@@ -22,6 +23,17 @@ export class SharedAudioSource {
     /** Cala a fonte para todos os consumidores de uma vez. */
     silence(silenced: boolean): void {
         this.silenced = silenced;
+    }
+
+    /**
+     * Copia para um observador tudo que passa, já silenciado se for o caso.
+     *
+     * Ele não conta como consumidor: não liga a fonte nem a mantém de pé. Quem grava o que
+     * está sendo dito não deve fazer o microfone abrir sozinho — e o que interessa gravar é
+     * justamente o que a chamada está mandando.
+     */
+    mirrorTo(observer: (pcm: Int16Array) => void): void {
+        this.mirror = observer;
     }
 
     subscribe(onFrame: (pcm: Int16Array) => void): Unsubscribe {
@@ -48,5 +60,6 @@ export class SharedAudioSource {
     private fanOut(pcm: Int16Array): void {
         const frame = this.silenced ? new Int16Array(pcm.length) : pcm;
         for (const listener of this.listeners) listener(frame);
+        this.mirror?.(frame);
     }
 }

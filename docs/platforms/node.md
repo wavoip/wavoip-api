@@ -83,6 +83,27 @@ type AudioSink = {
 }
 ```
 
+### Gravar os dois lados
+
+O `sink` traz só o que **o contato falou**. Para a conversa inteira, peça também uma cópia do
+que você está mandando:
+
+```typescript
+const doContato = recordingSink()
+const seu = recordingSink()
+
+nodeRuntime({ source, sink: doContato, outgoingSink: seu })
+```
+
+O que chega no `outgoingSink` é exatamente o que o outro lado ouve: já misturado, reamostrado
+e **em silêncio enquanto o microfone está mudo**. Vem na taxa que esse sumidouro pedir, igual
+ao outro — então os dois ficam alinhados e dá para gravar em dois canais.
+
+{% hint style="info" %}
+Copiar não é consumir: pedir o `outgoingSink` não faz o microfone abrir por conta própria nem
+o mantém aberto. Ele só vê o que a chamada já está carregando.
+{% endhint %}
+
 **Entregue o que o seu decodificador já produz.** `Int16Array` ou `Float32Array`, qualquer
 taxa, mono ou estéreo intercalado — você declara o formato e o runtime converte, mistura os
 canais e reamostra.
