@@ -55,6 +55,44 @@ describe("Node audio path over a real peer connection", () => {
         await runtime.microphone.close();
     }, 20_000);
 
+    /**
+     * Regressão: o `RTCAudioSink` entrega na taxa do decodificador — 48 kHz —, e a
+     * biblioteca presumia 16 kHz. O sumidouro do integrador recebia o triplo das amostras, e
+     * a gravação saía com o triplo da duração da chamada, grave e arrastada.
+     */
+    it("hands the sink one second of audio for each second of call", async () => {
+        const source = new ToneSource();
+        const sink = new RecordingSink();
+        const runtime = nodeRuntime({ source, sink });
+
+        const local = new RTCPeerConnection();
+        const remote = new RTCPeerConnection();
+        open.push(local, remote);
+
+        const stream = await runtime.microphone.open();
+        for (const track of stream.getAudioTracks()) local.addTrack(track as never, stream as never);
+
+        const heard = new Promise<void>((resolve) => {
+            remote.ontrack = (event) => {
+                runtime.engine.renderRemote(event.streams[0] as never);
+                resolve();
+            };
+        });
+
+        await connect(local, remote);
+        await heard;
+
+        const started = Date.now();
+        await waitFor(() => sink.samples.length > SAMPLE_RATE, 10_000);
+        const elapsed = (Date.now() - started) / 1000;
+        const recorded = sink.samples.length / SAMPLE_RATE;
+
+        // Uma folga larga para o agendador, mas longe do triplo que o defeito produzia.
+        expect(recorded).toBeLessThan(elapsed * 1.5);
+
+        await runtime.microphone.close();
+    }, 20_000);
+
     it("rings the frames at the rate the library declares", async () => {
         const source = new ToneSource();
         const sink = new RecordingSink();

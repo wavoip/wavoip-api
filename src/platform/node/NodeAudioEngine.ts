@@ -1,4 +1,5 @@
 import { ClipDetector } from "@/domain/audio/ClipDetector";
+import { AdaptiveResampler } from "@/domain/audio/AdaptiveResampler";
 import { SpectrumAnalyser } from "@/domain/audio/SpectrumAnalyser";
 import { rmsInt16 } from "@/modules/media/audio-level";
 import type { AudioSink } from "@/platform/node/audioIo";
@@ -6,6 +7,9 @@ import type { SharedAudioSource } from "@/platform/node/SharedAudioSource";
 import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
+
+/** O que a biblioteca fala por dentro, e o que o sumidouro do integrador espera receber. */
+const CALL_RATE = 16_000;
 import { nonstandard, type RTCAudioData } from "@/platform/node/wrtc";
 
 /**
@@ -51,18 +55,29 @@ export class NodeAudioEngine implements AudioEnginePort {
         this.sink.end();
     }
 
-    /** O áudio que chega do WebRTC vai para o sumidouro do integrador. */
+    /**
+     * O áudio que chega do WebRTC vai para o sumidouro do integrador, na taxa da chamada.
+     *
+     * A taxa é lida de cada bloco, e não presumida: o `RTCAudioSink` entrega no que o
+     * decodificador estiver usando — 48 kHz, na prática, e não os 16 kHz que a biblioteca
+     * fala por dentro. Tratar 48 kHz como 16 kHz fazia a gravação sair com o triplo da
+     * duração da chamada, e o áudio grave e arrastado.
+     */
     renderRemote(stream: MediaStreamLike): AudioMeter {
         let level = 0;
         const analyser = new SpectrumAnalyser();
         const clip = new ClipDetector();
+        const toCallRate = new AdaptiveResampler(CALL_RATE);
         const audioSink = new nonstandard.RTCAudioSink(trackOf(stream));
 
-        audioSink.ondata = ({ samples }: RTCAudioData) => {
-            level = rmsInt16(samples.buffer as ArrayBuffer);
-            analyser.push(samples);
-            clip.push(samples);
-            this.sink.write(samples);
+        audioSink.ondata = ({ samples, sampleRate }: RTCAudioData) => {
+            const pcm = toCallRate.process(samples, sampleRate);
+            if (pcm.length === 0) return;
+
+            level = rmsInt16(pcm.buffer as ArrayBuffer);
+            analyser.push(pcm);
+            clip.push(pcm);
+            this.sink.write(pcm);
         };
 
         return meterOf(

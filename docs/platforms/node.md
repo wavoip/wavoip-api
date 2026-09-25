@@ -94,6 +94,12 @@ canais e reamostra.
 | `sink.write` | a biblioteca | a cada frame que chega do outro lado |
 
 {% hint style="info" %}
+**O que chega ao `sink` está na taxa que você declarou**, sempre. O WebRTC decodifica na taxa
+dele — 48 kHz, em geral —, e a biblioteca converte antes de entregar. Uma gravação com a
+duração da chamada é o sinal de que isso está certo.
+{% endhint %}
+
+{% hint style="info" %}
 Empurre frames de qualquer tamanho: o runtime os recorta nos blocos de 10 ms que o WebRTC
 pede. Se a sua fonte atrasar, sai silêncio em vez de a chamada engasgar.
 {% endhint %}
