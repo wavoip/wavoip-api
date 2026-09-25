@@ -1,13 +1,15 @@
 import { Wavoip, type WavoipRuntime, nodeRuntime, runDiagnostics } from "@wavoip/wavoip-api/node";
-import { STUDIO_RATE, mp3LikeSource, studioSink } from "./audio.ts";
+import { STUDIO_RATE, greetingSource, studioSink } from "./audio.ts";
 import { writeWav } from "./wav.ts";
 
 export type Recording = ReturnType<typeof studioSink>;
 
 /**
- * Monta o runtime no pior caso de conversão: entra Float32 estéreo a 44,1 kHz e sai PCM a
- * 48 kHz. Os dois lados são convertidos, que é o cenário mais caro e o que mais tem chance
- * de revelar defeito.
+ * Monta o runtime com conversão nos dois lados: entra o arquivo a 22,05 kHz e sai a 48 kHz.
+ * Nenhuma das duas é a taxa da chamada, que é 16 kHz — é o cenário que mais tem chance de
+ * revelar defeito, e o mais caro.
+ *
+ * `WAVOIP_AUDIO=./outro.wav` troca a saudação por qualquer WAV de 16 bits.
  *
  * A reamostragem vai para outro thread. Com uma chamada só seria exagero — é a partir de
  * algumas dezenas simultâneas que ela começa a segurar o event loop —, mas o exemplo liga
@@ -16,7 +18,7 @@ export type Recording = ReturnType<typeof studioSink>;
 export function buildRuntime(): { runtime: WavoipRuntime; recording: Recording } {
     const recording = studioSink();
     const runtime = nodeRuntime({
-        source: mp3LikeSource(),
+        source: greetingSource(process.env.WAVOIP_AUDIO),
         sink: recording,
         resampleInWorker: true,
     });

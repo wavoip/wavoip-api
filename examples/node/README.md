@@ -13,26 +13,40 @@ WAVOIP_TOKEN=seu-token npm run dial -- 5511999999  # liga para um número
 
 Sem token, os dois rodam só o diagnóstico e saem.
 
-## O pior caso de propósito
+## Áudio de verdade, e conversão nos dois lados
 
-Os exemplos poderiam produzir 16 kHz mono — a taxa da chamada — e não converter nada. Não
-convertem porque aí não provariam coisa alguma. Em vez disso usam o formato mais
-desfavorável em cada ponta:
+O exemplo toca `audio/exemplo.wav`, que vem junto: áudio gravado, e não um tom sintetizado —
+assim dá para julgar de ouvido se a chamada está boa. Qualquer um roda sem preparar nada.
+
+Nenhuma das duas pontas está na taxa da chamada, de propósito:
 
 | | Formato | O que exercita |
 | --- | --- | --- |
-| Entrada (`mp3LikeSource`) | Float32, **estéreo**, **44,1 kHz** | converter de Float32, misturar os canais, reamostrar para baixo |
+| Entrada (`audio/exemplo.wav`) | **44,1 kHz estéreo** | misturar os canais e reamostrar para baixo, numa razão que não é inteira |
 | Saída (`studioSink`) | **48 kHz** | reamostrar para cima — três vezes mais amostras por segundo |
 
-É o formato que um decodificador de MP3 entrega e a taxa em que se costuma gravar, então é
-também o caso realista. E é o mais caro: [o custo acompanha a taxa de
+Os 16 kHz da chamada ficam no meio. A saída é o lado caro: [o custo acompanha a taxa de
 saída](../../docs/platforms/node.md), e 48 kHz é o triplo de 16 kHz.
 
-Medido de ponta a ponta:
+Medido com o arquivo:
 
 ```
-44,1 kHz estéreo → 16 kHz mono:  15.669 amostras em 1 s  (esperado 16.000)
-16 kHz → 48 kHz:                 23.904 de 8.000         (esperado 24.000)
+44,1 kHz estéreo → 16 kHz mono:  47.349 amostras em 3 s  (esperado 48.000)
+pico do sinal:                   6.056 no arquivo → 5.968 depois  (98,5% preservado)
+16 kHz → 48 kHz:                 2,96 s gravados de 3 s de chamada
+```
+
+{% hint style="info" %}
+**Repare no tamanho do frame em `audio.ts`.** Num arquivo estéreo as amostras vêm
+intercaladas, uma de cada canal, então um frame de 20 ms tem o dobro delas. Sem multiplicar
+pelo número de canais, o áudio sai na metade da velocidade — e é o tipo de engano que um
+arquivo mono nunca revelaria.
+{% endhint %}
+
+Para usar outro áudio, aponte para qualquer WAV de 16 bits:
+
+```bash
+WAVOIP_AUDIO=./minha-mensagem.wav npm run answer
 ```
 
 Por isso os exemplos também ligam o worker:
@@ -51,13 +65,14 @@ reamostragem começa a segurar o event loop. Está ligado para mostrar onde fica
 | `src/answer.ts` | atender uma oferta, acompanhar a chamada, gravar ao desligar |
 | `src/dial.ts` | `startCall`, os eventos da chamada que sai, desistir por tempo |
 | `src/shared.ts` | montar o runtime, rodar o diagnóstico, conectar o device |
-| `src/audio.ts` | as duas pontas de áudio, no pior formato |
-| `src/wav.ts` | o PCM da chamada virando arquivo tocável |
+| `src/audio.ts` | as duas pontas de áudio, cada uma numa taxa diferente da chamada |
+| `src/wav.ts` | ler e escrever WAV sem nenhuma dependência |
 
 ## O que reparar no código
 
 **O áudio é seu, dos dois lados.** Num processo sem cabeça não há microfone nem alto-falante:
-você entrega um `source` e um `sink`, declara o formato, e a biblioteca converte.
+você entrega um `source` e um `sink`, declara o formato, e a biblioteca converte. A fonte do
+exemplo não converte nada — ela diz `sampleRate: 22050` e entrega as amostras como estão.
 
 **O diagnóstico vem antes da primeira chamada.** Num servidor ninguém vê o STUN bloqueado por
 um firewall — a chamada simplesmente não completaria, e o log não diria por quê.
@@ -75,3 +90,6 @@ e quem fala nunca percebe que está distorcendo — só quem ouve.
 
 - Node 22 ou mais novo (o `--experimental-strip-types` roda o TypeScript direto)
 - `@roamhq/wrtc` para a chamada oficial e `ws` para a não oficial
+
+Nada além disso: o WAV é lido e escrito em JavaScript puro, sem `ffmpeg` nem módulo nativo de
+áudio.

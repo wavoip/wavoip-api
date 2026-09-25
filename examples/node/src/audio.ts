@@ -1,11 +1,9 @@
+import { fileURLToPath } from "node:url";
 import type { AudioSink, AudioSource } from "@wavoip/wavoip-api/node";
+import { readWav } from "./wav.ts";
 
-/**
- * O formato de um áudio decodificado de MP3, que é o que um bot costuma ter à mão: 44,1 kHz,
- * estéreo, em Float32. Nenhuma das três coisas é o que a chamada usa.
- */
-export const MP3_RATE = 44_100;
-export const MP3_CHANNELS = 2;
+/** O áudio que acompanha o exemplo, para o resultado poder ser julgado de ouvido. */
+const SAMPLE = fileURLToPath(new URL("../audio/exemplo.wav", import.meta.url));
 
 /** A taxa de uma gravação de estúdio, e a mais cara de produzir a partir dos 16 kHz da chamada. */
 export const STUDIO_RATE = 48_000;
@@ -13,20 +11,26 @@ export const STUDIO_RATE = 48_000;
 const FRAME_MS = 20;
 
 /**
- * Uma saudação no formato mais desfavorável de propósito: Float32 estéreo a 44,1 kHz.
+ * Toca o arquivo em looping, no formato em que ele está.
  *
- * O exemplo poderia gerar 16 kHz mono e não converter nada, mas aí não provaria coisa
- * alguma. Assim ele exercita o caminho inteiro — conversão de Float32, mistura dos canais e
- * reamostragem para baixo — que é o que acontece com quem toca um arquivo de verdade.
+ * O arquivo é 44,1 kHz estéreo e a chamada usa 16 kHz mono: há mistura de canais e
+ * reamostragem para baixo no caminho, numa razão que não é inteira — o caso que mais exige
+ * do reamostrador. A fonte não converte nada: ela declara o formato e entrega as amostras
+ * como estão.
  */
-export function mp3LikeSource(): AudioSource {
-    const frames = buildGreeting();
+export function greetingSource(path = SAMPLE): AudioSource {
+    const wav = readWav(path);
+    // As amostras de um arquivo estéreo vêm intercaladas, uma de cada canal: um frame de
+    // 20 ms tem o dobro delas. Sem multiplicar pelos canais, o exemplo entregaria metade do
+    // áudio por tique e a voz sairia na metade da velocidade.
+    const perFrame = ((wav.sampleRate * FRAME_MS) / 1000) * wav.channelCount;
+    const frames = sliceFrames(wav.samples, perFrame);
     let at = 0;
     let ticker: NodeJS.Timeout | null = null;
 
     return {
-        sampleRate: MP3_RATE,
-        channelCount: MP3_CHANNELS,
+        sampleRate: wav.sampleRate,
+        channelCount: wav.channelCount,
         start(onFrame) {
             ticker = setInterval(() => {
                 onFrame(frames[at % frames.length]);
@@ -57,24 +61,8 @@ export function studioSink(): AudioSink & { blocks: Int16Array[]; seconds: numbe
     };
 }
 
-/** Três notas e meio segundo de silêncio, em Float32 estéreo, fatiados em blocos de 20 ms. */
-function buildGreeting(): Float32Array[] {
-    const notes = [440, 554, 659];
-    const perNote = MP3_RATE / 4;
-    const total = perNote * notes.length + MP3_RATE / 2;
-    const whole = new Float32Array(total * MP3_CHANNELS);
-
-    notes.forEach((hz, index) => {
-        for (let i = 0; i < perNote; i += 1) {
-            const value = 0.25 * Math.sin((2 * Math.PI * hz * i) / MP3_RATE);
-            const at = (index * perNote + i) * MP3_CHANNELS;
-            whole[at] = value;
-            whole[at + 1] = value;
-        }
-    });
-
-    const size = ((MP3_RATE * FRAME_MS) / 1000) * MP3_CHANNELS;
-    const frames: Float32Array[] = [];
-    for (let at = 0; at + size <= whole.length; at += size) frames.push(whole.subarray(at, at + size));
+function sliceFrames(samples: Int16Array, size: number): Int16Array[] {
+    const frames: Int16Array[] = [];
+    for (let at = 0; at + size <= samples.length; at += size) frames.push(samples.subarray(at, at + size));
     return frames;
 }
