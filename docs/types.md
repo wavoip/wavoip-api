@@ -167,7 +167,7 @@ type ConnectivityIssue =
 ```
 
 {% hint style="info" %}
-`iceDiagnostics` e `connectivityIssue` são emitidos por `IncomingCall`, `OutgoingCall` e `ActiveCall`. Em `ActiveCall`, o último `iceDiagnostics` e todos os `connectivityIssue` recebidos até o momento são re-emitidos para listeners tardios, garantindo que consumidores que assinam após o início da chamada não percam o estado inicial.
+`iceDiagnostics` e `connectivityIssue` são emitidos por `IncomingCall`, `OutgoingCall` e `ActiveCall`. Nos três, o último `iceDiagnostics` e todos os `connectivityIssue` observados até o momento são re-emitidos para listeners tardios: a coleta de candidatos acontece antes de o objeto da chamada existir, então quem assina depois — e é sempre depois — receberia um silêncio no lugar do diagnóstico.
 {% endhint %}
 
 ---

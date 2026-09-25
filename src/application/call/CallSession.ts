@@ -1,11 +1,11 @@
-import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
+import type { ConnectivityIssue, IceDiagnostics, IceSnapshot } from "@/domain/call/ice";
+import type { MediaPlan } from "@/domain/call/mediaPlan";
 import { CallPolicy } from "@/domain/call/policy";
 import { type CallStats, type ServerCallStats, Stats } from "@/domain/call/stats";
 import { Status } from "@/domain/call/status";
-import type { MediaPlan } from "@/domain/call/mediaPlan";
 import type { CallDirection, CallStatus, CallType, Peer, TransportStatus } from "@/domain/call/types";
-import type { AcceptFailure, CallFailureCode, CommandFailure, WavoipError } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
+import type { AcceptFailure, CallFailureCode, CommandFailure, WavoipError } from "@/domain/shared/errors";
 import { type ITransport, isRTCTransport } from "@/modules/media/ITransport";
 import { EventEmitter, type Subscribable, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import type { CallSignalingPort, ServerCallEvent, SignalAck } from "@/ports/SignalingPort";
@@ -94,6 +94,25 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         this.deviceToken = init.deviceToken;
         this.status = init.status;
         this.transport = init.transport;
+        this.watchIce();
+    }
+
+    /**
+     * O que o transporte já sabe de ICE, para quem chega depois da coleta de candidatos.
+     */
+    get iceSnapshot(): IceSnapshot {
+        if (!isRTCTransport(this.transport)) return { diagnostics: null, issues: [] };
+        return { diagnostics: this.transport.lastDiagnostics, issues: [...this.transport.emittedConnectivityIssues] };
+    }
+
+    /**
+     * O diagnóstico de ICE sai desde o construtor, e não a partir do `activate()`: a chamada
+     * que não conecta nunca ativa, e era justamente nela que o diagnóstico não chegava.
+     */
+    private watchIce(): void {
+        if (!isRTCTransport(this.transport)) return;
+        this.transport.on("iceDiagnostics", (diag) => this.events.emit("iceDiagnostics", diag));
+        this.transport.on("connectivityIssue", (issue) => this.events.emit("connectivityIssue", issue));
     }
 
     /**
@@ -350,13 +369,6 @@ export class CallSession implements Subscribable<CallSessionEvents> {
 
         this.transport.on("statusChanged", (status) => this.events.emit("connectionStatus", status));
         this.transport.on("peerMuted", (muted) => this.events.emit("peerMuted", muted));
-        if (isRTCTransport(this.transport)) {
-            const rtc = this.transport;
-            rtc.on("iceDiagnostics", (diag) => this.events.emit("iceDiagnostics", diag));
-            rtc.on("connectivityIssue", (issue) => this.events.emit("connectivityIssue", issue));
-            if (rtc.lastDiagnostics) this.events.emit("iceDiagnostics", rtc.lastDiagnostics);
-            for (const issue of rtc.emittedConnectivityIssues) this.events.emit("connectivityIssue", issue);
-        }
 
         this.events.emit("activated");
     }

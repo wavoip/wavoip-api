@@ -83,8 +83,8 @@ Assine com `offer.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 | `rejectedElsewhere`  | —                   | Outro cliente recusou a chamada.                                                                                |
 | `cancelled`          | —                   | **Quem ligou desistiu** antes de alguém atender.                                                                |
 | `ended`              | —                   | A oferta acabou: ou tocou até o fim sem resposta, ou o servidor a encerrou.                                     |
-| `iceDiagnostics`     | `IceDiagnostics`    | Diagnóstico da coleta ICE relativa à oferta (quando houver gathering antes do `accept`).                        |
-| `connectivityIssue`  | `ConnectivityIssue` | Problema de conectividade detectado durante a oferta. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
+| `iceDiagnostics`     | `IceDiagnostics`    | Diagnóstico da coleta ICE relativa à oferta (quando houver gathering antes do `accept`). Replay em listeners tardios. |
+| `connectivityIssue`  | `ConnectivityIssue` | Problema de conectividade detectado durante a oferta. Replay em listeners tardios. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
 
 {% hint style="info" %}
 **Cada desfecho emite um evento, e só um.** Depois dele a oferta fica muda: pare o toque e

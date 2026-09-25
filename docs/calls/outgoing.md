@@ -89,8 +89,8 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 | `unanswered`        | —                   | Tocou até o fim sem ninguém atender.                                                                            |
 | `failed`            | `OutgoingCallFailure` | A chamada não subiu: falha de mídia local ou do servidor.                                                     |
 | `ended`             | —                   | O servidor encerrou a oferta — um reinício ou uma hibernação do dispositivo, por exemplo.                       |
-| `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE realizada antes do par atender.                                                       |
-| `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado durante a chamada. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
+| `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE, que acontece antes de a chamada existir. Replay em listeners tardios.                 |
+| `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado, inclusive enquanto a chamada ainda toca. Replay em listeners tardios. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
 
 #### Cancelar não dispara evento
 

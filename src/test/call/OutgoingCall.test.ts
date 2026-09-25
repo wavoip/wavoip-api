@@ -1,5 +1,6 @@
 import { OutgoingCallProxy } from "@/modules/call/OutgoingCall";
 import { Ack } from "@/ports/SignalingPort";
+import type { FakeRTCTransport } from "@/test/fakes/FakeTransport";
 import { CallHarness, relayPlan, testPeer } from "@/test/support/CallHarness";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -151,5 +152,43 @@ describe("OutgoingCall — what the server says", () => {
         media.emit("connectivityIssue", "STUN_UNREACHABLE");
 
         expect(heard).toHaveBeenCalledWith("STUN_UNREACHABLE");
+    });
+});
+
+/**
+ * A coleta de candidatos roda dentro do `createOffer()`, antes de o `OutgoingCall` existir:
+ * quem assina — e é sempre depois — precisa receber o que já aconteceu.
+ */
+describe("OutgoingCall — ICE", () => {
+    it("replays the gathering that happened before the call existed", () => {
+        const session = harness.outgoing({ type: "OFFICIAL" });
+        const prepared = harness.transports.current as FakeRTCTransport;
+        prepared.lastDiagnostics = {
+            gatheringDurationMs: 2500,
+            gatheringTimedOut: true,
+            candidatesByType: { host: 1, srflx: 0, prflx: 0, relay: 0 },
+            stunReached: false,
+            turnReached: false,
+        };
+        prepared.emittedConnectivityIssues = new Set(["STUN_UNREACHABLE"]);
+        const outgoing = OutgoingCallProxy(session);
+
+        const diagnostics = vi.fn();
+        const issues = vi.fn();
+        outgoing.on("iceDiagnostics", diagnostics);
+        outgoing.on("connectivityIssue", issues);
+
+        expect(diagnostics).toHaveBeenCalledWith(expect.objectContaining({ gatheringTimedOut: true }));
+        expect(issues).toHaveBeenCalledWith("STUN_UNREACHABLE");
+    });
+
+    it("reports the connection failing while the peer has not answered", () => {
+        const { outgoing } = makeOutgoing("OFFICIAL");
+        const issues = vi.fn();
+        outgoing.on("connectivityIssue", issues);
+
+        harness.transports.current.emit("connectivityIssue", "ICE_CONNECTION_FAILED");
+
+        expect(issues).toHaveBeenCalledWith("ICE_CONNECTION_FAILED");
     });
 });

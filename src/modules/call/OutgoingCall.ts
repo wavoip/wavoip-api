@@ -1,12 +1,12 @@
-import type { CallSession, CallSessionEvents } from "@/application/call/CallSession";
+import type { CallSession } from "@/application/call/CallSession";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
-import type { CallFailureCode, CommandFailure, WavoipError } from "@/domain/shared/errors";
 import type { Result } from "@/domain/shared/Result";
+import type { CallFailureCode, CommandFailure, WavoipError } from "@/domain/shared/errors";
 import { type ActiveCall, ActiveCallProxy } from "@/modules/call/ActiveCall";
+import { IceTrail } from "@/modules/call/IceTrail";
 import type { CallPeer } from "@/modules/call/Peer";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
-import { forwardEvents } from "@/modules/shared/forwardEvents";
 
 export type OutgoingCallFailure = WavoipError<CallFailureCode | "MEDIA_NEGOTIATION_FAILED" | "UNKNOWN">;
 
@@ -42,6 +42,7 @@ export interface OutgoingCall {
 
 export function OutgoingCallProxy(session: CallSession): OutgoingCall {
     const emitter = new EventEmitter<OutgoingCallEvents>();
+    const ice = new IceTrail(session.iceSnapshot);
 
     session.on("activated", () => emitter.emit("accepted", ActiveCallProxy(session)));
     // A passagem da oferta pré-montada falhou: para quem ligou, a mídia é que não subiu.
@@ -50,9 +51,13 @@ export function OutgoingCallProxy(session: CallSession): OutgoingCall {
     session.on("unanswered", () => emitter.emit("unanswered"));
     session.on("failed", (error) => emitter.emit("failed", error));
     session.on("ended", () => emitter.emit("ended"));
-    forwardEvents<CallSessionEvents, OutgoingCallEvents>(session, emitter, {
-        iceDiagnostics: "iceDiagnostics",
-        connectivityIssue: "connectivityIssue",
+    session.on("iceDiagnostics", (diag) => {
+        ice.remember(diag);
+        emitter.emit("iceDiagnostics", diag);
+    });
+    session.on("connectivityIssue", (issue) => {
+        ice.rememberIssue(issue);
+        emitter.emit("connectivityIssue", issue);
     });
 
     const proxy = {
@@ -77,7 +82,9 @@ export function OutgoingCallProxy(session: CallSession): OutgoingCall {
             event: T,
             callback: (...args: OutgoingCallEvents[T]) => void,
         ): Unsubscribe {
-            return emitter.on(event, callback);
+            const unsub = emitter.on(event, callback);
+            ice.replayTo(event, callback as (...args: never[]) => void);
+            return unsub;
         },
     } as OutgoingCall;
 

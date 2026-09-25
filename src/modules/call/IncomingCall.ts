@@ -1,12 +1,12 @@
-import type { CallSession, CallSessionEvents } from "@/application/call/CallSession";
+import type { CallSession } from "@/application/call/CallSession";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
 import type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
-import type { AcceptFailure, CommandFailure } from "@/domain/shared/errors";
 import { Result } from "@/domain/shared/Result";
+import type { AcceptFailure, CommandFailure } from "@/domain/shared/errors";
 import { type ActiveCall, ActiveCallProxy } from "@/modules/call/ActiveCall";
+import { IceTrail } from "@/modules/call/IceTrail";
 import type { CallPeer } from "@/modules/call/Peer";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
-import { forwardEvents } from "@/modules/shared/forwardEvents";
 
 export type IncomingCallEvents = {
     /** Answered on another device linked to the same number. */
@@ -36,6 +36,7 @@ export interface IncomingCall {
 
 export function IncomingCallProxy(session: CallSession): IncomingCall {
     const emitter = new EventEmitter<IncomingCallEvents>();
+    const ice = new IceTrail(session.iceSnapshot);
 
     const sessionUnsubs: Unsubscribe[] = [];
     const dispose = () => {
@@ -57,9 +58,13 @@ export function IncomingCallProxy(session: CallSession): IncomingCall {
     // Quem cancela é quem ligou, e isso chega como `call:ended` com desfecho CANCELLED.
     sessionUnsubs.push(session.on("ended", () => endWith(session.status === "CANCELLED" ? "cancelled" : "ended")));
     sessionUnsubs.push(
-        forwardEvents<CallSessionEvents, IncomingCallEvents>(session, emitter, {
-            iceDiagnostics: "iceDiagnostics",
-            connectivityIssue: "connectivityIssue",
+        session.on("iceDiagnostics", (diag) => {
+            ice.remember(diag);
+            emitter.emit("iceDiagnostics", diag);
+        }),
+        session.on("connectivityIssue", (issue) => {
+            ice.rememberIssue(issue);
+            emitter.emit("connectivityIssue", issue);
         }),
     );
 
@@ -89,7 +94,9 @@ export function IncomingCallProxy(session: CallSession): IncomingCall {
             event: T,
             callback: (...args: IncomingCallEvents[T]) => void,
         ): Unsubscribe {
-            return emitter.on(event, callback);
+            const unsub = emitter.on(event, callback);
+            ice.replayTo(event, callback as (...args: never[]) => void);
+            return unsub;
         },
     } as IncomingCall;
 

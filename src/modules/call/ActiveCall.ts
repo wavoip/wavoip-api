@@ -1,11 +1,12 @@
 import type { CallSession, CallSessionEvents } from "@/application/call/CallSession";
-import type { CallFailureCode, CommandFailure, WavoipError } from "@/domain/shared/errors";
-import type { Result } from "@/domain/shared/Result";
-import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
-import type { CallStats } from "@/domain/call/stats";
 import type { AudioAnalyser, CallAudio } from "@/domain/call/audio";
 import { type CallConnection, Connection } from "@/domain/call/connection";
+import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
+import type { CallStats } from "@/domain/call/stats";
 import type { CallDirection, CallStatus, CallType } from "@/domain/call/types";
+import type { Result } from "@/domain/shared/Result";
+import type { CallFailureCode, CommandFailure, WavoipError } from "@/domain/shared/errors";
+import { IceTrail } from "@/modules/call/IceTrail";
 import type { CallPeer } from "@/modules/call/Peer";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
@@ -57,8 +58,7 @@ const SILENT_AUDIO: CallAudio = { in: SILENT, out: SILENT };
 export function ActiveCallProxy(session: CallSession): ActiveCall {
     const emitter = new EventEmitter<ActiveCallEvents>();
 
-    let lastIceDiagnostics: IceDiagnostics | undefined;
-    const bufferedConnectivityIssues: ConnectivityIssue[] = [];
+    const ice = new IceTrail(session.iceSnapshot);
 
     forwardEvents<CallSessionEvents, ActiveCallEvents>(session, emitter, {
         failed: "failed",
@@ -79,11 +79,11 @@ export function ActiveCallProxy(session: CallSession): ActiveCall {
     session.on("status", announceConnection);
 
     session.on("iceDiagnostics", (diag) => {
-        lastIceDiagnostics = diag;
+        ice.remember(diag);
         emitter.emit("iceDiagnostics", diag);
     });
     session.on("connectivityIssue", (issue) => {
-        bufferedConnectivityIssues.push(issue);
+        ice.rememberIssue(issue);
         emitter.emit("connectivityIssue", issue);
     });
 
@@ -112,14 +112,7 @@ export function ActiveCallProxy(session: CallSession): ActiveCall {
 
         on<T extends keyof ActiveCallEvents>(event: T, callback: (...args: ActiveCallEvents[T]) => void): Unsubscribe {
             const unsub = emitter.on(event, callback);
-            if (event === "iceDiagnostics" && lastIceDiagnostics) {
-                (callback as (diag: IceDiagnostics) => void)(lastIceDiagnostics);
-            }
-            if (event === "connectivityIssue" && bufferedConnectivityIssues.length) {
-                for (const issue of bufferedConnectivityIssues) {
-                    (callback as (issue: ConnectivityIssue) => void)(issue);
-                }
-            }
+            ice.replayTo(event, callback as (...args: never[]) => void);
             return unsub;
         },
     } as ActiveCall;

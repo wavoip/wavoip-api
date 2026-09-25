@@ -355,7 +355,7 @@ describe("CallSession — stats", () => {
 });
 
 describe("CallSession — media reports", () => {
-    it("replays what ICE gathered before the media was wired", async () => {
+    it("hands over what ICE gathered before anyone could subscribe", async () => {
         const session = await dialedSession();
         const prepared = transports.current as FakeRTCTransport;
         prepared.lastDiagnostics = {
@@ -366,15 +366,23 @@ describe("CallSession — media reports", () => {
             turnReached: false,
         };
         prepared.emittedConnectivityIssues = new Set(["NO_HOST_CANDIDATES"]);
-        const diagnostics = vi.fn();
+
+        expect(session.iceSnapshot.diagnostics?.gatheringDurationMs).toBe(120);
+        expect(session.iceSnapshot.issues).toEqual(["NO_HOST_CANDIDATES"]);
+    });
+
+    /**
+     * Regressão: a escuta ficava no `activate()`, então a chamada que nunca ativa — a que não
+     * conecta, justamente — não relatava nada de ICE.
+     */
+    it("reports ICE while the call is still ringing", async () => {
+        const session = await dialedSession();
         const issues = vi.fn();
-        session.on("iceDiagnostics", diagnostics);
         session.on("connectivityIssue", issues);
 
-        session.handleServerEvent({ type: "answered", plan: { type: "webRTC", sdp: "v=0 remote-answer" } });
-        await vi.waitFor(() => expect(diagnostics).toHaveBeenCalledOnce());
+        transports.current.emit("connectivityIssue", "ICE_CONNECTION_FAILED");
 
-        expect(issues).toHaveBeenCalledWith("NO_HOST_CANDIDATES");
+        expect(issues).toHaveBeenCalledWith("ICE_CONNECTION_FAILED");
     });
 
     it("forwards the transport's own reports once wired", async () => {
