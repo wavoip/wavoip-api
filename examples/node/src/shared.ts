@@ -47,7 +47,10 @@ export function connect(token: string, runtime: WavoipRuntime): Wavoip {
 }
 
 export function saveRecording(recording: Recording, prefix: string): void {
-    if (recording.blocks.length === 0) return console.log("nada foi gravado");
+    if (recording.blocks.length === 0) {
+        console.log("nada foi gravado");
+        return;
+    }
 
     const path = `${prefix}-${Date.now()}.wav`;
     writeWav(path, recording.blocks, STUDIO_RATE);
