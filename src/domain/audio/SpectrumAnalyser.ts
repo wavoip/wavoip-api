@@ -3,8 +3,15 @@
  *
  * Existe porque o contrato de `call.audio.in.spectrum()` vale para toda plataforma onde o
  * áudio realmente passa pelo processo — e num Node sem cabeça ele passa. Devolver vazio ali
- * seria conveniência, não limitação. É JS puro pelo mesmo motivo do reamostrador: o Hermes
- * não tem WebAssembly, então o React Native herda isto quando ganhar um motor de áudio.
+ * seria conveniência, não limitação.
+ *
+ * É JavaScript puro, e não uma biblioteca de FFT em WebAssembly, porque o Hermes — o motor JS
+ * do React Native — não implementa WebAssembly. Assim, no dia em que o áudio do React Native
+ * chegar ao JavaScript, esta mesma transformada roda lá sem reescrita.
+ *
+ * Reparar que são duas coisas diferentes: o Hermes explica por que a implementação é em JS, e
+ * não por que o React Native ainda devolve espectro vazio. Ali o que falta é o áudio, que o
+ * nativo toca sem passar por este lado — o Hermes calcularia isto sem dificuldade.
  *
  * A transformada é calculada quando alguém pede as bandas, e não a cada frame que chega: quem
  * não desenha nada não paga por isso.

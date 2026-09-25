@@ -160,11 +160,30 @@ WebRTC de fato vê. Para quem chama, é a mesma função.
 | `call.stats.latency.playout_ms` | `null` — o nativo não informa |
 | Escolher o microfone | `selectInput` devolve `INPUT_SELECTION_UNSUPPORTED`: no Android e no iOS quem decide é o sistema, seguindo o que está conectado |
 | `wavoip.audio.currentInput` | `null` — o sistema não informa qual microfone está usando |
+| `call.audio.in.spectrum()` | vazio — ver abaixo |
 
-A chamada não oficial depende do `react-native-audio-api`, que tem gravação a partir do
-microfone com taxa configurável e worklets em JavaScript na thread de áudio. O reamostrador de
-que ela precisa **já existe e é compartilhado**: ele é JavaScript puro justamente porque o
-Hermes não tem WebAssembly.
+### Por que o espectro vem vazio
+
+Não é falta de capacidade de calcular: é falta do áudio. O `react-native-webrtc` toca a
+chamada em nativo e nunca entrega as amostras ao JavaScript, então não há o que analisar deste
+lado. No navegador e no Node o áudio atravessa o processo, e por isso os dois preenchem.
+
+A transformada em si já existe e é compartilhada — escrita em JavaScript puro, sem
+WebAssembly, precisamente para que o **Hermes** (o motor JS do React Native) possa executá-la.
+No dia em que o áudio chegar ao JavaScript, o espectro passa a funcionar sem código novo.
+
+{% hint style="info" %}
+São duas limitações independentes, e vale não confundi-las: o Hermes não ter WebAssembly é o
+motivo de a biblioteca não usar `libsamplerate` nem uma FFT compilada. O espectro vazio é
+outra coisa — o áudio não passa por aqui.
+{% endhint %}
+
+### O que a chamada não oficial precisa
+
+Ela depende do `react-native-audio-api`, que tem gravação a partir do microfone com taxa
+configurável e worklets em JavaScript na thread de áudio. É o mesmo pacote que traria o áudio
+ao JavaScript e, com ele, o espectro. O reamostrador de que ela precisa **já existe e é
+compartilhado**, pelo mesmo motivo de ser JS puro.
 
 {% hint style="danger" %}
 **Este adaptador ainda não foi executado num aparelho.** Os tipos batem com os do
