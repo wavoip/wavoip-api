@@ -18,11 +18,18 @@ export class PcmFrameQueue {
         this.pending = merged;
     }
 
-    /** O próximo frame, ou silêncio se ainda não há um inteiro. */
+    /**
+     * O próximo frame, ou silêncio se ainda não há um inteiro.
+     *
+     * O `slice` copia, e é por isso que ele está aqui em vez de `subarray`: uma view
+     * compartilha o buffer de trás, e o `RTCAudioSource` do wrtc valida o buffer inteiro, não
+     * a janela. Com `subarray` ele recusava o frame — `Expected a .byteLength of 320, not
+     * 618` — sempre que sobrava resto na fila, o que só acontece quando há reamostragem.
+     */
     take(): Int16Array {
         if (this.pending.length < FRAME_SAMPLES) return SILENCE;
 
-        const frame = this.pending.subarray(0, FRAME_SAMPLES);
+        const frame = this.pending.slice(0, FRAME_SAMPLES);
         this.pending = this.pending.slice(FRAME_SAMPLES);
         return frame;
     }
