@@ -55,6 +55,11 @@ export class NodeMicrophone implements MicrophonePort {
 
     setMuted(muted: boolean): void {
         this._muted = muted;
+        // A fonte cala para os dois caminhos: a track do WebRTC e o `capturePcm` do relay,
+        // que não passa por track nenhuma e ficaria falando sozinho.
+        this.source.silence(muted);
+        // Desabilitar a track não é repetição: o WebRTC para de transmitir pacote, e o que
+        // se economiza é banda.
         if (this.track) this.track.enabled = !muted;
     }
 
