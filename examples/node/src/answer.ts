@@ -16,12 +16,13 @@ import {
  * `WAVOIP_TOKEN=... npm run answer`
  */
 async function main(): Promise<void> {
-    const token = requireToken();
     const { runtime, recording } = buildRuntime();
 
+    // O diagnóstico antes do token: quem ainda não tem um device consegue ver se a máquina
+    // aguenta chamada.
     await reportEnvironment(runtime);
 
-    const wavoip = connect(token, runtime);
+    const wavoip = connect(requireToken(), runtime);
     wavoip.on("offer", (offer) => void answer(offer, recording));
 
     console.log("\nesperando chamada… (ctrl+c para sair)");

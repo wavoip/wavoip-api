@@ -22,12 +22,13 @@ async function main(): Promise<void> {
     const to = process.argv[2];
     if (!to) exitWith("informe o número: npm run dial -- 5511999999999");
 
-    const token = requireToken();
     const { runtime, recording } = buildRuntime();
 
+    // O diagnóstico antes do token: quem ainda não tem um device consegue ver se a máquina
+    // aguenta chamada.
     await reportEnvironment(runtime);
 
-    const wavoip = connect(token, runtime);
+    const wavoip = connect(requireToken(), runtime);
     await dial(wavoip, to, recording);
 }
 
