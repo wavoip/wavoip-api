@@ -87,7 +87,10 @@ export function incomingPanel(offer: IncomingCall, log: Log, onActive: (active: 
         onActive(data);
     });
     const actions = element("div", "actions");
-    actions.append(accept, button("Recusar", () => report(offer.reject(), "reject", log)));
+    actions.append(
+        accept,
+        button("Recusar", () => report(offer.reject(), "reject", log)),
+    );
     panel.appendChild(actions);
 
     const close = (reason: string) => {

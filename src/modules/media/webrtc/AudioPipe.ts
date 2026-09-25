@@ -1,4 +1,3 @@
-
 import type { MediaRuntime } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { AudioMeter } from "@/ports/runtime/AudioEnginePort";
@@ -19,9 +18,18 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> {
      * `null` enquanto a mídia não subiu, ou onde a plataforma não mede — a chamada existe
      * antes de o áudio passar. Quem decide o que mostrar no lugar é o transporte.
      */
-    readonly audio: { in: { level(): number | null }; out: { level(): number | null } } = {
-        in: { level: () => this.remotePlayback?.level() ?? null },
-        out: { level: () => this.micMeter?.level() ?? null },
+    readonly audio: {
+        in: { level(): number | null; spectrum(): Uint8Array | null };
+        out: { level(): number | null; spectrum(): Uint8Array | null };
+    } = {
+        in: {
+            level: () => this.remotePlayback?.level() ?? null,
+            spectrum: () => this.remotePlayback?.spectrum() ?? null,
+        },
+        out: {
+            level: () => this.micMeter?.level() ?? null,
+            spectrum: () => this.micMeter?.spectrum() ?? null,
+        },
     };
 
     private micMeter: AudioMeter | null = null;

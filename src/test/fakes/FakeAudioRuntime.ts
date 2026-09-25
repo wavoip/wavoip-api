@@ -75,8 +75,15 @@ class FakeAudioHandle implements AudioMeter {
     /** `null` imita a plataforma que não mede aqui, como o React Native. */
     reading: number | null = 0;
 
+    /** O espectro que o teste quiser ver; vazio imita a plataforma que não analisa. */
+    bands = new Uint8Array(0);
+
     level(): number | null {
         return this.reading;
+    }
+
+    spectrum(): Uint8Array | null {
+        return this.reading === null ? null : this.bands;
     }
 
     stop(): void {

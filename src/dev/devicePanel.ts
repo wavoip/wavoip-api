@@ -11,7 +11,9 @@ export function devicePanel(device: Device, log: Log): HTMLElement {
 
     const describe = () => {
         state.textContent = describeDevice(device);
-        qr.textContent = device.qrCode ? `QR (${device.qrCode.length} chars): ${device.qrCode.slice(0, 48)}…` : "sem QR";
+        qr.textContent = device.qrCode
+            ? `QR (${device.qrCode.length} chars): ${device.qrCode.slice(0, 48)}…`
+            : "sem QR";
     };
     bindDeviceEvents(device, describe, log);
 

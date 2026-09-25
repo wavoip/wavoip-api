@@ -5,7 +5,12 @@ import type { ActiveCall, OutgoingCall, StartCallFailure, Wavoip } from "@/index
 type OnCall = (call: OutgoingCall) => void;
 
 /** Ligar pelos dois caminhos: o direto e o que conta cada device que tentou. */
-export function dialer(wavoip: Wavoip, calls: HTMLElement, log: Log, onActive: (call: ActiveCall) => void): HTMLElement {
+export function dialer(
+    wavoip: Wavoip,
+    calls: HTMLElement,
+    log: Log,
+    onActive: (call: ActiveCall) => void,
+): HTMLElement {
     const box = element("div", "dialer");
     const to = field("Ligar para", "");
 

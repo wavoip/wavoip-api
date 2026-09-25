@@ -7,7 +7,9 @@ import { nonstandard, type RTCAudioData } from "@/platform/node/wrtc";
 
 /** Um medidor que acompanha o último PCM visto, com o `stop` de quem o alimenta. */
 function meterOf(readLevel: () => number, stop: () => void): AudioMeter {
-    return { level: readLevel, stop };
+    // Sem espectro: o PCM passa por aqui, mas calcular uma FFT a cada frame custaria mais que
+    // todo o resto do caminho de áudio, e um processo sem tela não tem o que desenhar.
+    return { level: readLevel, spectrum: () => null, stop };
 }
 
 /**

@@ -78,6 +78,7 @@ export class WebAudioEngine implements AudioEnginePort {
 
         return {
             level: () => levelOf(analyser),
+            spectrum: () => spectrumOf(analyser),
             stop: () => {
                 source.disconnect();
                 analyser.disconnect();
@@ -99,6 +100,7 @@ export class WebAudioEngine implements AudioEnginePort {
 
         return {
             level: () => levelOf(analyser),
+            spectrum: () => spectrumOf(analyser),
             stop: () => {
                 source.disconnect();
                 analyser.disconnect();
@@ -181,6 +183,13 @@ export class WebAudioEngine implements AudioEnginePort {
 }
 
 /** RMS do que o analisador tem agora, normalizado de 0 a 1 em cima do zero em 128. */
+/** As bandas de frequência do `AnalyserNode`, que é o que desenha uma onda sonora. */
+function spectrumOf(analyser: AnalyserNode): Uint8Array {
+    const bands = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(bands);
+    return bands;
+}
+
 function levelOf(analyser: AnalyserNode): number {
     const samples = new Uint8Array(analyser.fftSize);
     analyser.getByteTimeDomainData(samples);

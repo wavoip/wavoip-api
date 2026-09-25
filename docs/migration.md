@@ -317,6 +317,19 @@ deixar a Promise pendente.
 
 ---
 
+### O espectro continua disponível
+
+Se você desenhava uma onda sonora com o `AnalyserNode`, o equivalente está no mesmo objeto:
+
+| v2 | v3 |
+| --- | --- |
+| `await call.audioAnalyserIn` e `getByteFrequencyData(...)` | `call.audio.in.spectrum()` |
+
+Já vem preenchido, síncrono, e sem tipo do navegador: um `Uint8Array` de bandas. Vazio quer
+dizer que a plataforma não analisa o áudio — confira o `length` antes de desenhar.
+
+---
+
 ## 8. `wavoip.audio` no lugar de `multimedia`
 
 ```typescript

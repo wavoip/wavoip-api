@@ -510,3 +510,39 @@ describe("WebRTCTransport on a platform that does not measure audio", () => {
 function statsOf(transport: WebRTCTransport): { rx: { level: number }; tx: { level: number } } {
     return transport.stats.audio;
 }
+
+/**
+ * O espectro é o que desenha uma onda sonora. Onde a plataforma não enxerga o áudio ele vem
+ * vazio, e não como uma faixa de zeros: quem desenha checa o `length` e não pinta nada, em
+ * vez de pintar silêncio que parece medição.
+ */
+describe("WebRTCTransport spectrum", () => {
+    beforeEach(() => {
+        vi.stubGlobal("RTCPeerConnection", MockRTCPeerConnection);
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("hands over the bands the engine analysed", async () => {
+        const audio = new FakeAudioRuntime();
+        const transport = new WebRTCTransport(audio, "offer-sdp");
+        await startTransport(transport);
+
+        audio.engine.played[0].bands = Uint8Array.from([10, 200, 30]);
+
+        expect(Array.from(transport.audio.in.spectrum())).toEqual([10, 200, 30]);
+        await transport.stop();
+    });
+
+    it("is empty where the platform cannot see the audio", async () => {
+        const audio = new FakeAudioRuntime();
+        Object.defineProperty(audio, "engine", { value: new UnmeasuringAudioEngine() });
+        const transport = new WebRTCTransport(audio, "offer-sdp");
+        await startTransport(transport);
+
+        expect(transport.audio.in.spectrum()).toHaveLength(0);
+        expect(transport.audio.out.spectrum()).toHaveLength(0);
+        await transport.stop();
+    });
+});

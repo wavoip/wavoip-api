@@ -99,6 +99,36 @@ Testar o microfone antes da chamada e controlar o volume ainda não estão na AP
 
 ---
 
+## Desenhando o áudio
+
+```typescript
+call.audio.in.level()      // 0 a 1, o contato falando
+call.audio.in.spectrum()   // uma banda de frequência por byte, 0 a 255, da grave à aguda
+```
+
+Os dois são síncronos, para ler dentro de um `requestAnimationFrame`. O espectro desenhado
+como barras é uma onda sonora:
+
+```typescript
+function drawWave(canvas: HTMLCanvasElement, call: ActiveCall) {
+    const bands = call.audio.in.spectrum()
+    if (bands.length === 0) return   // esta plataforma não analisa o áudio
+
+    const perBar = Math.floor(bands.length / 15)
+    for (let bar = 0; bar < 15; bar++) {
+        drawBar(canvas, bar, bands[bar * perBar] / 255)
+    }
+}
+```
+
+{% hint style="warning" %}
+**Confira o `length` antes de desenhar.** O espectro vem vazio onde a plataforma não vê o
+áudio passar — no React Native a chamada toca pelo sistema, e nada atravessa o processo para
+ser analisado. Vazio é diferente de uma faixa de zeros: zeros pareceriam silêncio medido.
+{% endhint %}
+
+---
+
 ## Notas sobre o áudio
 
 A biblioteca mantém um motor de áudio só, compartilhado entre todas as chamadas. Ele é criado

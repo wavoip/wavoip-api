@@ -14,6 +14,11 @@ export interface AudioHandle {
  */
 export interface AudioMeter extends AudioHandle {
     level(): number | null;
+    /**
+     * The frequency bands of what flows through, or `null` where this platform cannot see
+     * the audio. Same rule as `level`: `null` is "not measured", not "silent".
+     */
+    spectrum(): Uint8Array | null;
 }
 
 /** Playback of the PCM arriving over the relay. */

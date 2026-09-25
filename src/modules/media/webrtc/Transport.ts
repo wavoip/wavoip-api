@@ -1,4 +1,7 @@
 import type { CallAudio } from "@/domain/call/audio";
+
+/** Onde a plataforma não enxerga o áudio, o espectro é vazio — e não uma faixa de zeros. */
+const NO_SPECTRUM = new Uint8Array(0);
 import type { CallStats } from "@/domain/call/stats";
 import type { MediaPlan } from "@/domain/call/mediaPlan";
 import { RTCAudioPipe } from "@/modules/media/webrtc/AudioPipe";
@@ -46,9 +49,16 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
      */
     get audio(): CallAudio {
         const stats = () => this.statsAdapter.snapshot().audio;
+        const pipe = this.audioPipe.audio;
         return {
-            in: { level: () => this.audioPipe.audio.in.level() ?? stats().rx.level },
-            out: { level: () => this.audioPipe.audio.out.level() ?? stats().tx.level },
+            in: {
+                level: () => pipe.in.level() ?? stats().rx.level,
+                spectrum: () => pipe.in.spectrum() ?? NO_SPECTRUM,
+            },
+            out: {
+                level: () => pipe.out.level() ?? stats().tx.level,
+                spectrum: () => pipe.out.spectrum() ?? NO_SPECTRUM,
+            },
         };
     }
 

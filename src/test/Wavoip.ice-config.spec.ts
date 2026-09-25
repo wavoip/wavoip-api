@@ -69,7 +69,11 @@ function receiveOffer(socket: { receive(event: string, ...args: unknown[]): void
     socket.receive("device:init", "open", "OFFICIAL", null, null, false);
     socket.receive(
         "call:offer",
-        { id: "call-1", peer: { phone: "5511", displayName: null, profilePicture: null }, offer: { type: "webRTC", sdp: "v=0" } },
+        {
+            id: "call-1",
+            peer: { phone: "5511", displayName: null, profilePicture: null },
+            offer: { type: "webRTC", sdp: "v=0" },
+        },
         vi.fn(),
     );
 }

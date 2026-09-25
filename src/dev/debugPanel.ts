@@ -7,7 +7,9 @@ const REFRESH_MS = 250;
 /** Tudo que a API pública conta sobre a chamada, ao vivo e num lugar só. */
 export function debugPanel(call: ActiveCall, log: Log): HTMLElement {
     const panel = element("section", "panel debug");
-    panel.appendChild(element("h2", undefined, `Debug · ${call.type} · ${call.direction} · ${call.id} · device ${call.deviceToken}`));
+    panel.appendChild(
+        element("h2", undefined, `Debug · ${call.type} · ${call.direction} · ${call.id} · device ${call.deviceToken}`),
+    );
 
     const grid = element("div", "grid");
     panel.appendChild(grid);

@@ -11,7 +11,7 @@ import InCallManager from "react-native-incall-manager";
  * já publica e o `RTCStatsAdapter` já coleta. Sai o nível que o próprio WebRTC vê.
  */
 function unmeasuredMeter(stop: () => void): AudioMeter {
-    return { level: () => null, stop };
+    return { level: () => null, spectrum: () => null, stop };
 }
 
 /**

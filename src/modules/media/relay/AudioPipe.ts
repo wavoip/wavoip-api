@@ -14,10 +14,19 @@ export type PipeEvents = {
     peerMuted: [muted: boolean];
 };
 
+const NO_SPECTRUM = new Uint8Array(0);
+
 export class WSAudioPipe extends EventEmitter<PipeEvents> {
     peerMuted = false;
-    /** O nível sai do PCM que cruza o relay, que o transporte já mede frame a frame. */
-    readonly audio: CallAudio = { in: { level: () => this.rxLevel }, out: { level: () => this.txLevel } };
+    /**
+     * O nível sai do PCM que cruza o relay, que o transporte já mede frame a frame. Espectro
+     * não: seria uma FFT por frame no mesmo thread que carrega o áudio, e a chamada não
+     * oficial não tem sobra para isso.
+     */
+    readonly audio: CallAudio = {
+        in: { level: () => this.rxLevel, spectrum: () => NO_SPECTRUM },
+        out: { level: () => this.txLevel, spectrum: () => NO_SPECTRUM },
+    };
 
     private capture: AudioHandle | null = null;
     private playback: PcmPlayback | null = null;
