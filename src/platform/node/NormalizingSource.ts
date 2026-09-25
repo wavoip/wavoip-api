@@ -18,25 +18,35 @@ export type NormalizedSource = {
  */
 export class NormalizingSource implements NormalizedSource {
     private readonly channels: number;
+    private converter: PcmConverter | null = null;
 
+    /**
+     * Recebe uma fábrica, e não um conversor pronto, porque o par `start`/`stop` acontece mais
+     * de uma vez: o diagnóstico abre e fecha o microfone antes da primeira chamada. Guardar
+     * uma instância só fazia o `stop` fechá-la e o `start` seguinte usar um conversor morto —
+     * com o worker ligado, o áudio saía em silêncio absoluto e nada dizia por quê.
+     */
     constructor(
         private readonly source: AudioSource,
-        private readonly converter: PcmConverter,
+        private readonly openConverter: () => PcmConverter,
     ) {
         this.channels = source.channelCount ?? 1;
     }
 
     start(onFrame: (pcm: Int16Array) => void): void {
-        this.converter.reset();
+        const converter = this.openConverter();
+        this.converter = converter;
+
         this.source.start((frame) => {
             const mono = Pcm.downmix(Pcm.toInt16(frame), this.channels);
-            this.converter.convert(mono, onFrame);
+            converter.convert(mono, onFrame);
         });
     }
 
     stop(): void {
         this.source.stop();
-        this.converter.close();
+        this.converter?.close();
+        this.converter = null;
     }
 
     /** A taxa de onde o áudio vem, para quem monta o conversor. */

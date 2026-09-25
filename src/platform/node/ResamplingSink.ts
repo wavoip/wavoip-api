@@ -8,20 +8,27 @@ import type { PcmConverter } from "@/platform/node/PcmConverter";
  */
 export class ResamplingSink implements AudioSink {
     readonly sampleRate: number;
+    private converter: PcmConverter | null = null;
 
+    /**
+     * Pela mesma razão do `NormalizingSource`: o conversor é aberto quando o primeiro PCM
+     * chega e fechado no `end`, para uma chamada seguinte não herdar um conversor morto.
+     */
     constructor(
         private readonly sink: AudioSink,
-        private readonly converter: PcmConverter,
+        private readonly openConverter: () => PcmConverter,
     ) {
         this.sampleRate = ResamplingSink.rateOf(sink);
     }
 
     write(pcm: Int16Array): void {
+        this.converter ??= this.openConverter();
         this.converter.convert(pcm, (converted) => this.sink.write(converted));
     }
 
     end(): void {
-        this.converter.close();
+        this.converter?.close();
+        this.converter = null;
         this.sink.end();
     }
 

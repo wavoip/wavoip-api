@@ -54,11 +54,11 @@ export function nodeRuntime({ source, sink, resampleInWorker = false }: NodeRunt
     const converterFor = converterFactory(resampleInWorker);
 
     const shared = new SharedAudioSource(
-        new NormalizingSource(source, converterFor(NormalizingSource.rateOf(source), SAMPLE_RATE)),
+        new NormalizingSource(source, () => converterFor(NormalizingSource.rateOf(source), SAMPLE_RATE)),
     );
     const engine = new NodeAudioEngine(
         shared,
-        new ResamplingSink(sink, converterFor(SAMPLE_RATE, ResamplingSink.rateOf(sink))),
+        new ResamplingSink(sink, () => converterFor(SAMPLE_RATE, ResamplingSink.rateOf(sink))),
     );
 
     return {
@@ -79,7 +79,8 @@ export function nodeRuntime({ source, sink, resampleInWorker = false }: NodeRunt
  */
 function converterFactory(inWorker: boolean): (inputRate: number, outputRate: number) => PcmConverter {
     return (inputRate, outputRate) => {
-        if (!inWorker || inputRate === outputRate) return new LocalConverter(inputRate, outputRate);
-        return WorkerConverter.Open(inputRate, outputRate) ?? new LocalConverter(inputRate, outputRate);
+        const local = new LocalConverter(inputRate, outputRate);
+        if (!inWorker || inputRate === outputRate) return local;
+        return WorkerConverter.Open(inputRate, outputRate, local) ?? local;
     };
 }

@@ -1,4 +1,4 @@
-import { FRAME_SAMPLES, SAMPLE_RATE, type AudioSource } from "@/platform/node/audioIo";
+import { SAMPLE_RATE, type AudioSource } from "@/platform/node/audioIo";
 
 const TONE_HZ = 440;
 const AMPLITUDE = 12_000;
@@ -7,6 +7,9 @@ const AMPLITUDE = 12_000;
 export class ToneSource implements AudioSource {
     private ticker: ReturnType<typeof setInterval> | null = null;
     private phase = 0;
+
+    /** A taxa importa: só quando ela difere da chamada é que o conversor entra no caminho. */
+    constructor(readonly sampleRate = SAMPLE_RATE) {}
 
     start(onFrame: (pcm: Int16Array) => void): void {
         this.ticker = setInterval(() => onFrame(this.nextFrame()), 10);
@@ -18,9 +21,10 @@ export class ToneSource implements AudioSource {
     }
 
     private nextFrame(): Int16Array {
-        const frame = new Int16Array(FRAME_SAMPLES);
-        for (let i = 0; i < FRAME_SAMPLES; i += 1) {
-            frame[i] = Math.round(AMPLITUDE * Math.sin((2 * Math.PI * TONE_HZ * this.phase) / SAMPLE_RATE));
+        const size = Math.round(this.sampleRate / 100);
+        const frame = new Int16Array(size);
+        for (let i = 0; i < size; i += 1) {
+            frame[i] = Math.round(AMPLITUDE * Math.sin((2 * Math.PI * TONE_HZ * this.phase) / this.sampleRate));
             this.phase += 1;
         }
         return frame;
