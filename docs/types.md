@@ -364,7 +364,8 @@ type ErrorCode = DeviceErrorCode | CommandErrorCode | MediaErrorCode | CallFailu
 | | `NETWORK_ERROR` | O pedido não chegou ao servidor: rede, DNS ou TLS. |
 | `MediaErrorCode` | `MICROPHONE_PERMISSION_DENIED` | O usuário negou o microfone. |
 | | `AUDIO_DEVICE_NOT_FOUND` | O aparelho de áudio pedido não existe. |
-| | `OUTPUT_SELECTION_UNSUPPORTED` | O navegador não permite escolher a saída. |
+| | `OUTPUT_SELECTION_UNSUPPORTED` | A plataforma não permite escolher a saída. |
+| | `INPUT_SELECTION_UNSUPPORTED` | A plataforma não permite escolher o microfone; quem decide é o sistema. |
 | | `VOLUME_OUT_OF_RANGE` | Volume fora da faixa; a faixa vem em `details`. |
 | | `MEDIA_NEGOTIATION_FAILED` | A negociação de mídia falhou; a exceção original vem em `cause`. |
 | | `UNSUPPORTED_MEDIA_PLAN` | O servidor propôs um transporte que a biblioteca não fala. |

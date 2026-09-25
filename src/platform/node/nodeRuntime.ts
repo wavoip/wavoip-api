@@ -1,4 +1,5 @@
-import type { AudioDevice } from "@/index";
+import type { AudioControl, AudioDevice } from "@/index";
+import { Result } from "@/index";
 import { type AudioSink, type AudioSource, SAMPLE_RATE } from "@/platform/node/audioIo";
 import { NodeAudioEngine } from "@/platform/node/NodeAudioEngine";
 import { NodeMicrophone } from "@/platform/node/NodeMicrophone";
@@ -15,12 +16,17 @@ import { WorkerConverter } from "@/platform/node/WorkerConverter";
 // na superfície pública, com o runtime saindo como `WavoipRuntime_2`, que nem é exportado.
 import type { WavoipRuntime } from "@/index";
 
-/** There is no device to enumerate on a headless host: audio comes from what you passed in. */
-const NO_DEVICES = {
+/**
+ * There is no device to enumerate on a headless host: audio comes from the `source` and
+ * `sink` you passed in, and choosing between devices that do not exist has no meaning.
+ */
+const NO_DEVICES: AudioControl = {
     listInputDevices: (): AudioDevice[] => [],
     listOutputDevices: (): AudioDevice[] => [],
     currentInput: null,
     currentOutput: null,
+    selectInput: async () => Result.fail("INPUT_SELECTION_UNSUPPORTED"),
+    selectOutput: async () => Result.fail("OUTPUT_SELECTION_UNSUPPORTED"),
 };
 
 export type NodeRuntimeOptions = {

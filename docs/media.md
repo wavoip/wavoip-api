@@ -56,10 +56,45 @@ function renderDevicePicker() {
 }
 ```
 
+---
+
+## Escolhendo o aparelho
+
+```typescript
+const { error } = await wavoip.audio.selectInput(mic.id)
+if (error) console.error(error.code)
+
+await wavoip.audio.selectOutput(speaker.id)
+```
+
+O `id` é o de um aparelho que `listInputDevices()` ou `listOutputDevices()` devolveu. **A troca
+vale para a chamada em curso**: a track é substituída sem desligar, e quem está do outro lado
+não percebe nada além da mudança de microfone.
+
+Os dois devolvem `Result`, porque nem toda plataforma escolhe:
+
+| Código | Quando |
+| --- | --- |
+| `AUDIO_DEVICE_NOT_FOUND` | o `id` não está na lista; ele volta em `details` |
+| `OUTPUT_SELECTION_UNSUPPORTED` | a plataforma não escolhe a saída — um navegador sem `setSinkId`, por exemplo |
+| `INPUT_SELECTION_UNSUPPORTED` | a plataforma não escolhe o microfone; quem decide é o sistema |
+
 {% hint style="info" %}
-Esta versão **lista** os aparelhos; escolher qual usar, testar o microfone antes da chamada e
-controlar o volume ainda não estão na API. Enquanto isso, quem decide o microfone é o padrão
-do sistema operacional.
+No celular, a escolha de saída é entre o fone do aparelho e o viva-voz, e os dois aparecem em
+`listOutputDevices()`. Ver [React Native](platforms/react-native.md).
+{% endhint %}
+
+```typescript
+async function onPickMicrophone(id: string) {
+    const { error } = await wavoip.audio.selectInput(id)
+    if (error) return showMessage(traduzir(error.code))
+
+    renderDevicePicker()   // o `currentInput` já reflete a troca
+}
+```
+
+{% hint style="info" %}
+Testar o microfone antes da chamada e controlar o volume ainda não estão na API.
 {% endhint %}
 
 ---

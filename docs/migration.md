@@ -348,10 +348,33 @@ vem separada por método, então o filtro que você fazia some junto. **Entrada 
 separadas** porque o nome no plural era a única coisa distinguindo as duas na v2, e filtrar por
 string é fácil de errar.
 
+### Escolher o aparelho
+
+O `setMicrophone`/`setSpeaker` que a documentação da v2 descrevia nunca esteve na API pública:
+era código interno sem chamador. Agora está, com nome no par do que já existia para ler:
+
+| v2 | v3 |
+| --- | --- |
+| `wavoip.multimedia.setMicrophone(id)` (só na documentação) | `wavoip.audio.selectInput(id)` |
+| `wavoip.multimedia.setSpeaker(id)` (só na documentação) | `wavoip.audio.selectOutput(id)` |
+
+```typescript
+const [outro] = wavoip.audio.listInputDevices()
+const { error } = await wavoip.audio.selectInput(outro.id)
+if (error) console.error(error.code)
+```
+
+Trocar o microfone vale para a chamada em curso: a track é substituída, sem desligar. E porque
+nem toda plataforma escolhe, os dois devolvem `Result`:
+
+| Código | Quando |
+| --- | --- |
+| `AUDIO_DEVICE_NOT_FOUND` | o `id` não está na lista; ele vem em `details` |
+| `OUTPUT_SELECTION_UNSUPPORTED` | o navegador não tem `setSinkId`, ou não há saída a escolher |
+| `INPUT_SELECTION_UNSUPPORTED` | a plataforma não deixa escolher o microfone (React Native) |
+
 {% hint style="info" %}
-Escolher o aparelho, testar o microfone e controlar o volume entram numa versão seguinte. O
-`setMicrophone`/`setSpeaker` que a documentação da v2 descrevia **nunca** esteve na API
-pública: era código interno sem chamador, e o texto estava errado.
+Testar o microfone e controlar o volume seguem fora da v3.
 {% endhint %}
 
 ---

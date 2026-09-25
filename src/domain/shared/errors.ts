@@ -41,8 +41,10 @@ export type MediaErrorCode =
     | "MICROPHONE_PERMISSION_DENIED"
     /** The requested audio device does not exist. */
     | "AUDIO_DEVICE_NOT_FOUND"
-    /** This browser cannot choose where audio plays. */
+    /** This platform cannot choose where audio plays. */
     | "OUTPUT_SELECTION_UNSUPPORTED"
+    /** This platform cannot choose which microphone is used: the system decides. */
+    | "INPUT_SELECTION_UNSUPPORTED"
     /** Volume outside the accepted range; `details` carries it. */
     | "VOLUME_OUT_OF_RANGE"
     /** Media negotiation failed; the original exception is in `cause`. */

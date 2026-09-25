@@ -1,6 +1,7 @@
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { AudioDevice } from "@/domain/audio/device";
-import type { AudioControl } from "@/domain/audio/control";
+import type { AudioControl, AudioSelectionFailure } from "@/domain/audio/control";
+import { Result } from "@/domain/shared/Result";
 import type { AudioEnginePort } from "@/ports/runtime/AudioEnginePort";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 
@@ -47,6 +48,30 @@ export class WebAudioDevices extends EventEmitter<WebAudioDevicesEvents> impleme
 
     get currentOutput(): AudioDevice | null {
         return this.activeSpeaker ? toAudioDevice(this.activeSpeaker) : null;
+    }
+
+    /** Troca o microfone da chamada em curso: o `setMicrophone` já faz o swap da track. */
+    async selectInput(id: string): Promise<Result<void, AudioSelectionFailure>> {
+        const changed = await this.setMicrophone(id);
+        return changed ? Result.ok() : Result.fail("AUDIO_DEVICE_NOT_FOUND", { details: { id } });
+    }
+
+    async selectOutput(id: string): Promise<Result<void, AudioSelectionFailure>> {
+        if (!this.devices.some((device) => device.kind === "audiooutput" && device.deviceId === id)) {
+            return Result.fail("AUDIO_DEVICE_NOT_FOUND", { details: { id } });
+        }
+        if (!this.canChooseOutput()) return Result.fail("OUTPUT_SELECTION_UNSUPPORTED");
+
+        await this.setSpeaker(id);
+        return Result.ok();
+    }
+
+    /**
+     * O `setSinkId` não existe em todo navegador — o Firefox não tinha em 2024. Sem ele a
+     * troca não acontece, e dizer isso é melhor que fingir que aconteceu.
+     */
+    private canChooseOutput(): boolean {
+        return typeof HTMLMediaElement !== "undefined" && "setSinkId" in HTMLMediaElement.prototype;
     }
 
     private listDevices(kind: MediaDeviceKind): AudioDevice[] {

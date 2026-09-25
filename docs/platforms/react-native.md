@@ -116,6 +116,8 @@ conexão. Não há grafo de áudio a montar nem alto-falante a abrir.
 | Mudo | desliga a track, como no navegador |
 | Lista de aparelhos | `enumerateDevices`, conferido item a item antes de ser entregue |
 | Sessão de áudio do sistema | `InCallManager`, iniciado quando o áudio do contato chega e encerrado no fim |
+| Viva-voz | `wavoip.audio.selectOutput("speaker")` ou `"earpiece"` |
+| Nível do áudio | `call.audio.in.level()` e `out.level()`, lidos das estatísticas da conexão |
 
 {% hint style="info" %}
 **Por que a sessão de áudio é configurada tão tarde.** O momento é o da track remota chegar, e
@@ -124,20 +126,45 @@ configurar depois já é tarde, porque o áudio saiu pela rota errada. Foi o que
 `react-native-webrtc` apurou depois de casos de chamada silenciosa no iOS.
 {% endhint %}
 
+## Escolher onde a chamada é ouvida
+
+```typescript
+const { error } = await wavoip.audio.selectOutput("speaker")   // viva-voz
+if (error) console.error(error.code)
+
+await wavoip.audio.selectOutput("earpiece")                    // volta ao fone
+wavoip.audio.currentOutput.id                                  // "earpiece"
+```
+
+As duas saídas vêm de `listOutputDevices()` e são as que um telefone realmente oferece. Elas
+são declaradas pela biblioteca, e não lidas do `enumerateDevices`: o `react-native-webrtc`
+devolve `unknown` ali e não separa fone de alto-falante.
+
+## Medir o nível do áudio
+
+```typescript
+call.audio.in.level()    // o contato falando, de 0 a 1
+call.audio.out.level()   // o seu microfone
+```
+
+Funciona, e por um caminho diferente do navegador. No React Native o áudio não passa pela
+biblioteca — quem toca e captura é o nativo —, então não há o que medir neste processo. O
+número vem do `audioLevel` que o `getStats()` da própria conexão publica, que é o nível que o
+WebRTC de fato vê. Para quem chama, é a mesma função.
+
 ## O que ainda falta
 
 | | Situação |
 | --- | --- |
 | Chamada não oficial (relay) | recusada com `CALL_TYPE_UNSUPPORTED`; depende de um motor de áudio que trate PCM |
-| `call.audio.in.level()` / `out.level()` | devolve `0`: o `react-native-webrtc` não expõe o nível, e o `audioLevel` do `getStats()` dele não está nas tipagens nem se comporta igual nas duas plataformas |
-| Alternar entre fone e alto-falante | o `InCallManager` sabe fazer (`setForceSpeakerphoneOn`), mas a biblioteca ainda não tem um método público para pedir isso |
 | `call.stats.latency.playout_ms` | `null` — o nativo não informa |
-| `wavoip.audio.currentInput` / `currentOutput` | `null` — no React Native quem escolhe a saída é o sistema |
+| Escolher o microfone | `selectInput` devolve `INPUT_SELECTION_UNSUPPORTED`: no Android e no iOS quem decide é o sistema, seguindo o que está conectado |
+| `wavoip.audio.currentInput` | `null` — o sistema não informa qual microfone está usando |
 
-As duas primeiras linhas dependem do mesmo pacote, o `react-native-audio-api`, que tem
-gravação a partir do microfone com taxa configurável e worklets em JavaScript na thread de
-áudio. O reamostrador de que elas precisam **já existe e é compartilhado**: ele é JavaScript
-puro justamente porque o Hermes não tem WebAssembly.
+A chamada não oficial depende do `react-native-audio-api`, que tem gravação a partir do
+microfone com taxa configurável e worklets em JavaScript na thread de áudio. O reamostrador de
+que ela precisa **já existe e é compartilhado**: ele é JavaScript puro justamente porque o
+Hermes não tem WebAssembly.
 
 {% hint style="danger" %}
 **Este adaptador ainda não foi executado num aparelho.** Os tipos batem com os do
