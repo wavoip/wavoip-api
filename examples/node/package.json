@@ -9,7 +9,7 @@
     },
     "dependencies": {
         "@roamhq/wrtc": "^0.10.0",
-        "@wavoip/wavoip-api": "file:../../../../../../../tmp/wavoip-wavoip-api-2.7.0.tgz",
+        "@wavoip/wavoip-api": "^3.0.0",
         "ws": "^8.21.3"
     },
     "devDependencies": {

@@ -2,3 +2,5 @@ node_modules/
 .env.local
 dist/
 wavoip-wavoip-api*.tgz
+# O exemplo instala o pacote publicado; o lock local aponta para um tarball de teste.
+examples/*/package-lock.json
