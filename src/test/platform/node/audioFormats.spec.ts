@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { type AudioSink, type AudioSource, SAMPLE_RATE } from "@/platform/node/audioIo";
 import { nodeRuntime } from "@/platform/node/nodeRuntime";
+import { RecordingSink } from "@/test/fakes/RecordingSink";
+import { ToneSource } from "@/test/fakes/ToneSource";
 import { describe, expect, it, vi } from "vitest";
 
 /**
@@ -104,3 +106,28 @@ function toneFrame(samples: number): Int16Array {
 function peakOf(samples: number[]): number {
     return samples.reduce((max, s) => Math.max(max, Math.abs(s)), 0);
 }
+
+/**
+ * O áudio passa por este processo, então há o que analisar — e por isso o Node entrega
+ * espectro, diferente do React Native, onde o nativo toca sem atravessar o JavaScript.
+ */
+describe("Node spectrum", () => {
+    it("finds the tone the integrator is pushing", async () => {
+        const runtime = nodeRuntime({ source: new ToneSource(), sink: new RecordingSink() });
+        await runtime.microphone.open();
+
+        const meter = runtime.engine.monitorStream(null as never);
+        await vi.waitFor(() => expect(meter.spectrum()?.length).toBeGreaterThan(0));
+
+        const bands = meter.spectrum() as Uint8Array;
+        // O `ToneSource` toca 440 Hz a 16 kHz, num bloco de 512 amostras.
+        const expected = Math.round((440 / SAMPLE_RATE) * 512);
+        let peak = 0;
+        for (let i = 1; i < bands.length; i += 1) if (bands[i] > bands[peak]) peak = i;
+
+        expect(Math.abs(peak - expected)).toBeLessThanOrEqual(2);
+
+        meter.stop();
+        await runtime.microphone.close();
+    }, 15_000);
+});

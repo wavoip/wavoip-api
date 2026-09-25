@@ -1,3 +1,4 @@
+import { SpectrumAnalyser } from "@/domain/audio/SpectrumAnalyser";
 import { rmsInt16 } from "@/modules/media/audio-level";
 import type { AudioSink } from "@/platform/node/audioIo";
 import type { SharedAudioSource } from "@/platform/node/SharedAudioSource";
@@ -5,11 +6,15 @@ import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/po
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 import { nonstandard, type RTCAudioData } from "@/platform/node/wrtc";
 
-/** Um medidor que acompanha o último PCM visto, com o `stop` de quem o alimenta. */
-function meterOf(readLevel: () => number, stop: () => void): AudioMeter {
-    // Sem espectro: o PCM passa por aqui, mas calcular uma FFT a cada frame custaria mais que
-    // todo o resto do caminho de áudio, e um processo sem tela não tem o que desenhar.
-    return { level: readLevel, spectrum: () => null, stop };
+/**
+ * Um medidor do PCM que passa: nível a cada frame, espectro só quando alguém pede.
+ *
+ * O áudio realmente atravessa este processo, então há o que analisar — diferente do React
+ * Native, onde o nativo toca sem passar por aqui. A FFT fica atrás do `bands()`: quem nunca
+ * chama `spectrum()` não paga por ela.
+ */
+function meterOf(readLevel: () => number, analyser: SpectrumAnalyser, stop: () => void): AudioMeter {
+    return { level: readLevel, spectrum: () => analyser.bands(), stop };
 }
 
 /**
@@ -42,15 +47,18 @@ export class NodeAudioEngine implements AudioEnginePort {
     /** O áudio que chega do WebRTC vai para o sumidouro do integrador. */
     renderRemote(stream: MediaStreamLike): AudioMeter {
         let level = 0;
+        const analyser = new SpectrumAnalyser();
         const audioSink = new nonstandard.RTCAudioSink(trackOf(stream));
 
         audioSink.ondata = ({ samples }: RTCAudioData) => {
             level = rmsInt16(samples.buffer as ArrayBuffer);
+            analyser.push(samples);
             this.sink.write(samples);
         };
 
         return meterOf(
             () => level,
+            analyser,
             () => audioSink.stop(),
         );
     }
@@ -58,10 +66,12 @@ export class NodeAudioEngine implements AudioEnginePort {
     /** Mede o que sai para o outro lado, sem duplicar a entrega. */
     monitorStream(_stream: MediaStreamLike): AudioMeter {
         let level = 0;
+        const analyser = new SpectrumAnalyser();
         const stop = this.source.subscribe((pcm) => {
             level = rmsInt16(pcm.buffer as ArrayBuffer);
+            analyser.push(pcm);
         });
-        return meterOf(() => level, stop);
+        return meterOf(() => level, analyser, stop);
     }
 
     /** O caminho do relay: o PCM do integrador sai cru, sem passar por track nenhuma. */

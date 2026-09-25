@@ -122,10 +122,15 @@ function drawWave(canvas: HTMLCanvasElement, call: ActiveCall) {
 ```
 
 {% hint style="warning" %}
-**Confira o `length` antes de desenhar.** O espectro vem vazio onde a plataforma não vê o
-áudio passar — no React Native a chamada toca pelo sistema, e nada atravessa o processo para
-ser analisado. Vazio é diferente de uma faixa de zeros: zeros pareceriam silêncio medido.
+**Confira o `length` antes de desenhar.** Vazio é diferente de uma faixa de zeros: zeros
+pareceriam silêncio medido.
 {% endhint %}
+
+| Ambiente | Espectro | Por quê |
+| --- | --- | --- |
+| Navegador | ✅ | do `AnalyserNode`, que a chamada já usa |
+| Node.js | ✅ | o PCM atravessa o processo, então há o que analisar |
+| React Native | vazio | o sistema toca a chamada em nativo; nada passa pelo JavaScript para ser analisado |
 
 ---
 
