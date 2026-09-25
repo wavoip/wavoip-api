@@ -1,8 +1,8 @@
 import libSampleRateWorkletSource from "@alexanderolsen/libsamplerate-js/dist/libsamplerate.worklet.js?worklet";
 import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
-import micWorkletSource from "../../modules/worklets/AudioWorkletMic.ts?worklet";
-import outWorkletSource from "../../modules/worklets/AudioWorkletOut.ts?worklet";
+import micWorkletSource from "./worklets/AudioWorkletMic.ts?worklet";
+import outWorkletSource from "./worklets/AudioWorkletOut.ts?worklet";
 
 const METER_FFT_SIZE = 256;
 

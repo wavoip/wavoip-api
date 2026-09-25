@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Os imports `?worklet` avaliam o corpo do AudioWorkletProcessor no import, o que lança no
 // happy-dom.
-vi.mock("../../modules/worklets/AudioWorkletMic.ts?worklet", () => ({ default: "mic-worklet.js" }));
-vi.mock("../../modules/worklets/AudioWorkletOut.ts?worklet", () => ({ default: "out-worklet.js" }));
+vi.mock("../../platform/web/worklets/AudioWorkletMic.ts?worklet", () => ({ default: "mic-worklet.js" }));
+vi.mock("../../platform/web/worklets/AudioWorkletOut.ts?worklet", () => ({ default: "out-worklet.js" }));
 
 const addModule = vi.fn().mockResolvedValue(undefined);
 const suspend = vi.fn().mockResolvedValue(undefined);

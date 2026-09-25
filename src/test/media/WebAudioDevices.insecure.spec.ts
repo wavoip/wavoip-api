@@ -2,8 +2,8 @@ import { WebAudioDevices } from "@/platform/web/WebAudioDevices";
 import { WebAudioEngine } from "@/platform/web/WebAudioEngine";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../modules/worklets/AudioWorkletMic.ts?worklet", () => ({ default: "mic-worklet.js" }));
-vi.mock("../../modules/worklets/AudioWorkletOut.ts?worklet", () => ({ default: "out-worklet.js" }));
+vi.mock("../../platform/web/worklets/AudioWorkletMic.ts?worklet", () => ({ default: "mic-worklet.js" }));
+vi.mock("../../platform/web/worklets/AudioWorkletOut.ts?worklet", () => ({ default: "out-worklet.js" }));
 
 /** É o que o navegador faz fora de contexto seguro: `mediaDevices` simplesmente não existe. */
 beforeEach(() => {

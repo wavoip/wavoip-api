@@ -11,6 +11,11 @@
         "src/domain",
         "src/ports",
         "src/application",
+        "src/modules",
+        "src/adapters",
+        "src/config",
+        "src/index.ts",
+        "src/Wavoip.ts",
         "types/core-globals.d.ts"
     ],
     "exclude": []

@@ -3,8 +3,8 @@ import { WebAudioDevices } from "@/platform/web/WebAudioDevices";
 import { WebAudioEngine } from "@/platform/web/WebAudioEngine";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../modules/worklets/AudioWorkletMic.ts?worklet", () => ({ default: "mic-worklet.js" }));
-vi.mock("../../modules/worklets/AudioWorkletOut.ts?worklet", () => ({ default: "out-worklet.js" }));
+vi.mock("../../platform/web/worklets/AudioWorkletMic.ts?worklet", () => ({ default: "mic-worklet.js" }));
+vi.mock("../../platform/web/worklets/AudioWorkletOut.ts?worklet", () => ({ default: "out-worklet.js" }));
 
 /** O que o navegador lista, com os campos que só ele tem. */
 const browserDevices = [
