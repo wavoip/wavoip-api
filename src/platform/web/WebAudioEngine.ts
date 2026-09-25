@@ -6,6 +6,7 @@ import type {
     AudioMeter,
     PcmPlayback,
 } from "@/ports/runtime/AudioEnginePort";
+import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 import micWorkletSource from "./worklets/AudioWorkletMic.ts?worklet";
 import outWorkletSource from "./worklets/AudioWorkletOut.ts?worklet";
@@ -119,7 +120,8 @@ export class WebAudioEngine implements AudioEnginePort {
         };
     }
 
-    capturePcm(stream: MediaStreamLike, onFrame: (pcm: ArrayBuffer) => void): AudioHandle {
+    async capturePcm(microphone: MicrophonePort, onFrame: (pcm: ArrayBuffer) => void): Promise<AudioHandle> {
+        const stream = await microphone.open();
         const source = this.sourceOf(stream);
         const resampler = new AudioWorkletNode(this.context, "resample-processor", {
             numberOfInputs: 1,

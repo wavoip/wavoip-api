@@ -15,7 +15,7 @@ describe("muting a Node call", () => {
         const captured: number[] = [];
 
         await runtime.microphone.open();
-        const handle = runtime.engine.capturePcm(null as never, (pcm) => {
+        const handle = await runtime.engine.capturePcm(null as never, (pcm) => {
             for (const sample of new Int16Array(pcm)) captured.push(sample);
         });
 

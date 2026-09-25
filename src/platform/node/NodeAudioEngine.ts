@@ -3,6 +3,7 @@ import { rmsInt16 } from "@/modules/media/audio-level";
 import type { AudioSink } from "@/platform/node/audioIo";
 import type { SharedAudioSource } from "@/platform/node/SharedAudioSource";
 import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
+import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 import { nonstandard, type RTCAudioData } from "@/platform/node/wrtc";
 
@@ -74,8 +75,8 @@ export class NodeAudioEngine implements AudioEnginePort {
         return meterOf(() => level, analyser, stop);
     }
 
-    /** O caminho do relay: o PCM do integrador sai cru, sem passar por track nenhuma. */
-    capturePcm(_stream: MediaStreamLike, onFrame: (pcm: ArrayBuffer) => void): AudioHandle {
+    /** O caminho do relay: o PCM do integrador sai cru, sem passar por microfone nenhum. */
+    async capturePcm(_microphone: MicrophonePort, onFrame: (pcm: ArrayBuffer) => void): Promise<AudioHandle> {
         const stop = this.source.subscribe((pcm) => onFrame(copyOf(pcm)));
         return { stop };
     }

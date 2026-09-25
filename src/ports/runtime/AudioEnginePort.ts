@@ -1,3 +1,4 @@
+import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 
 /** Everything the engine opens is closed through its own handle. */
@@ -68,9 +69,14 @@ export interface AudioEnginePort {
     /** Measures the microphone without routing it back to the speaker. */
     monitorStream(stream: MediaStreamLike): AudioMeter;
     /**
-     * Feeds the microphone through the resampler and hands over each PCM frame ready for
-     * the relay. Does not measure: the relay's level comes from the PCM itself.
+     * Feeds the local audio through the resampler and hands over each PCM frame ready for the
+     * relay. Does not measure: the relay's level comes from the PCM itself.
+     *
+     * Takes the microphone port rather than a stream, because where the samples come from is
+     * the platform's business: the browser reads the `getUserMedia` stream, Node reads the
+     * source the integrator passed in, and React Native records through its own audio API. The
+     * returned handle closes whatever it opened.
      */
-    capturePcm(stream: MediaStreamLike, onFrame: (pcm: ArrayBuffer) => void): AudioHandle;
+    capturePcm(microphone: MicrophonePort, onFrame: (pcm: ArrayBuffer) => void): Promise<AudioHandle>;
     playPcm(): PcmPlayback;
 }

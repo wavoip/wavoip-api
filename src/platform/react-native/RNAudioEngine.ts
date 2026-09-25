@@ -1,4 +1,5 @@
 import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
+import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 import { RNPcmCapture } from "@/platform/react-native/RNPcmCapture";
 import { RNPcmPlayback } from "@/platform/react-native/RNPcmPlayback";
@@ -75,9 +76,11 @@ export class RNAudioEngine implements AudioEnginePort {
      * reamostragem acontece dentro do `RNPcmCapture`, em JavaScript — que é o que o Hermes
      * sabe rodar.
      */
-    capturePcm(_stream: MediaStreamLike, onFrame: (pcm: ArrayBuffer) => void): AudioHandle {
+    async capturePcm(_microphone: MicrophonePort, onFrame: (pcm: ArrayBuffer) => void): Promise<AudioHandle> {
+        // O `AudioRecorder` é quem grava aqui, então o microfone do `react-native-webrtc` nem
+        // é aberto: dois acessos nativos ao mesmo microfone é problema que não vale arriscar.
         const capture = new RNPcmCapture(onFrame);
-        void capture.start();
+        await capture.start();
         return capture;
     }
 

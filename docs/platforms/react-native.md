@@ -173,8 +173,16 @@ Não é falta de capacidade de calcular: é falta do áudio. Na chamada **oficia
 que analisar deste lado. No navegador e no Node o áudio atravessa o processo, e por isso os
 dois preenchem.
 
-Na chamada **não oficial** é diferente: o PCM passa por aqui, e o espectro funcionaria — falta
-ligá-lo ao medidor, que é trabalho pequeno e ainda não feito.
+Na chamada **não oficial** o espectro funciona: ali o PCM atravessa o processo nas duas
+direções, e é dele que saem nível e bandas. Vale para os três ambientes, porque o cálculo mora
+no caminho do relay e não no motor de cada plataforma.
+
+{% hint style="info" %}
+**O microfone é aberto uma vez só.** Na chamada não oficial quem grava é o `AudioRecorder`, e o
+`getUserMedia` do `react-native-webrtc` nem chega a ser chamado: dois acessos nativos ao mesmo
+microfone é risco que não se corre de graça. Quem decide de onde tirar as amostras é o motor de
+áudio da plataforma, e não o caminho do relay.
+{% endhint %}
 
 ## O que ainda falta
 
@@ -183,8 +191,6 @@ ligá-lo ao medidor, que é trabalho pequeno e ainda não feito.
 | `call.stats.latency.playout_ms` | `null` — o nativo não informa |
 | Escolher o microfone | `selectInput` devolve `INPUT_SELECTION_UNSUPPORTED`: no Android e no iOS quem decide é o sistema, seguindo o que está conectado |
 | `wavoip.audio.currentInput` | `null` — o sistema não informa qual microfone está usando |
-| `call.audio.in.spectrum()` | vazio na chamada oficial (ver acima); na não oficial, falta ligá-lo |
-| Microfone em duas mãos na não oficial | o `getUserMedia` do WebRTC e o `AudioRecorder` abrem o microfone; se isso incomoda o aparelho, só o teste em hardware diz |
 
 {% hint style="danger" %}
 **Este adaptador ainda não foi executado num aparelho.** Os tipos batem com os do

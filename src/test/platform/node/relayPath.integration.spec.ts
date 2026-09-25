@@ -47,7 +47,7 @@ describe("Node relay path over a real binary socket", () => {
         const playback = runtime.engine.playPcm();
         socket.addEventListener("message", (event) => playback.write(event.data as ArrayBuffer));
 
-        const capture = runtime.engine.capturePcm(null as never, (pcm) => socket.send(pcm));
+        const capture = await runtime.engine.capturePcm(null as never, (pcm) => socket.send(pcm));
         await waitFor(() => sink.samples.length >= FRAME_SAMPLES * 5, 5_000);
 
         capture.stop();

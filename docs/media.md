@@ -130,7 +130,7 @@ pareceriam silêncio medido.
 | --- | --- | --- |
 | Navegador | ✅ | do `AnalyserNode`, que a chamada já usa |
 | Node.js | ✅ | o PCM atravessa o processo, então há o que analisar |
-| React Native | vazio | o sistema toca a chamada em nativo; nada passa pelo JavaScript para ser analisado |
+| React Native | só na chamada não oficial | na oficial o sistema toca em nativo, e nada passa pelo JavaScript para ser analisado |
 
 ---
 

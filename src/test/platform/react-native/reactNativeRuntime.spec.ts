@@ -219,8 +219,8 @@ describe("RNAudioEngine on the relay path", () => {
         FakeAudioContext.instances.length = 0;
     });
 
-    it("asks the device for the format the call speaks", () => {
-        reactNativeRuntime().engine.capturePcm(null as never, () => {});
+    it("asks the device for the format the call speaks", async () => {
+        await reactNativeRuntime().engine.capturePcm(null as never, () => {});
 
         expect(FakeAudioRecorder.instances[0].requested).toEqual({
             sampleRate: 16_000,
@@ -231,9 +231,9 @@ describe("RNAudioEngine on the relay path", () => {
     });
 
     /** O ponto todo: a taxa real vem do aparelho, e a saída é 16 kHz de qualquer forma. */
-    it("resamples whatever rate the device actually delivers down to 16kHz", () => {
+    it("resamples whatever rate the device actually delivers down to 16kHz", async () => {
         const frames: Int16Array[] = [];
-        const handle = reactNativeRuntime().engine.capturePcm(null as never, (pcm) => {
+        const handle = await reactNativeRuntime().engine.capturePcm(null as never, (pcm) => {
             frames.push(new Int16Array(pcm));
         });
 
@@ -249,9 +249,9 @@ describe("RNAudioEngine on the relay path", () => {
         expect(FakeAudioRecorder.instances[0].stopped).toBe(true);
     });
 
-    it("follows the device when it changes rate mid-call", () => {
+    it("follows the device when it changes rate mid-call", async () => {
         const frames: Int16Array[] = [];
-        reactNativeRuntime().engine.capturePcm(null as never, (pcm) => frames.push(new Int16Array(pcm)));
+        await reactNativeRuntime().engine.capturePcm(null as never, (pcm) => frames.push(new Int16Array(pcm)));
         const recorder = FakeAudioRecorder.instances[0];
 
         recorder.deliver(recorded(440, 1_600, 16_000), 16_000);

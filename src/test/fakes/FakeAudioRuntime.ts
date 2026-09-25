@@ -164,10 +164,21 @@ export class FakeAudioEngine implements AudioEnginePort {
         return handle;
     }
 
-    capturePcm(_stream: MediaStreamLike, onFrame: (pcm: ArrayBuffer) => void): AudioHandle {
+    /** O microfone entregando um frame, como o worklet faz na web. */
+    pushCaptured(pcm: Int16Array): void {
+        this.emitCapturedFrame?.(pcm.buffer as ArrayBuffer);
+    }
+
+    /** Guarda quem pediu, para o teste provar que o motor abre o microfone e não o pipe. */
+    capturedFrom: MicrophonePort | null = null;
+
+    async capturePcm(microphone: MicrophonePort, onFrame: (pcm: ArrayBuffer) => void): Promise<AudioHandle> {
         const handle = new FakeAudioHandle();
         this.captured.push(handle);
+        this.capturedFrom = microphone;
         this.emitCapturedFrame = onFrame;
+        // O motor da web abre o microfone; o dublê faz o mesmo para o fluxo bater.
+        await microphone.open();
         return handle;
     }
 

@@ -1,4 +1,5 @@
 import type { CallAudio } from "@/domain/call/audio";
+import { SpectrumAnalyser } from "@/domain/audio/SpectrumAnalyser";
 import { rmsInt16 } from "@/modules/media/audio-level";
 import type { MediaRuntime } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
@@ -14,19 +15,26 @@ export type PipeEvents = {
     peerMuted: [muted: boolean];
 };
 
-const NO_SPECTRUM = new Uint8Array(0);
-
 export class WSAudioPipe extends EventEmitter<PipeEvents> {
     peerMuted = false;
+
     /**
-     * O nível sai do PCM que cruza o relay, que o transporte já mede frame a frame. Espectro
-     * não: seria uma FFT por frame no mesmo thread que carrega o áudio, e a chamada não
-     * oficial não tem sobra para isso.
+     * Nível e espectro saem do próprio PCM que cruza o relay, e não do motor de áudio: aqui o
+     * áudio passa em claro pelas duas direções, o que não acontece na chamada oficial.
+     *
+     * Por isso a chamada não oficial tem espectro em toda plataforma, inclusive no React
+     * Native — lá o que falta na oficial é justamente o áudio chegar ao JavaScript.
+     *
+     * A transformada roda quando alguém pede as bandas, não a cada frame: quem não desenha não
+     * paga por ela.
      */
     readonly audio: CallAudio = {
-        in: { level: () => this.rxLevel, spectrum: () => NO_SPECTRUM },
-        out: { level: () => this.txLevel, spectrum: () => NO_SPECTRUM },
+        in: { level: () => this.rxLevel, spectrum: () => this.rxSpectrum.bands() },
+        out: { level: () => this.txLevel, spectrum: () => this.txSpectrum.bands() },
     };
+
+    private readonly txSpectrum = new SpectrumAnalyser();
+    private readonly rxSpectrum = new SpectrumAnalyser();
 
     private capture: AudioHandle | null = null;
     private playback: PcmPlayback | null = null;
@@ -45,10 +53,12 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> {
     async start(): Promise<void> {
         if (this.started) return;
         this.started = true;
-        const micStream = await this.runtime.microphone.open();
-
-        this.capture = this.runtime.engine.capturePcm(micStream, (pcm) => {
+        // Quem abre o microfone é o motor, porque é ele que sabe de onde tira as amostras: no
+        // React Native o `getUserMedia` do WebRTC não serve, e abri-lo aqui seria um segundo
+        // acesso nativo ao mesmo microfone, sem uso.
+        this.capture = await this.runtime.engine.capturePcm(this.runtime.microphone, (pcm) => {
             this.txLevel = rmsInt16(pcm);
+            this.txSpectrum.push(new Int16Array(pcm));
             this.onMicData(pcm);
         });
         this.playback = this.runtime.engine.playPcm();
@@ -63,12 +73,12 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> {
         this.playback = null;
         this.txLevel = 0;
         this.rxLevel = 0;
-        await this.runtime.microphone.close();
     }
 
     playInbound(data: ArrayBuffer): void {
         if (!this.playback) return;
         this.rxLevel = rmsInt16(data);
+        this.rxSpectrum.push(new Int16Array(data));
         this.playback.write(data);
     }
 
