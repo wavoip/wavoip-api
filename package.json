@@ -36,7 +36,7 @@
     "scripts": {
         "dev": "vite",
         "lint": "pnpm exec tsc --noEmit && pnpm exec tsc -p tsconfig.core.json && pnpm exec biome lint --fix .",
-        "build": "node scripts/check-env.mjs && vite build && BUILD_FORMAT=umd vite build && node scripts/check-public-types.mjs && node scripts/check-dist-imports.mjs",
+        "build": "node scripts/check-env.mjs && vite build && BUILD_FORMAT=umd vite build && node scripts/check-public-types.mjs && node scripts/check-dist-imports.mjs && node scripts/check-worker-exit.mjs",
         "prepare": "pnpm build",
         "build:pack": "pnpm pre-deploy && pnpm pack",
         "test": "vitest run",

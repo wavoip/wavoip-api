@@ -13,4 +13,4 @@
  */
 export * from "@/index";
 export type { AudioSink, AudioSource } from "@/platform/node/audioIo";
-export { nodeRuntime } from "@/platform/node/nodeRuntime";
+export { nodeRuntime, type NodeRuntimeOptions } from "@/platform/node/nodeRuntime";

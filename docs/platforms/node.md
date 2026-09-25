@@ -126,8 +126,56 @@ resultado, não do original.** Reduzir uma foto de 8000px para 200px é rápido;
 Node roda tudo numa linha só de execução, e a conversão divide essa linha com as suas
 chamadas. Quantas chamadas cabem depende do servidor e da versão do Node que você usa —
 **meça no ambiente em que vai rodar de verdade**, porque um número medido na máquina de outra
-pessoa não vale para a sua.
+pessoa não vale para a sua. Veja [Converter em outro thread](#converter-em-outro-thread).
 {% endhint %}
+
+### Converter em outro thread
+
+```typescript
+nodeRuntime({ source, sink, resampleInWorker: true })
+```
+
+Desligado por padrão. **Não deixa a conversão mais rápida** — tira o trabalho da linha de
+execução principal, para que a sinalização e os sockets das chamadas parem de esperar atrás
+dela.
+
+O sintoma de precisar disso é o áudio engasgar quando há muitas chamadas ao mesmo tempo,
+mesmo com a rede boa. O que engasga não é a conversão em si: é tudo o mais que fica parado
+enquanto ela acontece.
+
+| | |
+| --- | --- |
+| **Custo** | uma ida e volta de mensagem por frame de áudio, somada à latência |
+| **Ganho** | quanto mais chamadas convertendo ao mesmo tempo, maior — e cresce mais rápido que o custo |
+| **Sem efeito** | quando as taxas já são iguais: aí não há conversão, e o runtime ignora a opção |
+
+{% hint style="info" %}
+Com as taxas iguais nas duas pontas, ligar a opção não faz nada — o runtime percebe que não
+há o que converter e nem chega a usar o thread. Não há como piorar as coisas por engano.
+{% endhint %}
+
+#### Como decidir no seu ambiente
+
+Ligue ou desligue e meça **o atraso do event loop**, que é o que vira engasgo de voz. Este
+trecho não depende da biblioteca e você pode colar no seu processo:
+
+```typescript
+let last = performance.now()
+const atrasos: number[] = []
+
+setInterval(() => {
+    const agora = performance.now()
+    atrasos.push(agora - last - 20)   // quanto o timer de 20 ms atrasou além do previsto
+    last = agora
+}, 20)
+
+// Depois de alguns minutos sob carga real:
+atrasos.sort((a, b) => a - b)
+console.log("pior 1%:", atrasos[Math.floor(atrasos.length * 0.99)], "ms")
+```
+
+Rode com carga de verdade nas duas configurações e compare o "pior 1%". Se ele já for baixo
+sem o worker, não ligue: você pagaria a ida e volta por frame sem ganhar nada.
 
 ### O custo em detalhe
 

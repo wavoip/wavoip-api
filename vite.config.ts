@@ -27,12 +27,25 @@ export default defineConfig({
                   fileName: () => "web.umd.js",
               }
             : {
-                  entry: { index: "src/index.ts", web: "src/web.ts", node: "src/node.ts" },
+                  entry: {
+                      index: "src/index.ts",
+                      web: "src/web.ts",
+                      node: "src/node.ts",
+                      // Não é uma entrada de import: é o arquivo que o `new Worker(...)`
+                      // carrega em tempo de execução, e por isso precisa existir no `dist`.
+                      "node-worker": "src/platform/node/resampleWorker.ts",
+                  },
                   formats: ["es", "cjs"],
                   fileName: (format, name) => `${name}.${format === "es" ? "mjs" : "cjs"}`,
               },
         rollupOptions: {
-            external: [...Object.keys(pkg.dependencies || {}), ...Object.keys(pkg.peerDependencies || {})],
+            external: [
+                // Builtin do Node nunca é empacotado: quem o importa é a entrada `/node`,
+                // e lá ele existe. Sem isto o Vite tenta resolvê-lo como módulo de navegador.
+                /^node:/,
+                ...Object.keys(pkg.dependencies || {}),
+                ...Object.keys(pkg.peerDependencies || {}),
+            ],
             output: {
                 globals: {
                     "socket.io-client": "io",

@@ -56,8 +56,9 @@ Importing a platform path is what pulls that implementation into your bundle. Th
 names no DOM type at all, and is 54 kB against the 2 MB of the browser build; the Node
 adapter adds 5 kB.
 
-Node needs `@roamhq/wrtc` and `ws`, both optional peer dependencies — a browser install
-pulls neither.
+Node takes whatever audio format your decoder produces and resamples it for you, optionally
+on a worker thread. It needs `@roamhq/wrtc` and `ws`, both optional peer dependencies — a
+browser install pulls neither.
 
 ## Requirements
 

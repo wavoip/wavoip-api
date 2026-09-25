@@ -25,7 +25,8 @@ const wavoip = new Wavoip({ tokens, runtime })  // o runtime vem do seu ambiente
 | Chamada não oficial (relay) | ✅ | ✅ | em estudo |
 | Microfone e alto-falante | do aparelho | seus `source`/`sink` | do aparelho |
 | Listar aparelhos de áudio | ✅ | — (não há) | planejado |
-| Tamanho do adaptador | ~2 MB | ~5 kB | — |
+| Tamanho do adaptador | ~2 MB | ~9 kB | — |
+| Reamostragem automática | do navegador | ✅, opcionalmente em outro thread | planejada |
 
 {% hint style="info" %}
 O núcleo tem 54 kB e é o mesmo nos três. O peso do navegador é quase todo AudioWorklet com
