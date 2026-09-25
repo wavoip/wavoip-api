@@ -1,4 +1,5 @@
 import type { CallAudio } from "@/domain/call/audio";
+import { ClipDetector } from "@/domain/audio/ClipDetector";
 import { SpectrumAnalyser } from "@/domain/audio/SpectrumAnalyser";
 import { rmsInt16 } from "@/modules/media/audio-level";
 import type { MediaRuntime } from "@/modules/media/ITransport";
@@ -29,12 +30,22 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> {
      * paga por ela.
      */
     readonly audio: CallAudio = {
-        in: { level: () => this.rxLevel, spectrum: () => this.rxSpectrum.bands() },
-        out: { level: () => this.txLevel, spectrum: () => this.txSpectrum.bands() },
+        in: {
+            level: () => this.rxLevel,
+            spectrum: () => this.rxSpectrum.bands(),
+            clipping: () => this.rxClip.fraction,
+        },
+        out: {
+            level: () => this.txLevel,
+            spectrum: () => this.txSpectrum.bands(),
+            clipping: () => this.txClip.fraction,
+        },
     };
 
     private readonly txSpectrum = new SpectrumAnalyser();
     private readonly rxSpectrum = new SpectrumAnalyser();
+    private readonly txClip = new ClipDetector();
+    private readonly rxClip = new ClipDetector();
 
     private capture: AudioHandle | null = null;
     private playback: PcmPlayback | null = null;
@@ -59,6 +70,7 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> {
         this.capture = await this.runtime.engine.capturePcm(this.runtime.microphone, (pcm) => {
             this.txLevel = rmsInt16(pcm);
             this.txSpectrum.push(new Int16Array(pcm));
+            this.txClip.push(new Int16Array(pcm));
             this.onMicData(pcm);
         });
         this.playback = this.runtime.engine.playPcm();
@@ -73,12 +85,15 @@ export class WSAudioPipe extends EventEmitter<PipeEvents> {
         this.playback = null;
         this.txLevel = 0;
         this.rxLevel = 0;
+        this.txClip.reset();
+        this.rxClip.reset();
     }
 
     playInbound(data: ArrayBuffer): void {
         if (!this.playback) return;
         this.rxLevel = rmsInt16(data);
         this.rxSpectrum.push(new Int16Array(data));
+        this.rxClip.push(new Int16Array(data));
         this.playback.write(data);
     }
 

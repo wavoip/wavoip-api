@@ -13,6 +13,10 @@ import outWorkletSource from "./worklets/AudioWorkletOut.ts?worklet";
 
 const METER_FFT_SIZE = 256;
 
+/** O centro é 128; a 250 e a 6 o sinal já está ceifado no teto do conversor. */
+const CLIP_HIGH = 250;
+const CLIP_LOW = 6;
+
 /** O motor de áudio do navegador: um `AudioContext`, os três worklets e os `AnalyserNode`. */
 export class WebAudioEngine implements AudioEnginePort {
     private readonly context = new AudioContext({ latencyHint: 0 });
@@ -90,6 +94,7 @@ export class WebAudioEngine implements AudioEnginePort {
         return {
             level: () => levelOf(analyser),
             spectrum: () => spectrumOf(analyser),
+            clipping: () => clippingOf(analyser),
             stop: () => {
                 source.disconnect();
                 analyser.disconnect();
@@ -112,6 +117,7 @@ export class WebAudioEngine implements AudioEnginePort {
         return {
             level: () => levelOf(analyser),
             spectrum: () => spectrumOf(analyser),
+            clipping: () => clippingOf(analyser),
             stop: () => {
                 source.disconnect();
                 analyser.disconnect();
@@ -200,6 +206,24 @@ function spectrumOf(analyser: AnalyserNode): Uint8Array {
     const bands = new Uint8Array(analyser.frequencyBinCount);
     analyser.getByteFrequencyData(bands);
     return bands;
+}
+
+/**
+ * A fração de amostras no teto, lida do mesmo buffer do nível.
+ *
+ * Aqui não há janela própria: o `AnalyserNode` já entrega só o trecho mais recente, e quem
+ * desenha lê a cada quadro. É o mesmo comportamento do `level()`, e não faria sentido um
+ * responder ao instante e o outro ao último segundo.
+ */
+function clippingOf(analyser: AnalyserNode): number {
+    const samples = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(samples);
+
+    let clipped = 0;
+    for (const sample of samples) {
+        if (sample <= CLIP_LOW || sample >= CLIP_HIGH) clipped += 1;
+    }
+    return clipped / samples.length;
 }
 
 function levelOf(analyser: AnalyserNode): number {

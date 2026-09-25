@@ -20,6 +20,8 @@ export interface AudioMeter extends AudioHandle {
      * the audio. Same rule as `level`: `null` is "not measured", not "silent".
      */
     spectrum(): Uint8Array | null;
+    /** The share of samples pinned at the ceiling, or `null` where nothing is measured. */
+    clipping(): number | null;
 }
 
 /** Playback of the PCM arriving over the relay. */

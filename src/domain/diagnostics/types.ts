@@ -20,6 +20,8 @@ export type DiagnosticCode =
     | "MICROPHONE_PERMISSION_DENIED"
     /** Não há saída de áudio: a chamada acontece, mas ninguém ouve o contato. */
     | "SPEAKER_MISSING"
+    /** O microfone está estourando: ganho alto demais, e a voz sai áspera. */
+    | "MICROPHONE_CLIPPING"
     /** A plataforma faz chamada oficial: existe WebRTC. */
     | "WEBRTC_AVAILABLE"
     | "WEBRTC_MISSING"

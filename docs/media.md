@@ -134,6 +134,44 @@ pareceriam silêncio medido.
 
 ---
 
+## Áudio estourado
+
+```typescript
+call.audio.out.clipping()   // o seu microfone, de 0 a 1
+call.audio.in.clipping()    // o que chega do contato
+```
+
+A fração de amostras que bateram no teto do conversor no último instante. Acima de uns 2% já
+se ouve como aspereza na voz.
+
+{% hint style="danger" %}
+**Nível alto não é a mesma coisa que estourado.** Um sinal forte e limpo tem `level()` alto e
+`clipping()` zero. Quando o ganho passa do ponto, o topo da onda é cortado fora — e **nada
+recupera o que foi cortado**: baixar o volume depois só deixa a distorção mais baixa. É por
+isso que existe uma leitura separada.
+{% endhint %}
+
+| Onde | O que significa | O que dizer à pessoa |
+| --- | --- | --- |
+| `out.clipping()` alto | o microfone dela está com ganho demais | baixar o ganho no sistema, ou no botão do próprio microfone |
+| `in.clipping()` alto | o áudio chegou assim | o problema é do outro lado; nada a fazer daqui |
+
+```typescript
+function renderWarning(call: ActiveCall) {
+    if (call.audio.out.clipping() > 0.02) {
+        show("Seu microfone está com volume alto demais e a voz está distorcendo.")
+    }
+}
+```
+
+{% hint style="info" %}
+A biblioteca **não corrige** o ganho. No navegador ela já pede `autoGainControl` ao sistema,
+mas quando o sinal chega ceifado não há o que ajustar — só quem está no controle do aparelho
+resolve. Por isso ela mede e conta, em vez de tentar consertar.
+{% endhint %}
+
+---
+
 ## Notas sobre o áudio
 
 A biblioteca mantém um motor de áudio só, compartilhado entre todas as chamadas. Ele é criado

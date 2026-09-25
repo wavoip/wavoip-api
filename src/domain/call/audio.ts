@@ -11,6 +11,19 @@ export type AudioAnalyser = {
      * it. Check `length` before drawing.
      */
     spectrum(): Uint8Array;
+    /**
+     * How much of this audio is clipping, from 0 to 1: the share of samples pinned at the
+     * ceiling over the last second or so.
+     *
+     * Above a few percent it is audible as harshness, and no volume control fixes it — what
+     * was clipped is gone. On the way out it means the microphone gain is too high, in the
+     * system or on the device itself; on the way in it means the audio arrived that way.
+     * Show it, so the person can lower the gain.
+     *
+     * Reads `0` where the platform cannot see the audio, the same as `spectrum()` returning
+     * empty.
+     */
+    clipping(): number;
 };
 
 export type CallAudio = {

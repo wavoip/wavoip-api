@@ -98,6 +98,13 @@ class FakeAudioHandle implements AudioMeter {
         return this.reading === null ? null : this.bands;
     }
 
+    /** O teste ajusta para imitar um microfone estourado. */
+    clipped = 0;
+
+    clipping(): number | null {
+        return this.reading === null ? null : this.clipped;
+    }
+
     stop(): void {
         this.stopped = true;
     }

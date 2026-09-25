@@ -54,10 +54,12 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
             in: {
                 level: () => pipe.in.level() ?? stats().rx.level,
                 spectrum: () => pipe.in.spectrum() ?? NO_SPECTRUM,
+                clipping: () => pipe.in.clipping() ?? 0,
             },
             out: {
                 level: () => pipe.out.level() ?? stats().tx.level,
                 spectrum: () => pipe.out.spectrum() ?? NO_SPECTRUM,
+                clipping: () => pipe.out.clipping() ?? 0,
             },
         };
     }

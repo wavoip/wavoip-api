@@ -19,16 +19,18 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> {
      * antes de o áudio passar. Quem decide o que mostrar no lugar é o transporte.
      */
     readonly audio: {
-        in: { level(): number | null; spectrum(): Uint8Array | null };
-        out: { level(): number | null; spectrum(): Uint8Array | null };
+        in: { level(): number | null; spectrum(): Uint8Array | null; clipping(): number | null };
+        out: { level(): number | null; spectrum(): Uint8Array | null; clipping(): number | null };
     } = {
         in: {
             level: () => this.remotePlayback?.level() ?? null,
             spectrum: () => this.remotePlayback?.spectrum() ?? null,
+            clipping: () => this.remotePlayback?.clipping() ?? null,
         },
         out: {
             level: () => this.micMeter?.level() ?? null,
             spectrum: () => this.micMeter?.spectrum() ?? null,
+            clipping: () => this.micMeter?.clipping() ?? null,
         },
     };
 

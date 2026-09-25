@@ -2,9 +2,20 @@ import { runDiagnostics } from "@/application/diagnostics/runDiagnostics";
 import type { DiagnosticCode } from "@/domain/diagnostics/types";
 import { type FakeAudioEngine, FakeAudioRuntime, type FakeMicrophone } from "@/test/fakes/FakeAudioRuntime";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 /** Um runtime completo de mentira, para cada teste tirar dele só o que quer provar. */
+/**
+ * Roda o diagnóstico com o microfone entregando a fração de estouro pedida. O medidor é
+ * criado dentro da verificação, então o valor é ajustado assim que ele aparece.
+ */
+async function withClipping(runtime: ReturnType<typeof runtimeWith>, fraction: number) {
+    const pending = runDiagnostics({ runtime, stunServers: [] });
+    await vi.waitFor(() => expect(runtime.engine.monitored.length).toBeGreaterThan(0));
+    for (const meter of runtime.engine.monitored) meter.clipped = fraction;
+    return pending;
+}
+
 function runtimeWith(overrides: Partial<WavoipRuntime> = {}): WavoipRuntime & {
     engine: FakeAudioEngine;
     microphone: FakeMicrophone;
@@ -129,6 +140,27 @@ describe("runDiagnostics", () => {
 
         expect(runtime.microphone.closes).toBe(0);
         expect(runtime.microphone.isOpen).toBe(true);
+    });
+
+    /**
+     * O ganho alto demais ceifa o sinal antes de chegar à biblioteca, e nada recupera o que
+     * foi cortado. Quem fala não percebe — só quem ouve. Daí valer o aviso antes da chamada.
+     */
+    it("warns that the microphone is clipping, without failing the environment", async () => {
+        const runtime = runtimeWith();
+        const report = await withClipping(runtime, 0.4);
+
+        const clipping = report.checks.find((check) => check.code === "MICROPHONE_CLIPPING");
+        expect(clipping?.severity).toBe("warning");
+        expect(clipping?.details).toEqual({ clipping: 0.4 });
+        // Estourado ainda liga: é ruim, não impeditivo.
+        expect(report.readiness.OFFICIAL.ready).toBe(true);
+    });
+
+    it("says nothing about gain when the microphone behaves", async () => {
+        const report = await withClipping(runtimeWith(), 0.001);
+
+        expect(codesOf(report.checks)).not.toContain("MICROPHONE_CLIPPING");
     });
 
     it("warns when there is no output, without failing the call", async () => {

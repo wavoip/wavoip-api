@@ -51,7 +51,7 @@ export interface ActiveCall {
 }
 
 /** Uma chamada sem mídia lê zero, e não erro. */
-const SILENT: AudioAnalyser = { level: () => 0, spectrum: () => new Uint8Array(0) };
+const SILENT: AudioAnalyser = { level: () => 0, spectrum: () => new Uint8Array(0), clipping: () => 0 };
 const SILENT_AUDIO: CallAudio = { in: SILENT, out: SILENT };
 
 export function ActiveCallProxy(session: CallSession): ActiveCall {

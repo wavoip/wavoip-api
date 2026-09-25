@@ -1,3 +1,4 @@
+import { ClipDetector } from "@/domain/audio/ClipDetector";
 import { SpectrumAnalyser } from "@/domain/audio/SpectrumAnalyser";
 import { rmsInt16 } from "@/modules/media/audio-level";
 import type { AudioSink } from "@/platform/node/audioIo";
@@ -14,8 +15,13 @@ import { nonstandard, type RTCAudioData } from "@/platform/node/wrtc";
  * Native, onde o nativo toca sem passar por aqui. A FFT fica atrás do `bands()`: quem nunca
  * chama `spectrum()` não paga por ela.
  */
-function meterOf(readLevel: () => number, analyser: SpectrumAnalyser, stop: () => void): AudioMeter {
-    return { level: readLevel, spectrum: () => analyser.bands(), stop };
+function meterOf(
+    readLevel: () => number,
+    analyser: SpectrumAnalyser,
+    clip: ClipDetector,
+    stop: () => void,
+): AudioMeter {
+    return { level: readLevel, spectrum: () => analyser.bands(), clipping: () => clip.fraction, stop };
 }
 
 /**
@@ -49,17 +55,20 @@ export class NodeAudioEngine implements AudioEnginePort {
     renderRemote(stream: MediaStreamLike): AudioMeter {
         let level = 0;
         const analyser = new SpectrumAnalyser();
+        const clip = new ClipDetector();
         const audioSink = new nonstandard.RTCAudioSink(trackOf(stream));
 
         audioSink.ondata = ({ samples }: RTCAudioData) => {
             level = rmsInt16(samples.buffer as ArrayBuffer);
             analyser.push(samples);
+            clip.push(samples);
             this.sink.write(samples);
         };
 
         return meterOf(
             () => level,
             analyser,
+            clip,
             () => audioSink.stop(),
         );
     }
@@ -68,11 +77,13 @@ export class NodeAudioEngine implements AudioEnginePort {
     monitorStream(_stream: MediaStreamLike): AudioMeter {
         let level = 0;
         const analyser = new SpectrumAnalyser();
+        const clip = new ClipDetector();
         const stop = this.source.subscribe((pcm) => {
             level = rmsInt16(pcm.buffer as ArrayBuffer);
             analyser.push(pcm);
+            clip.push(pcm);
         });
-        return meterOf(() => level, analyser, stop);
+        return meterOf(() => level, analyser, clip, stop);
     }
 
     /** O caminho do relay: o PCM do integrador sai cru, sem passar por microfone nenhum. */

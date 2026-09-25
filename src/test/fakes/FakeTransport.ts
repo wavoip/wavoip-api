@@ -13,8 +13,8 @@ abstract class FakeTransportBase extends EventEmitter<Events> {
     /** O teste ajusta os níveis mexendo direto nestes campos. */
     levels = { in: 0, out: 0 };
     readonly audio: CallAudio = {
-        in: { level: () => this.levels.in, spectrum: () => new Uint8Array(0) },
-        out: { level: () => this.levels.out, spectrum: () => new Uint8Array(0) },
+        in: { level: () => this.levels.in, spectrum: () => new Uint8Array(0), clipping: () => 0 },
+        out: { level: () => this.levels.out, spectrum: () => new Uint8Array(0), clipping: () => 0 },
     };
     stats: CallStats = Stats.empty();
     starts = 0;

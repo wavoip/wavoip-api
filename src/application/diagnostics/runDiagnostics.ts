@@ -1,7 +1,13 @@
 import { Readiness } from "@/domain/diagnostics/readiness";
 import type { DiagnosticCheck, DiagnosticsReport } from "@/domain/diagnostics/types";
 import { runStunProbe } from "@/modules/media/StunProbe";
+import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
+
+/** Tempo de escuta do microfone: o bastante para uma sílaba, curto o bastante para ninguém notar. */
+const GAIN_SAMPLE_MS = 300;
+/** Acima disto o estouro já se ouve; abaixo, é pico ocasional de quem falou mais alto. */
+const CLIPPING_LIMIT = 0.02;
 
 const DEFAULT_STUN_SERVERS = ["stun:stun.l.google.com:19302", "stun:stun.cloudflare.com:3478"];
 
@@ -58,17 +64,43 @@ async function audioChecks(runtime: WavoipRuntime): Promise<DiagnosticCheck[]> {
 async function microphoneChecks(runtime: WavoipRuntime): Promise<DiagnosticCheck[]> {
     const wasOpen = runtime.microphone.isOpen;
 
+    let stream: MediaStreamLike;
     try {
-        await runtime.microphone.open();
+        stream = await runtime.microphone.open();
     } catch (cause) {
         return [{ code: "MICROPHONE_PERMISSION_DENIED", severity: "failure", details: { cause: String(cause) } }];
     }
 
     try {
-        return deviceChecks(runtime);
+        return [...deviceChecks(runtime), ...(await gainCheck(runtime, stream))];
     } finally {
         if (!wasOpen) await runtime.microphone.close().catch(() => {});
     }
+}
+
+/**
+ * Escuta o microfone por um instante para ver se ele está estourando.
+ *
+ * Ganho alto demais — no sistema ou num botão do próprio aparelho — ceifa o sinal antes de
+ * chegar aqui, e nada recupera o que foi cortado: a voz sai áspera do outro lado, e quem
+ * fala não percebe. É o tipo de problema que só quem está do lado de cá pode resolver, e
+ * por isso vale avisar antes da chamada começar.
+ */
+async function gainCheck(runtime: WavoipRuntime, stream: MediaStreamLike): Promise<DiagnosticCheck[]> {
+    const meter = runtime.engine.monitorStream(stream);
+    try {
+        await listenFor(GAIN_SAMPLE_MS);
+        const clipping = meter.clipping();
+        if (clipping === null || clipping < CLIPPING_LIMIT) return [];
+
+        return [{ code: "MICROPHONE_CLIPPING", severity: "warning", details: { clipping } }];
+    } finally {
+        meter.stop();
+    }
+}
+
+function listenFor(ms: number): Promise<void> {
+    return new Promise((done) => setTimeout(done, ms));
 }
 
 /** Com a permissão dada, a lista vem com nome e conta o que existe de verdade. */
