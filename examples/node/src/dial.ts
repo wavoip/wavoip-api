@@ -1,0 +1,88 @@
+import type { ActiveCall, OutgoingCall } from "@wavoip/wavoip-api/node";
+import {
+    type Recording,
+    buildRuntime,
+    connect,
+    exitWith,
+    reportEnvironment,
+    requireToken,
+    saveRecording,
+} from "./shared.ts";
+
+const RING_TIMEOUT_MS = 45_000;
+
+/**
+ * Liga para um número, toca a saudação quando atenderem e grava a conversa.
+ *
+ * `WAVOIP_TOKEN=... npm run dial -- 5511999999999`
+ */
+async function main(): Promise<void> {
+    const to = process.argv[2];
+    if (!to) exitWith("informe o número: npm run dial -- 5511999999999");
+
+    const token = requireToken();
+    const { runtime, recording } = buildRuntime();
+
+    await reportEnvironment(runtime);
+
+    const wavoip = connect(token, runtime);
+    await dial(wavoip, to, recording);
+}
+
+async function dial(wavoip: ReturnType<typeof connect>, to: string, recording: Recording): Promise<void> {
+    console.log(`\nligando para ${to}…`);
+
+    const { data: outgoing, error } = await wavoip.startCall({ to });
+    if (error) {
+        // `error.devices` diz por que cada device recusou, e é o que explica um `NO_DEVICE`.
+        for (const attempt of error.devices) console.error(`  ${attempt.token}: ${attempt.error.code}`);
+        exitWith(`não deu para ligar: ${error.code}`);
+    }
+
+    watchOutgoing(outgoing, recording);
+    giveUpAfter(outgoing, RING_TIMEOUT_MS);
+}
+
+function watchOutgoing(outgoing: OutgoingCall, recording: Recording): void {
+    outgoing.on("accepted", (call) => {
+        console.log("atenderam; tocando a saudação");
+        call.on("ended", () => finish(recording));
+        call.on("failed", (failure) => console.error("a chamada caiu:", failure.code));
+        watchQuality(call);
+    });
+
+    outgoing.on("rejected", () => finish(recording, "recusaram"));
+    outgoing.on("unanswered", () => finish(recording, "ninguém atendeu"));
+    outgoing.on("failed", (failure) => finish(recording, `falhou: ${failure.code}`));
+    outgoing.on("ended", () => finish(recording, "o servidor encerrou a oferta"));
+}
+
+/**
+ * Desistir é decisão nossa, e não do servidor: sem isto o processo ficaria tocando até o
+ * outro lado resolver alguma coisa.
+ */
+function giveUpAfter(outgoing: OutgoingCall, ms: number): void {
+    const timer = setTimeout(() => void outgoing.cancel(), ms);
+    outgoing.on("accepted", () => clearTimeout(timer));
+    outgoing.on("ended", () => clearTimeout(timer));
+}
+
+function watchQuality(call: ActiveCall): void {
+    const timer = setInterval(() => {
+        const clipping = call.audio.out.clipping();
+        if (clipping > 0.02) console.warn(`  a sua saudação está estourando (${(clipping * 100).toFixed(0)}%)`);
+    }, 1_000);
+
+    call.on("ended", () => clearInterval(timer));
+}
+
+function finish(recording: Recording, reason?: string): void {
+    if (reason) console.log(reason);
+    saveRecording(recording, "feita");
+    process.exit(0);
+}
+
+main().catch((error: unknown) => {
+    console.error(error);
+    process.exit(1);
+});

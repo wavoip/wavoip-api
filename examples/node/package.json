@@ -3,7 +3,8 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "start": "node --experimental-strip-types src/bot.ts",
+        "answer": "node --experimental-strip-types src/answer.ts",
+        "dial": "node --experimental-strip-types src/dial.ts",
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
