@@ -25,7 +25,7 @@ export type PeerConnectionEvents = {
     icegatheringstatechange: unknown;
 };
 
-/** The structural subset of `MediaStream` that react-native-webrtc also satisfies. */
+/** The structural subset of `MediaStreamTrack` that react-native-webrtc also satisfies. */
 export type MediaTrackLike = {
     enabled: boolean;
     stop(): void;
