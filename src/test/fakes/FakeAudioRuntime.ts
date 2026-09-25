@@ -1,5 +1,5 @@
 import type { MediaRuntime } from "@/modules/media/ITransport";
-import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
+import type { AudioEngineState, AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 import type { MediaSocketFactory } from "@/ports/runtime/MediaSocketPort";
 import type { MediaStreamLike, MediaTrackLike, PeerConnectionFactory } from "@/ports/runtime/PeerConnectionPort";
@@ -109,6 +109,9 @@ class FakePcmPlayback extends FakeAudioHandle {
  * conferir o que foi aberto e o que foi fechado.
  */
 export class FakeAudioEngine implements AudioEnginePort {
+    /** O teste muda para "suspended" quando quer imitar o navegador esperando um gesto. */
+    state: AudioEngineState = "running";
+
     outputLatency = 0;
     prepared = 0;
     resumed = 0;

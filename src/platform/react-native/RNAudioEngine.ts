@@ -29,6 +29,8 @@ function unmeasuredMeter(stop: () => void): AudioMeter {
 export class RNAudioEngine implements AudioEnginePort {
     /** O nativo não informa a latência até o alto-falante. */
     readonly outputLatency = null;
+    /** Quem toca é o sistema, e ele não pede gesto como o navegador. */
+    readonly state = "running" as const;
 
     async prepare(): Promise<void> {}
     async resume(): Promise<void> {}

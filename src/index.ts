@@ -44,5 +44,13 @@ export type {
 } from "@/modules/media/ICEDiagnostics";
 export type { Unsubscribe } from "@/modules/shared/EventEmitter";
 
+export { runDiagnostics, type DiagnosticsOptions } from "@/application/diagnostics/runDiagnostics";
+export type { Readiness } from "@/domain/diagnostics/readiness";
+export type {
+    DiagnosticCheck,
+    DiagnosticCode,
+    DiagnosticSeverity,
+    DiagnosticsReport,
+} from "@/domain/diagnostics/types";
 export { Wavoip } from "@/Wavoip";
 export type { WavoipRuntime } from "@/ports/WavoipRuntime";

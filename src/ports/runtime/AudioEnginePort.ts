@@ -38,7 +38,16 @@ export interface PcmPlayback extends AudioHandle {
  *
  * The PCM in and out of here is Int16 at 16kHz, which is the relay's format.
  */
+/**
+ * Se o motor está tocando, parado ou fechado.
+ *
+ * `suspended` depois de um `resume()` é o sinal de que a plataforma está segurando o áudio à
+ * espera de um gesto da pessoa — o navegador faz isso —, e não de que algo quebrou.
+ */
+export type AudioEngineState = "running" | "suspended" | "closed";
+
 export interface AudioEnginePort {
+    readonly state: AudioEngineState;
     /**
      * Seconds between the audio engine and the speaker, or `null` where the platform does
      * not report it (Safari does not implement `outputLatency`). Becomes `latency.playout_ms`.

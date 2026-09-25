@@ -1,5 +1,5 @@
 import libSampleRateWorkletSource from "@alexanderolsen/libsamplerate-js/dist/libsamplerate.worklet.js?worklet";
-import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
+import type { AudioEngineState, AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 import micWorkletSource from "./worklets/AudioWorkletMic.ts?worklet";
 import outWorkletSource from "./worklets/AudioWorkletOut.ts?worklet";
@@ -19,6 +19,10 @@ export class WebAudioEngine implements AudioEnginePort {
     get outputLatency(): number | null {
         const total = this.context.baseLatency + this.context.outputLatency;
         return Number.isFinite(total) ? total : null;
+    }
+
+    get state(): AudioEngineState {
+        return this.context.state === "running" ? "running" : this.context.state === "closed" ? "closed" : "suspended";
     }
 
     prepare(): Promise<void> {

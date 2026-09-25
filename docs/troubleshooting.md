@@ -27,7 +27,7 @@ Nenhum dos servidores STUN configurados respondeu durante a coleta ICE.
 
 **O que investigar**
 
-* Conferir, de fora da lib, se os servidores STUN configurados respondem.
+* Rodar o [diagnóstico de ambiente](diagnostics.md) e ler o `STUN_REACHABLE`.
 * Conferir se a rede do usuário usa um proxy que precisa de whitelisting.
 * Verificar se os servidores STUN customizados (caso passados via `iceServers`) estão respondendo.
 

@@ -23,6 +23,8 @@ function meterOf(readLevel: () => number, stop: () => void): AudioMeter {
 export class NodeAudioEngine implements AudioEnginePort {
     /** Não há alto-falante para medir. */
     readonly outputLatency = null;
+    /** Nada segura o áudio num processo sem tela: ele está pronto desde que existe. */
+    readonly state = "running" as const;
 
     constructor(
         private readonly source: SharedAudioSource,
