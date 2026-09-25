@@ -546,3 +546,34 @@ describe("WebRTCTransport spectrum", () => {
         await transport.stop();
     });
 });
+
+/**
+ * Regressão: o evento `track` chega mais de uma vez numa renegociação, e cada um criava um
+ * consumidor novo do áudio remoto sem parar o anterior. Todos seguiam entregando, e num
+ * processo Node a gravação do integrador saía com o dobro ou o triplo da duração da chamada.
+ */
+describe("WebRTCTransport when the remote track arrives more than once", () => {
+    beforeEach(() => {
+        vi.stubGlobal("RTCPeerConnection", MockRTCPeerConnection);
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("keeps a single consumer of the remote audio", async () => {
+        const audio = new FakeAudioRuntime();
+        const transport = new WebRTCTransport(audio, "offer-sdp");
+        await startTransport(transport);
+
+        // O `startTransport` já entregou uma; a renegociação entrega de novo.
+        const stream = { id: "stream-1", getAudioTracks: () => [] } as unknown as MediaStream;
+        mockPcInstance.simulateTrack(stream);
+        mockPcInstance.simulateTrack(stream);
+
+        const vivos = audio.engine.played.filter((handle) => !handle.stopped);
+        expect(audio.engine.played.length).toBeGreaterThan(1);
+        expect(vivos).toHaveLength(1);
+
+        await transport.stop();
+    });
+});

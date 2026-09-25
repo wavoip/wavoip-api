@@ -72,6 +72,13 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> {
         await this.runtime.microphone.close();
     }
 
+    /**
+     * O evento `track` pode chegar mais de uma vez na mesma chamada — numa renegociação, num
+     * reinício de ICE, ou quando o servidor troca o transceiver. Sem parar o anterior, cada
+     * um deixava um consumidor vivo do áudio remoto, e todos continuavam entregando: num
+     * processo Node o sumidouro do integrador recebia o áudio duplicado, e a gravação saía
+     * mais longa que a chamada.
+     */
     private handleRemoteTrack(event: { streams: readonly MediaStreamLike[] }): void {
         const remoteStream = event.streams[0];
 
@@ -81,6 +88,7 @@ export class RTCAudioPipe extends EventEmitter<PipeEvents> {
             remoteTrack.addEventListener("unmute", () => this.announcePeerMuted(false));
         }
 
+        this.remotePlayback?.stop();
         this.remotePlayback = this.runtime.engine.renderRemote(remoteStream);
     }
 
