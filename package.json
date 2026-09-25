@@ -81,7 +81,8 @@
         "@roamhq/wrtc": "^0.10.0",
         "react-native-webrtc": ">=124.0.0",
         "ws": "^8.0.0",
-        "react-native-incall-manager": ">=4.0.0"
+        "react-native-incall-manager": ">=4.0.0",
+        "react-native-audio-api": ">=0.13.0"
     },
     "peerDependenciesMeta": {
         "@roamhq/wrtc": {
@@ -94,6 +95,9 @@
             "optional": true
         },
         "react-native-incall-manager": {
+            "optional": true
+        },
+        "react-native-audio-api": {
             "optional": true
         }
     }

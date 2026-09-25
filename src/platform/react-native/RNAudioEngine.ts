@@ -1,5 +1,8 @@
 import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
+import { RNPcmCapture } from "@/platform/react-native/RNPcmCapture";
+import { RNPcmPlayback } from "@/platform/react-native/RNPcmPlayback";
+import { AudioContext } from "react-native-audio-api";
 import InCallManager from "react-native-incall-manager";
 
 /**
@@ -32,12 +35,22 @@ export class RNAudioEngine implements AudioEnginePort {
     /** Quem toca é o sistema, e ele não pede gesto como o navegador. */
     readonly state = "running" as const;
 
+    /**
+     * O grafo só existe para a chamada não oficial, que é a única que precisa mexer em PCM
+     * aqui. A oficial é toda do `react-native-webrtc`, e montar um `AudioContext` para ela
+     * seria abrir hardware de áudio sem uso.
+     */
+    private context: AudioContext | null = null;
+
     async prepare(): Promise<void> {}
     async resume(): Promise<void> {}
+
     async suspend(): Promise<void> {}
 
     async close(): Promise<void> {
         InCallManager.stop();
+        await this.context?.close();
+        this.context = null;
     }
 
     /**
@@ -57,15 +70,24 @@ export class RNAudioEngine implements AudioEnginePort {
         return unmeasuredMeter(() => {});
     }
 
-    capturePcm(_stream: MediaStreamLike, _onFrame: (pcm: ArrayBuffer) => void): AudioHandle {
-        throw new Error(RELAY_UNSUPPORTED);
+    /**
+     * O microfone como PCM no formato do relay. A taxa do aparelho quase nunca é 16 kHz, e a
+     * reamostragem acontece dentro do `RNPcmCapture`, em JavaScript — que é o que o Hermes
+     * sabe rodar.
+     */
+    capturePcm(_stream: MediaStreamLike, onFrame: (pcm: ArrayBuffer) => void): AudioHandle {
+        const capture = new RNPcmCapture(onFrame);
+        void capture.start();
+        return capture;
     }
 
     playPcm(): PcmPlayback {
-        throw new Error(RELAY_UNSUPPORTED);
+        return new RNPcmPlayback(this.audioContext());
+    }
+
+    /** Criado na primeira chamada não oficial, e não no construtor: abrir áudio custa. */
+    private audioContext(): AudioContext {
+        this.context ??= new AudioContext();
+        return this.context;
     }
 }
-
-const RELAY_UNSUPPORTED =
-    "o runtime do React Native ainda não trata PCM, que a chamada não oficial exige: " +
-    "use um device com chamada OFICIAL, ou acompanhe a DEV-277";

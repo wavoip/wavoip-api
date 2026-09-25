@@ -5,7 +5,14 @@ const devices = new FakeRNMediaDevices();
 
 // O `react-native-webrtc` é publicado com sintaxe que só o Metro transforma, então aqui ele é
 // substituído inteiro. O que se testa é a nossa lógica em volta dele.
+import { FakeAudioContext, FakeAudioRecorder } from "@/test/fakes/FakeReactNativeAudioApi";
+
 const inCall = { started: [] as unknown[], stops: 0, speakerphone: [] as boolean[] };
+
+vi.mock("react-native-audio-api", () => ({
+    AudioContext: FakeAudioContext,
+    AudioRecorder: FakeAudioRecorder,
+}));
 
 // O `InCallManager` mexe na sessão de áudio do sistema; aqui só se registra o que foi pedido.
 vi.mock("react-native-incall-manager", () => ({
@@ -39,15 +46,11 @@ beforeEach(() => {
 });
 
 describe("reactNativeRuntime", () => {
-    /**
-     * A ausência é o contrato: sem `openSocket`, o `Wavoip` recusa a chamada não oficial na
-     * hora de abrir, em vez de descobrir no meio da ligação que não sabe tratar PCM.
-     */
-    it("declares that it cannot take an unofficial call", () => {
+    it("declares both call types, now that it can handle raw PCM", () => {
         const runtime = reactNativeRuntime();
 
         expect(runtime.createPeer).toBeTypeOf("function");
-        expect(runtime.openSocket).toBeUndefined();
+        expect(runtime.openSocket).toBeTypeOf("function");
     });
 
     it("passes the integrator's ICE servers to the native connection", () => {
@@ -91,19 +94,14 @@ describe("reactNativeRuntime", () => {
         expect(reactNativeRuntime().engine.outputLatency).toBeNull();
     });
 
-    /**
-     * O outro lado da ausência: o núcleo lê o `openSocket` que falta e recusa o tipo, em vez
-     * de montar um transporte que não teria como funcionar. Quem transforma isso no código
-     * `CALL_TYPE_UNSUPPORTED` é o `CallSession.Start`, coberto em `CallSession.unsupported`.
-     */
-    it("makes the core refuse an unofficial call up front", async () => {
+    it("lets the core build a transport for either call type", async () => {
         const { Wavoip } = await import("@/Wavoip");
         const wavoip = new Wavoip({ tokens: [], runtime: reactNativeRuntime() });
         const transports = wavoip as unknown as {
             transportsFor(token: string): { forCall(type: string): unknown };
         };
 
-        expect(transports.transportsFor("token").forCall("UNOFFICIAL")).toBeNull();
+        expect(transports.transportsFor("token").forCall("UNOFFICIAL")).not.toBeNull();
     });
 });
 
@@ -210,3 +208,107 @@ describe("RNAudioDevices", () => {
         expect(error?.code).toBe("INPUT_SELECTION_UNSUPPORTED");
     });
 });
+
+/**
+ * O caminho da chamada não oficial, que é o que a reamostragem em JavaScript destravou: o
+ * aparelho grava na taxa dele, e o que sai daqui é sempre 16 kHz, que é o que o relay fala.
+ */
+describe("RNAudioEngine on the relay path", () => {
+    beforeEach(() => {
+        FakeAudioRecorder.instances.length = 0;
+        FakeAudioContext.instances.length = 0;
+    });
+
+    it("asks the device for the format the call speaks", () => {
+        reactNativeRuntime().engine.capturePcm(null as never, () => {});
+
+        expect(FakeAudioRecorder.instances[0].requested).toEqual({
+            sampleRate: 16_000,
+            bufferLength: 320,
+            channelCount: 1,
+        });
+        expect(FakeAudioRecorder.instances[0].started).toBe(true);
+    });
+
+    /** O ponto todo: a taxa real vem do aparelho, e a saída é 16 kHz de qualquer forma. */
+    it("resamples whatever rate the device actually delivers down to 16kHz", () => {
+        const frames: Int16Array[] = [];
+        const handle = reactNativeRuntime().engine.capturePcm(null as never, (pcm) => {
+            frames.push(new Int16Array(pcm));
+        });
+
+        // 48 kHz, três vezes a taxa da chamada: 1440 amostras viram cerca de 480.
+        FakeAudioRecorder.instances[0].deliver(recorded(440, 1_440, 48_000), 48_000);
+
+        const produced = frames.reduce((total, frame) => total + frame.length, 0);
+        expect(produced).toBeGreaterThan(400);
+        expect(produced).toBeLessThan(500);
+        expect(peakOf(frames)).toBeGreaterThan(1_000);
+
+        handle.stop();
+        expect(FakeAudioRecorder.instances[0].stopped).toBe(true);
+    });
+
+    it("follows the device when it changes rate mid-call", () => {
+        const frames: Int16Array[] = [];
+        reactNativeRuntime().engine.capturePcm(null as never, (pcm) => frames.push(new Int16Array(pcm)));
+        const recorder = FakeAudioRecorder.instances[0];
+
+        recorder.deliver(recorded(440, 1_600, 16_000), 16_000);
+        const afterSameRate = frames.reduce((total, f) => total + f.length, 0);
+        recorder.deliver(recorded(440, 4_800, 48_000), 48_000);
+        const afterHigherRate = frames.reduce((total, f) => total + f.length, 0) - afterSameRate;
+
+        // 1600 a 16k passam direto; 4800 a 48k viram ~1600. Os dois chegam como 16 kHz.
+        expect(afterSameRate).toBe(1_600);
+        expect(afterHigherRate).toBeGreaterThan(1_500);
+        expect(afterHigherRate).toBeLessThanOrEqual(1_600);
+    });
+
+    it("plays what comes back at the rate the device's graph runs", () => {
+        const playback = reactNativeRuntime().engine.playPcm();
+
+        playback.write(relayed(440, 1_600).buffer as ArrayBuffer);
+
+        const context = FakeAudioContext.instances[0];
+        expect(context.queue.started).toBe(true);
+        expect(context.queue.connectedTo).toBe(context.destination);
+        // 1600 amostras a 16 kHz viram cerca de 4800 no grafo de 48 kHz.
+        expect(context.queue.enqueued[0].length).toBeGreaterThan(4_700);
+        expect(context.queue.enqueued[0].sampleRate).toBe(48_000);
+    });
+
+    /** Atraso em voz não se recupera: com a fila cheia, descartar é melhor que enfileirar. */
+    it("drops audio instead of letting the queue grow past the ceiling", () => {
+        const playback = reactNativeRuntime().engine.playPcm();
+
+        for (let i = 0; i < 100; i += 1) playback.write(new Int16Array(160).buffer as ArrayBuffer);
+
+        expect(playback.bufferedMs()).toBeLessThanOrEqual(400);
+        expect(FakeAudioContext.instances[0].queue.enqueued.length).toBeLessThan(100);
+    });
+
+    it("builds the audio graph only when an unofficial call needs it", () => {
+        const runtime = reactNativeRuntime();
+        expect(FakeAudioContext.instances).toHaveLength(0);
+
+        runtime.engine.playPcm();
+        expect(FakeAudioContext.instances).toHaveLength(1);
+    });
+});
+
+/** O que o `AudioRecorder` entrega: Float32 entre -1 e 1, como todo grafo de áudio. */
+function recorded(hz: number, samples: number, rate: number): Float32Array {
+    return Float32Array.from({ length: samples }, (_, i) => 0.25 * Math.sin((2 * Math.PI * hz * i) / rate));
+}
+
+/** O que o relay entrega: Int16 a 16 kHz. */
+function relayed(hz: number, samples: number): Int16Array {
+    return Int16Array.from({ length: samples }, (_, i) =>
+        Math.round(8_000 * Math.sin((2 * Math.PI * hz * i) / 16_000)),
+    );
+}
+
+function peakOf(frames: Int16Array[]): number {
+    return frames.reduce((max, frame) => frame.reduce((m, s) => Math.max(m, Math.abs(s)), max), 0);
+}

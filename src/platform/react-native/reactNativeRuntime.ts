@@ -2,6 +2,7 @@ import { RNAudioDevices } from "@/platform/react-native/rnAudioDevices";
 import { RNAudioEngine } from "@/platform/react-native/RNAudioEngine";
 import { RNMicrophone } from "@/platform/react-native/RNMicrophone";
 import { rnPeerConnection } from "@/platform/react-native/rnPeerConnection";
+import { globalMediaSocket } from "@/platform/shared/globalMediaSocket";
 // O tipo vem de `@/index`, e não de `@/ports/...`, de propósito. A entrada desta plataforma
 // faz `export * from "@/index"`, e o gerador de `.d.ts` trata o símbolo reexportado por ali
 // como distinto do mesmo símbolo importado da origem: o resultado eram 23 tipos duplicados
@@ -9,8 +10,9 @@ import { rnPeerConnection } from "@/platform/react-native/rnPeerConnection";
 import type { WavoipRuntime } from "@/index";
 
 /**
- * The React Native runtime: `react-native-webrtc` for the microphone and the connection, and
- * the platform's own audio routing for playback.
+ * The React Native runtime: `react-native-webrtc` for the microphone and the connection,
+ * `react-native-audio-api` for the raw PCM the unofficial call needs, and the system's own
+ * routing for playback.
  *
  * ```ts
  * import { Wavoip } from "@wavoip/wavoip-api";
@@ -19,10 +21,8 @@ import type { WavoipRuntime } from "@/index";
  * const wavoip = new Wavoip({ tokens, runtime: reactNativeRuntime() });
  * ```
  *
- * **Official calls only, for now.** `openSocket` is deliberately absent: the unofficial call
- * carries raw PCM, which needs an audio engine this runtime does not have yet. Leaving it out
- * is what makes `startCall` refuse that call type up front, with a code, instead of failing
- * halfway through a conversation.
+ * Both call types work. The unofficial one resamples the device's microphone down to the
+ * 16kHz the relay speaks, in plain JavaScript, because Hermes has no WebAssembly.
  *
  * Requires the New Architecture, and microphone permission declared by your app:
  * `RECORD_AUDIO` on Android, `NSMicrophoneUsageDescription` on iOS.
@@ -35,5 +35,6 @@ export function reactNativeRuntime(): WavoipRuntime {
         microphone: new RNMicrophone(),
         audio: devices,
         createPeer: rnPeerConnection,
+        openSocket: globalMediaSocket,
     };
 }

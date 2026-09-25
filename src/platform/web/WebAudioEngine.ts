@@ -1,5 +1,11 @@
 import libSampleRateWorkletSource from "@alexanderolsen/libsamplerate-js/dist/libsamplerate.worklet.js?worklet";
-import type { AudioEngineState, AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
+import type {
+    AudioEngineState,
+    AudioEnginePort,
+    AudioHandle,
+    AudioMeter,
+    PcmPlayback,
+} from "@/ports/runtime/AudioEnginePort";
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 import micWorkletSource from "./worklets/AudioWorkletMic.ts?worklet";
 import outWorkletSource from "./worklets/AudioWorkletOut.ts?worklet";

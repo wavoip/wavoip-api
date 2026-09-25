@@ -5,7 +5,7 @@ import { WebAudioDevices } from "@/platform/web/WebAudioDevices";
 // na superfície pública, com o runtime saindo como `WavoipRuntime_2`, que nem é exportado.
 import type { WavoipRuntime } from "@/index";
 import { WebAudioEngine } from "@/platform/web/WebAudioEngine";
-import { webMediaSocket } from "@/platform/web/webMediaSocket";
+import { globalMediaSocket } from "@/platform/shared/globalMediaSocket";
 import { webPeerConnection } from "@/platform/web/webPeerConnection";
 
 /** The browser runtime: Web Audio, `getUserMedia`, `RTCPeerConnection` and `WebSocket`. */
@@ -18,6 +18,6 @@ export function webRuntime(): WavoipRuntime {
         microphone: media,
         audio: media,
         createPeer: webPeerConnection,
-        openSocket: webMediaSocket,
+        openSocket: globalMediaSocket,
     };
 }

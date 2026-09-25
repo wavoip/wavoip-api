@@ -1,9 +1,15 @@
 import type { MediaRuntime } from "@/modules/media/ITransport";
-import type { AudioEngineState, AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
+import type {
+    AudioEngineState,
+    AudioEnginePort,
+    AudioHandle,
+    AudioMeter,
+    PcmPlayback,
+} from "@/ports/runtime/AudioEnginePort";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 import type { MediaSocketFactory } from "@/ports/runtime/MediaSocketPort";
 import type { MediaStreamLike, MediaTrackLike, PeerConnectionFactory } from "@/ports/runtime/PeerConnectionPort";
-import { webMediaSocket } from "@/platform/web/webMediaSocket";
+import { globalMediaSocket } from "@/platform/shared/globalMediaSocket";
 import { webPeerConnection } from "@/platform/web/webPeerConnection";
 
 /** Uma track de microfone que só guarda o `enabled`, que é o que o mute mexe. */
@@ -194,5 +200,5 @@ export class FakeAudioRuntime implements MediaRuntime {
     // Os testes de WebRTC e de relay trocam o global; a fábrica padrão é a da web para eles
     // continuarem valendo. Quem quer provar ambiente sem WebRTC zera o campo.
     createPeer: PeerConnectionFactory | undefined = webPeerConnection;
-    openSocket: MediaSocketFactory | undefined = webMediaSocket;
+    openSocket: MediaSocketFactory | undefined = globalMediaSocket;
 }
