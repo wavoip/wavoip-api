@@ -43,7 +43,8 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device 
 
     private _status: DeviceStatus = "BUILDING";
     private _connectionStatus: ConnectionStatus = "disconnected";
-    private _callType: CallType = "OFFICIAL";
+    /** Só o servidor sabe: até o `device:init` chegar, o device não chama (ver `DevicePolicy`). */
+    private _callType: CallType | null = null;
     private _contact: Contact | null = null;
     private _qrCode: string | null = null;
     private _restriction: DeviceRestriction | null = null;
@@ -107,12 +108,12 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device 
     }
 
     async startCall(to: string): Promise<Result<CallSession, WavoipError<StartCallErrorCode>>> {
-        const blocked = DevicePolicy.canCall(this._status);
-        if (blocked) return Result.fail(blocked);
+        const { data: type, error } = DevicePolicy.typeOfNextCall(this._status, this._callType);
+        if (error) return Result.fail(error.code);
 
         const started = await CallSession.Start(this.callDeps, {
             to,
-            type: this._callType,
+            type,
             deviceToken: this.token,
         });
         if (started.data) this.registry.register(started.data);
@@ -139,10 +140,13 @@ export class DeviceSession implements Subscribable<DeviceSessionEvents>, Device 
     }
 
     private receiveOffer(offer: IncomingOffer): void {
+        // O plano da oferta é quem diz o transporte, e o transporte é o que separa a chamada
+        // oficial da não oficial. Ler o tipo do device aqui faria a oferta depender de o
+        // `device:init` ter chegado antes dela.
         const session = new CallSession(this.callDeps, {
             id: offer.id,
             peer: offer.peer,
-            type: this._callType,
+            type: offer.plan.type === "webRTC" ? "OFFICIAL" : "UNOFFICIAL",
             direction: "INCOMING",
             deviceToken: this.token,
             status: "CALLING",

@@ -354,6 +354,7 @@ type ErrorCode = DeviceErrorCode | CommandErrorCode | MediaErrorCode | CallFailu
 | `DeviceErrorCode` | `DEVICE_NOT_LINKED` | É preciso vincular um número ao dispositivo. |
 | | `DEVICE_RESTARTING` | O dispositivo está reiniciando. |
 | | `DEVICE_ERROR` | O dispositivo está em estado de erro ou desabilitado. |
+| | `DEVICE_NOT_READY` | O servidor ainda não descreveu o dispositivo; espere o primeiro `statusChanged`. |
 | | `DEVICE_NOT_FOUND` | O token não corresponde a nenhum dispositivo. |
 | | `WAKE_UP_RATE_LIMITED` | Pedidos de wake-up demais em sequência. |
 | | `NO_DEVICES` | Nenhum dispositivo disponível para a operação. |

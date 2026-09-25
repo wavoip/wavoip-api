@@ -15,6 +15,8 @@ export type DeviceErrorCode =
     | "DEVICE_RESTARTING"
     /** The device is in an error state, or disabled. */
     | "DEVICE_ERROR"
+    /** The server has not described the device yet: wait for the first `statusChanged`. */
+    | "DEVICE_NOT_READY"
     /** No device matches the token. */
     | "DEVICE_NOT_FOUND"
     /** Too many wake-up requests in a row. */

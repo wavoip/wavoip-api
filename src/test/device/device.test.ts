@@ -465,3 +465,23 @@ describe("the Device handed to the integrator", () => {
         expect(device.status).toBe("open");
     });
 });
+
+/**
+ * Regressão: o tipo de chamada só é conhecido quando o servidor descreve o device. Antes
+ * disso a biblioteca assumia `OFFICIAL`, montava um transporte WebRTC e só descobria o
+ * engano quando o outro lado atendia — a mídia subia errada e a chamada morria com
+ * `MEDIA_NEGOTIATION_FAILED`, sem nada apontando para a pressa.
+ */
+describe("calling before the server describes the device", () => {
+    it("refuses instead of guessing the call type", async () => {
+        // Sem `device:init`: o device segue em BUILDING.
+        const { dc, socket } = makeDeviceConnection();
+        socket.ackResponse = { type: "success", result: { id: "call-early", type: "OFFICIAL", peer } };
+
+        const result = await dc.startCall("5511999999999");
+
+        expect(result.error?.code).toBe("DEVICE_NOT_READY");
+        expect(socket.withAck.some((s) => s.event === "call.start")).toBe(false);
+        expect(callsMap(dc).size).toBe(0);
+    });
+});

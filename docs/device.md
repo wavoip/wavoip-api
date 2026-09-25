@@ -35,7 +35,7 @@ Os dispositivos são retornados por `wavoip.getDevices()`, `wavoip.addDevices()`
 | `error`                      | Dispositivo em estado de erro; chamadas bloqueadas.                          |
 | `restarting`                 | Dispositivo está reiniciando; novas chamadas estão bloqueadas.               |
 | `hibernating`                | Inativo por 2,5+ minutos. Chame `wakeUp()` para reativar.                   |
-| `BUILDING`                   | Dispositivo inicializando; chamadas indisponíveis.                           |
+| `BUILDING`                   | Dispositivo inicializando; chamadas recusadas com `DEVICE_NOT_READY`.        |
 | `WAITING_PAYMENT`            | Pagamento da conta necessário.                                               |
 | `EXTERNAL_INTEGRATION_ERROR` | Erro de integração externa com o WhatsApp; reinicialização necessária.       |
 

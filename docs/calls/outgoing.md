@@ -47,6 +47,18 @@ call.on("unanswered", () => console.log("Sem resposta"))
 
 **Falha** — `{ data: null; error: StartCallFailure }`, onde `StartCallFailure` é um `WavoipError` com `devices: { token, error }[]`
 
+{% hint style="warning" %}
+**Espere o dispositivo se apresentar antes de ligar.** Logo depois do `new Wavoip(...)` ele está em `BUILDING`, e o servidor ainda não disse se as chamadas dele são oficiais ou não oficiais — sem isso a biblioteca não escolhe o transporte do áudio e recusa a chamada com `DEVICE_NOT_READY`.
+
+```typescript
+const device = wavoip.devices[0]
+
+device.on("statusChanged", (status) => {
+    if (status === "open") enableCallButton()
+})
+```
+{% endhint %}
+
 {% hint style="info" %}
 `startCall` tenta cada dispositivo elegível em sequência. O primeiro dispositivo que iniciar a chamada com sucesso é usado; os demais não são tentados. Use `fromTokens` para controlar quais dispositivos participam.
 {% endhint %}
