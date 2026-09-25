@@ -91,6 +91,12 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
 
 /** Sem socket binário na plataforma não há chamada UNOFFICIAL. */
 function socketFactoryOf(runtime: MediaRuntime): MediaSocketFactory {
-    if (!runtime.openSocket) throw new Error("This runtime has no binary socket: unofficial calls are unavailable");
-    return runtime.openSocket;
+    // Quem monta o transporte já conferiu que a fábrica existe: sem ela, o `forCall` devolve
+    // `null` e a chamada é recusada antes de chegar aqui.
+    const { openSocket } = runtime;
+    if (!openSocket)
+        throw new TypeError(
+            `runtime sem openSocket chegou ao WebsocketTransport: ${JSON.stringify(Object.keys(runtime))}`,
+        );
+    return openSocket;
 }

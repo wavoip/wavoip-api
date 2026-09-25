@@ -108,6 +108,12 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
 
 /** Sem WebRTC na plataforma não há chamada OFFICIAL, e é melhor dizer isso do que tentar. */
 function peerFactoryOf(runtime: MediaRuntime): PeerConnectionFactory {
-    if (!runtime.createPeer) throw new Error("This runtime has no WebRTC: official calls are unavailable");
-    return runtime.createPeer;
+    // Quem monta o transporte já conferiu que a fábrica existe: sem ela, o `forCall` devolve
+    // `null` e a chamada é recusada antes de chegar aqui.
+    const { createPeer } = runtime;
+    if (!createPeer)
+        throw new TypeError(
+            `runtime sem createPeer chegou ao WebRTCTransport: ${JSON.stringify(Object.keys(runtime))}`,
+        );
+    return createPeer;
 }

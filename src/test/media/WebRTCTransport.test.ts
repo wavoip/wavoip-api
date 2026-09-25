@@ -450,10 +450,16 @@ describe("WebRTCTransport", () => {
 });
 
 describe("WebRTCTransport on a runtime without WebRTC", () => {
-    it("says official calls are unavailable instead of failing later", () => {
+    /**
+     * A recusa não mora aqui: quem decide é o `forCall`, que devolve `null` e faz a chamada
+     * falhar com `CALL_TYPE_UNSUPPORTED` antes de qualquer transporte ser montado (ver
+     * `CallSession.unsupported.test.ts`). Se um runtime desses chegar até aqui, é defeito
+     * nosso, e a mensagem tem de dizer o que chegou.
+     */
+    it("names the offending runtime if one reaches it anyway", () => {
         const audio = new FakeAudioRuntime();
         audio.createPeer = undefined;
 
-        expect(() => new WebRTCTransport(audio, "offer-sdp")).toThrow(/no WebRTC/);
+        expect(() => new WebRTCTransport(audio, "offer-sdp")).toThrow(/runtime sem createPeer/);
     });
 });

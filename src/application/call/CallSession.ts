@@ -36,7 +36,8 @@ export type CallSessionEvents = {
  * descobre host e porta quando a chamada é aceita.
  */
 export interface TransportFactory {
-    forCall(type: CallType): ITransport;
+    /** `null` quando esta plataforma não carrega chamada desse tipo. */
+    forCall(type: CallType): ITransport | null;
     forOffer(plan: MediaPlan, deviceToken: string): ITransport;
 }
 
@@ -101,6 +102,9 @@ export class CallSession implements Subscribable<CallSessionEvents> {
      */
     static async Start(deps: CallSessionDeps, params: StartCallParams): Promise<Result<CallSession, AcceptFailure>> {
         const transport = deps.transports.forCall(params.type);
+        // A plataforma diz na hora de abrir que não faz esse tipo, e não no meio da ligação:
+        // um runtime sem WebRTC não faz OFFICIAL, um sem socket binário não faz UNOFFICIAL.
+        if (!transport) return Result.fail("CALL_TYPE_UNSUPPORTED", { details: { type: params.type } });
 
         let plan: MediaPlan = { type: "none" };
         if (isRTCTransport(transport)) {

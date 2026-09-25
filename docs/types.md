@@ -310,7 +310,7 @@ não oferece código impossível naquele ponto:
 | Alias | Onde aparece | Códigos |
 | --- | --- | --- |
 | `CommandFailure` | `mute`, `unmute`, `cancel`, `end`, `reject`, `pairingCode` | `CommandErrorCode \| "UNKNOWN"` |
-| `AcceptFailure` | `offer.accept()` | os de comando mais `MEDIA_NEGOTIATION_FAILED` |
+| `AcceptFailure` | `offer.accept()` | os de comando mais `MEDIA_NEGOTIATION_FAILED` e `CALL_TYPE_UNSUPPORTED` |
 | `DeviceApiFailure` | `restart`, `logout`, `wakeUp` | `DeviceErrorCode \| "NETWORK_ERROR" \| "UNKNOWN"` |
 | `OutgoingCallFailure` | evento `failed` da chamada que sai | `CallFailureCode \| "MEDIA_NEGOTIATION_FAILED" \| "UNKNOWN"` |
 | `StartCallFailure` | `wavoip.startCall()` | `StartCallErrorCode`, mais a lista `devices` |
@@ -368,6 +368,7 @@ type ErrorCode = DeviceErrorCode | CommandErrorCode | MediaErrorCode | CallFailu
 | | `VOLUME_OUT_OF_RANGE` | Volume fora da faixa; a faixa vem em `details`. |
 | | `MEDIA_NEGOTIATION_FAILED` | A negociação de mídia falhou; a exceção original vem em `cause`. |
 | | `UNSUPPORTED_MEDIA_PLAN` | O servidor propôs um transporte que a biblioteca não fala. |
+| | `CALL_TYPE_UNSUPPORTED` | Esta plataforma não carrega chamada desse tipo; `details.type` diz qual. |
 | `CallFailureCode` | `LOCAL_AUDIO_TIMEOUT` | O seu microfone parou de enviar áudio. |
 | | `REMOTE_AUDIO_TIMEOUT` | O contato parou de enviar áudio. |
 | | `CONNECTION_TIMEOUT` | A chamada perdeu contato com o servidor. |

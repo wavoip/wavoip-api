@@ -207,10 +207,12 @@ export class Wavoip {
         // fala relay. Na oferta recebida, quem decide é o plano que veio nela.
         const { runtime, transportOptions } = this;
         return {
-            forCall: (type) =>
-                type === "OFFICIAL"
-                    ? new WebRTCTransport(runtime, undefined, transportOptions)
-                    : new WebsocketTransport(runtime, token),
+            forCall: (type) => {
+                if (type === "OFFICIAL") {
+                    return runtime.createPeer ? new WebRTCTransport(runtime, undefined, transportOptions) : null;
+                }
+                return runtime.openSocket ? new WebsocketTransport(runtime, token) : null;
+            },
             forOffer: (plan, deviceToken) => {
                 if (plan.type === "webRTC") return new WebRTCTransport(runtime, plan.sdp, transportOptions);
                 if (plan.type === "relay") {

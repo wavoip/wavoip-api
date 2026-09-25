@@ -25,7 +25,7 @@ export class CallHarness {
 
     /** Chamada que saiu e já foi aceita pelo servidor: o transporte veio do tipo do device. */
     outgoing(init: Partial<CallSessionInit> = {}): CallSession {
-        const transport = this.transports.forCall(init.type ?? "OFFICIAL");
+        const transport = this.transports.required(init.type ?? "OFFICIAL");
         return this.session({ direction: "OUTGOING", status: "RINGING", transport, ...init });
     }
 

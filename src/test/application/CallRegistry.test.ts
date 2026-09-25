@@ -25,7 +25,7 @@ function session(id: string): CallSession {
             peer,
             deviceToken: "device-token",
             status: "CALLING",
-            transport: transports.forCall("OFFICIAL"),
+            transport: transports.required("OFFICIAL"),
         },
     );
 }

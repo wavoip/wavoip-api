@@ -48,7 +48,9 @@ export type MediaErrorCode =
     /** Media negotiation failed; the original exception is in `cause`. */
     | "MEDIA_NEGOTIATION_FAILED"
     /** The server offered a transport this library does not speak. */
-    | "UNSUPPORTED_MEDIA_PLAN";
+    | "UNSUPPORTED_MEDIA_PLAN"
+    /** This platform cannot carry a call of that type: the runtime says so up front. */
+    | "CALL_TYPE_UNSUPPORTED";
 
 /** Why a call that was up came down. */
 export type CallFailureCode =
@@ -85,13 +87,20 @@ export type WavoipError<C extends ErrorCode = ErrorCode> = {
 export type CommandFailure = WavoipError<CommandErrorCode | "UNKNOWN">;
 
 /** Answering adds local media to that, which comes up before the command goes out. */
-export type AcceptFailure = WavoipError<CommandErrorCode | "MEDIA_NEGOTIATION_FAILED" | "UNKNOWN">;
+export type AcceptFailure = WavoipError<
+    CommandErrorCode | "MEDIA_NEGOTIATION_FAILED" | "CALL_TYPE_UNSUPPORTED" | "UNKNOWN"
+>;
 
 /** A failure from one of the device's HTTP routes. */
 export type DeviceApiFailure = WavoipError<DeviceErrorCode | "NETWORK_ERROR" | "UNKNOWN">;
 
 /** Placing a call goes through the device, through local media and through the command. */
-export type StartCallErrorCode = DeviceErrorCode | CommandErrorCode | "MEDIA_NEGOTIATION_FAILED" | "UNKNOWN";
+export type StartCallErrorCode =
+    | DeviceErrorCode
+    | CommandErrorCode
+    | "MEDIA_NEGOTIATION_FAILED"
+    | "CALL_TYPE_UNSUPPORTED"
+    | "UNKNOWN";
 
 /** Why one device could not place the call. */
 export type DeviceAttempt = { readonly token: string; readonly error: WavoipError<StartCallErrorCode> };

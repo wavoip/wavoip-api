@@ -150,7 +150,7 @@ deu certo, `if (error)` responde igual ao `if (err)` de antes.
 
 O tipo do erro é o subconjunto que aquele método pode devolver, então o autocomplete não
 oferece código que não pode acontecer ali. `CommandFailure` são os códigos de comando; o
-`AcceptFailure` soma a eles o `MEDIA_NEGOTIATION_FAILED`, porque atender sobe a mídia local
+`AcceptFailure` soma a eles o `MEDIA_NEGOTIATION_FAILED` e o `CALL_TYPE_UNSUPPORTED`, porque atender sobe a mídia local
 antes de o comando sair.
 
 ### No device e no `Wavoip`
@@ -424,6 +424,7 @@ isso na hora de abrir a chamada daquele tipo, em vez de falhar no meio da ligaç
 | --- | --- | --- |
 | `@wavoip/wavoip-api/web` | o núcleo **e** o `webRuntime()` | navegador |
 | `@wavoip/wavoip-api/node` | o núcleo **e** o `nodeRuntime()` | processo sem cabeça: bot, URA, gravação |
+| `@wavoip/wavoip-api/react-native` | o núcleo **e** o `reactNativeRuntime()` | app iOS e Android |
 | `@wavoip/wavoip-api` | só o núcleo, sem plataforma nenhuma | quem traz o próprio runtime |
 
 Quem está no navegador troca o import por `/web` e segue; o resto da API é idêntico, porque o
