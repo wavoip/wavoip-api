@@ -10,6 +10,8 @@
 
 * [Dispositivo](device.md)
 * [Mídia](media.md)
+* [Plataformas](platforms/README.md)
+  * [Node.js](platforms/node.md)
 
 ## Chamadas
 

@@ -49,17 +49,20 @@ string you branch on and translate — the library ships no user-facing text.
 | Import | What you get | For |
 | --- | --- | --- |
 | `@wavoip/wavoip-api/web` | the core **and** `webRuntime()` | the browser |
-| `@wavoip/wavoip-api` | the core alone, with nothing from the browser in it | bringing your own runtime |
+| `@wavoip/wavoip-api/node` | the core **and** `nodeRuntime()` | a headless process: bot, IVR, recording |
+| `@wavoip/wavoip-api` | the core alone, with no platform in it | bringing your own runtime |
 
-Importing from `/web` is what pulls the browser implementation into your bundle. The root
-path names no DOM type at all — that is what lets a React Native project compile it — and
-it is 54 kB against the 2 MB of the browser build.
+Importing a platform path is what pulls that implementation into your bundle. The root path
+names no DOM type at all, and is 54 kB against the 2 MB of the browser build; the Node
+adapter adds 5 kB.
+
+Node needs `@roamhq/wrtc` and `ws`, both optional peer dependencies — a browser install
+pulls neither.
 
 ## Requirements
 
-The browser is the only runtime shipped today. Everything platform-specific sits behind an
-injected port, so the core itself needs no DOM; React Native and Node.js adapters are in
-progress.
+Everything platform-specific sits behind an injected port, so the core itself needs no DOM.
+The browser and Node.js runtimes ship today; React Native is in progress.
 
 ## License
 

@@ -10,11 +10,10 @@ icon: download
 * Um navegador moderno com suporte a WebRTC (Chrome 80+, Firefox 75+, Safari 14.1+)
 * Um token de dispositivo Wavoip — obtido no [painel de controle Wavoip](https://wavoip.com)
 
-{% hint style="warning" %}
-O único runtime pronto hoje é o do navegador. O núcleo da biblioteca não depende de nada do
-DOM, mas quem traz `AudioContext`, `getUserMedia`, `RTCPeerConnection` e o WebSocket é o
-runtime — e por enquanto só existe o `webRuntime()`. Os adaptadores de React Native e
-Node.js estão em andamento (DEV-277).
+{% hint style="info" %}
+Além do navegador, há um runtime de **Node.js** para processos sem cabeça — bot, URA,
+gravação. Ver [Plataformas](../platforms/README.md). O adaptador de React Native está em
+andamento (DEV-277).
 {% endhint %}
 
 ## Instalar o pacote
@@ -51,7 +50,8 @@ import { Wavoip, webRuntime } from "@wavoip/wavoip-api/web"
 | Import | O que vem | Para quem |
 | --- | --- | --- |
 | `@wavoip/wavoip-api/web` | o núcleo e o `webRuntime()` | navegador |
-| `@wavoip/wavoip-api` | só o núcleo, sem nada do navegador | quem traz o próprio runtime |
+| `@wavoip/wavoip-api/node` | o núcleo e o `nodeRuntime()` | [processo sem cabeça](../platforms/node.md) |
+| `@wavoip/wavoip-api` | só o núcleo, sem plataforma nenhuma | quem traz o próprio runtime |
 
 Importar do `/web` é o que puxa a implementação do navegador para o seu bundle. O caminho
 raiz existe para quem vai rodar em outro ambiente: ele não cita um tipo do DOM sequer, e é

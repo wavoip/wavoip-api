@@ -27,12 +27,12 @@ export default defineConfig({
                   fileName: () => "web.umd.js",
               }
             : {
-                  entry: { index: "src/index.ts", web: "src/web.ts" },
+                  entry: { index: "src/index.ts", web: "src/web.ts", node: "src/node.ts" },
                   formats: ["es"],
-                  fileName: (_format, name) => `${name}.es.js`,
+                  fileName: (_format, name) => `${name}.mjs`,
               },
         rollupOptions: {
-            external: [...Object.keys(pkg.dependencies || {})],
+            external: [...Object.keys(pkg.dependencies || {}), ...Object.keys(pkg.peerDependencies || {})],
             output: {
                 globals: {
                     "socket.io-client": "io",
