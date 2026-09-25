@@ -6,14 +6,24 @@ import { describe, expect, it, vi } from "vitest";
 
 /** Um runtime completo de mentira, para cada teste tirar dele só o que quer provar. */
 /**
- * Roda o diagnóstico com o microfone entregando a fração de estouro pedida. O medidor é
- * criado dentro da verificação, então o valor é ajustado assim que ele aparece.
+ * Roda o diagnóstico com o microfone entregando o áudio pedido. A captura começa dentro da
+ * verificação, então os frames são empurrados assim que ela aparece.
  */
-async function withClipping(runtime: ReturnType<typeof runtimeWith>, fraction: number) {
+async function withMicrophoneAudio(runtime: ReturnType<typeof runtimeWith>, pcm: Int16Array) {
     const pending = runDiagnostics({ runtime, stunServers: [] });
-    await vi.waitFor(() => expect(runtime.engine.monitored.length).toBeGreaterThan(0));
-    for (const meter of runtime.engine.monitored) meter.clipped = fraction;
+    await vi.waitFor(() => expect(runtime.engine.captured.length).toBeGreaterThan(0));
+    runtime.engine.pushCaptured(pcm);
     return pending;
+}
+
+/** Uma voz forte, mas que não bate no teto. */
+function cleanAudio(samples: number): Int16Array {
+    return Int16Array.from({ length: samples }, (_, i) => Math.round(20_000 * Math.sin(i / 8)));
+}
+
+/** Um microfone com ganho demais: a maior parte das amostras ceifada. */
+function clippedAudio(samples: number): Int16Array {
+    return Int16Array.from({ length: samples }, (_, i) => (i % 8 < 6 ? 32_767 : 5_000));
 }
 
 function runtimeWith(overrides: Partial<WavoipRuntime> = {}): WavoipRuntime & {
@@ -118,14 +128,18 @@ describe("runDiagnostics", () => {
         expect(report.readiness.UNOFFICIAL.ready).toBe(false);
     });
 
-    it("closes the microphone it opened, so the recording indicator goes away", async () => {
+    /**
+     * O `open()` pode ser pedido mais de uma vez — ele devolve sempre o mesmo stream, então
+     * não há dois acessos ao aparelho. O que importa é o fim: o microfone fechado, e o
+     * indicador de gravação apagado.
+     */
+    it("leaves the microphone closed, so the recording indicator goes away", async () => {
         const runtime = runtimeWith();
 
         await runDiagnostics({ runtime, stunServers: [] });
 
-        expect(runtime.microphone.opens).toBe(1);
-        expect(runtime.microphone.closes).toBe(1);
         expect(runtime.microphone.isOpen).toBe(false);
+        expect(runtime.microphone.closes).toBeGreaterThan(0);
     });
 
     /**
@@ -147,20 +161,32 @@ describe("runDiagnostics", () => {
      * foi cortado. Quem fala não percebe — só quem ouve. Daí valer o aviso antes da chamada.
      */
     it("warns that the microphone is clipping, without failing the environment", async () => {
-        const runtime = runtimeWith();
-        const report = await withClipping(runtime, 0.4);
+        const report = await withMicrophoneAudio(runtimeWith(), clippedAudio(1_600));
 
         const clipping = report.checks.find((check) => check.code === "MICROPHONE_CLIPPING");
         expect(clipping?.severity).toBe("warning");
-        expect(clipping?.details).toEqual({ clipping: 0.4 });
+        expect(clipping?.details?.clipping).toBeGreaterThan(0.5);
         // Estourado ainda liga: é ruim, não impeditivo.
         expect(report.readiness.OFFICIAL.ready).toBe(true);
     });
 
-    it("says nothing about gain when the microphone behaves", async () => {
-        const report = await withClipping(runtimeWith(), 0.001);
+    /** Sinal forte não é sinal estourado: um medidor de nível sozinho confundiria os dois. */
+    it("says nothing about gain when the microphone is loud but clean", async () => {
+        const report = await withMicrophoneAudio(runtimeWith(), cleanAudio(1_600));
 
         expect(codesOf(report.checks)).not.toContain("MICROPHONE_CLIPPING");
+    });
+
+    /**
+     * Mede pelo `capturePcm` porque é o único caminho que entrega amostras em toda
+     * plataforma — no React Native o medidor do motor não vê o áudio da chamada oficial.
+     */
+    it("listens through the capture path, which every platform implements", async () => {
+        const runtime = runtimeWith();
+        await withMicrophoneAudio(runtime, cleanAudio(160));
+
+        expect(runtime.engine.capturedFrom).toBe(runtime.microphone);
+        expect(runtime.engine.captured[0].stopped).toBe(true);
     });
 
     it("warns when there is no output, without failing the call", async () => {

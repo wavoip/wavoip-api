@@ -166,12 +166,34 @@ Hermes explica por que a **implementação** é em JavaScript. O espectro vazio 
 é outro assunto, logo abaixo.
 {% endhint %}
 
+## O que o React Native consegue medir, e o que não
+
+| Leitura | Chamada oficial | Chamada não oficial |
+| --- | --- | --- |
+| `call.audio.out.*` (seu microfone) | nível ✅, espectro e estouro ❌ | tudo ✅ |
+| `call.audio.in.*` (o contato) | nível ✅, espectro e estouro ❌ | tudo ✅ |
+| Estouro do microfone no diagnóstico | ✅ | ✅ |
+
+O nível vem das estatísticas da conexão, que o WebRTC publica em qualquer plataforma. Espectro
+e estouro precisam das amostras, e é aí que a chamada oficial esbarra.
+
+{% hint style="info" %}
+**O diagnóstico mede o estouro do microfone mesmo assim.** Ele não usa o áudio da chamada: usa
+o mesmo caminho de gravação da chamada não oficial, que passa pelo `AudioRecorder`. Como o
+diagnóstico roda antes da chamada, não há dois acessos ao microfone ao mesmo tempo.
+{% endhint %}
+
 ## Por que o espectro vem vazio na chamada oficial
 
 Não é falta de capacidade de calcular: é falta do áudio. Na chamada **oficial** o
 `react-native-webrtc` toca em nativo e nunca entrega as amostras ao JavaScript, então não há o
 que analisar deste lado. No navegador e no Node o áudio atravessa o processo, e por isso os
 dois preenchem.
+
+A comunidade já pediu acesso ao áudio cru das tracks, e a
+[issue foi fechada como "not planned"](https://github.com/react-native-webrtc/react-native-webrtc/issues/1552):
+não há `addSink` para áudio como existe para vídeo, e o `getStats()` publica `audioLevel`, mas
+nada que revele estouro. Sem alterar o módulo nativo, não há como chegar às amostras.
 
 Na chamada **não oficial** o espectro funciona: ali o PCM atravessa o processo nas duas
 direções, e é dele que saem nível e bandas. Vale para os três ambientes, porque o cálculo mora

@@ -26,6 +26,8 @@ const wavoip = new Wavoip({ tokens, runtime })  // o runtime vem do seu ambiente
 | Microfone e alto-falante | do aparelho | seus `source`/`sink` | do aparelho |
 | Nível do áudio (`level()`) | ✅ do motor | ✅ do motor | ✅ das estatísticas da conexão |
 | Espectro (`spectrum()`) | ✅ | ✅ | ✅ na não oficial; vazio na oficial, onde o áudio não passa pelo JS |
+| Estouro (`clipping()`) | ✅ | ✅ | ✅ na não oficial; `0` na oficial |
+| Estouro no diagnóstico | ✅ | ✅ | ✅ |
 | Sessão de áudio do sistema | do navegador | — (não há) | `InCallManager`, automático |
 | Listar aparelhos de áudio | ✅ | — (não há) | microfones ✅, saídas fone/viva-voz |
 | Escolher aparelho | entrada e saída | — (não há) | só a saída: o microfone é do sistema |

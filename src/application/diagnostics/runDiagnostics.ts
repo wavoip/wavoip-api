@@ -1,7 +1,7 @@
+import { ClipDetector } from "@/domain/audio/ClipDetector";
 import { Readiness } from "@/domain/diagnostics/readiness";
 import type { DiagnosticCheck, DiagnosticsReport } from "@/domain/diagnostics/types";
 import { runStunProbe } from "@/modules/media/StunProbe";
-import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
 
 /** Tempo de escuta do microfone: o bastante para uma sílaba, curto o bastante para ninguém notar. */
@@ -64,15 +64,14 @@ async function audioChecks(runtime: WavoipRuntime): Promise<DiagnosticCheck[]> {
 async function microphoneChecks(runtime: WavoipRuntime): Promise<DiagnosticCheck[]> {
     const wasOpen = runtime.microphone.isOpen;
 
-    let stream: MediaStreamLike;
     try {
-        stream = await runtime.microphone.open();
+        await runtime.microphone.open();
     } catch (cause) {
         return [{ code: "MICROPHONE_PERMISSION_DENIED", severity: "failure", details: { cause: String(cause) } }];
     }
 
     try {
-        return [...deviceChecks(runtime), ...(await gainCheck(runtime, stream))];
+        return [...deviceChecks(runtime), ...(await gainCheck(runtime))];
     } finally {
         if (!wasOpen) await runtime.microphone.close().catch(() => {});
     }
@@ -85,17 +84,23 @@ async function microphoneChecks(runtime: WavoipRuntime): Promise<DiagnosticCheck
  * chegar aqui, e nada recupera o que foi cortado: a voz sai áspera do outro lado, e quem
  * fala não percebe. É o tipo de problema que só quem está do lado de cá pode resolver, e
  * por isso vale avisar antes da chamada começar.
+ *
+ * Mede pelo `capturePcm`, e não pelo medidor do motor, porque é o caminho que entrega as
+ * amostras em toda plataforma: no navegador vem do worklet, no Node da fonte do integrador e
+ * no React Native do gravador nativo — que é o único jeito de o áudio chegar ao JavaScript
+ * lá. O medidor do motor não serve: no React Native ele não vê nada.
  */
-async function gainCheck(runtime: WavoipRuntime, stream: MediaStreamLike): Promise<DiagnosticCheck[]> {
-    const meter = runtime.engine.monitorStream(stream);
+async function gainCheck(runtime: WavoipRuntime): Promise<DiagnosticCheck[]> {
+    const clip = new ClipDetector();
+    const capture = await runtime.engine.capturePcm(runtime.microphone, (pcm) => clip.push(new Int16Array(pcm)));
+
     try {
         await listenFor(GAIN_SAMPLE_MS);
-        const clipping = meter.clipping();
-        if (clipping === null || clipping < CLIPPING_LIMIT) return [];
+        if (clip.fraction < CLIPPING_LIMIT) return [];
 
-        return [{ code: "MICROPHONE_CLIPPING", severity: "warning", details: { clipping } }];
+        return [{ code: "MICROPHONE_CLIPPING", severity: "warning", details: { clipping: clip.fraction } }];
     } finally {
-        meter.stop();
+        capture.stop();
     }
 }
 
