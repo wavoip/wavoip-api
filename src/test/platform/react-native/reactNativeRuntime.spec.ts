@@ -249,6 +249,23 @@ describe("RNAudioEngine on the relay path", () => {
         expect(FakeAudioRecorder.instances[0].stopped).toBe(true);
     });
 
+    /**
+     * Pedimos mono, mas o aparelho decide: se ele entregar dois canais, ficar só com o
+     * primeiro jogaria fora metade do que o microfone captou.
+     */
+    it("mixes the channels when the device records in stereo", async () => {
+        const frames: Int16Array[] = [];
+        await reactNativeRuntime().engine.capturePcm(null as never, (pcm) => frames.push(new Int16Array(pcm)));
+        const recorder = FakeAudioRecorder.instances[0];
+
+        // Um canal com sinal e outro em silêncio: misturados, o resultado é a metade.
+        recorder.deliverChannels([recorded(440, 1_600, 16_000), new Float32Array(1_600)], 16_000);
+
+        const pico = peakOf(frames);
+        expect(pico).toBeGreaterThan(3_000);
+        expect(pico).toBeLessThan(5_000);
+    });
+
     it("follows the device when it changes rate mid-call", async () => {
         const frames: Int16Array[] = [];
         await reactNativeRuntime().engine.capturePcm(null as never, (pcm) => frames.push(new Int16Array(pcm)));

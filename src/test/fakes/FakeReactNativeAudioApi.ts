@@ -11,7 +11,7 @@ export class FakeAudioBuffer {
         readonly length: number,
         readonly sampleRate: number,
     ) {
-        this.channels = [new Float32Array(length)];
+        this.channels = Array.from({ length: numberOfChannels }, () => new Float32Array(length));
     }
 
     getChannelData(channel: number): Float32Array {
@@ -110,8 +110,13 @@ export class FakeAudioRecorder {
 
     /** O aparelho entregando um bloco, na taxa que ele decidiu — não na que pedimos. */
     deliver(samples: Float32Array, sampleRate: number): void {
-        const buffer = new FakeAudioBuffer(1, samples.length, sampleRate);
-        buffer.copyToChannel(samples, 0);
+        this.deliverChannels([samples], sampleRate);
+    }
+
+    /** O mesmo, com mais de um canal: o gravador pode ignorar o mono que pedimos. */
+    deliverChannels(channels: Float32Array[], sampleRate: number): void {
+        const buffer = new FakeAudioBuffer(channels.length, channels[0].length, sampleRate);
+        channels.forEach((samples, index) => buffer.copyToChannel(samples, index));
         this.listener?.({ buffer });
     }
 }

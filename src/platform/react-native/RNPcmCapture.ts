@@ -1,5 +1,5 @@
-import { Pcm } from "@/domain/audio/pcm";
 import { SincResampler } from "@/domain/audio/SincResampler";
+import { Pcm } from "@/domain/audio/pcm";
 import type { AudioHandle } from "@/ports/runtime/AudioEnginePort";
 import { AudioRecorder } from "react-native-audio-api";
 
@@ -44,9 +44,28 @@ export class RNPcmCapture implements AudioHandle {
         numberOfChannels: number;
         getChannelData(c: number): Float32Array;
     }): void {
-        const mono = Pcm.downmix(Pcm.toInt16(buffer.getChannelData(0)), 1);
-        const pcm = this.resamplerFor(buffer.sampleRate).process(mono);
+        const pcm = this.resamplerFor(buffer.sampleRate).process(RNPcmCapture.monoOf(buffer));
         if (pcm.length > 0) this.onFrame(pcm.buffer as ArrayBuffer);
+    }
+
+    /**
+     * Os canais deste `AudioBuffer` vêm separados, e não intercalados como num arquivo: cada
+     * um é um array próprio. Por isso a mistura é feita aqui, somando posição a posição, em
+     * vez de pelo `Pcm.downmix`, que espera as amostras alternando entre os canais.
+     *
+     * Pedimos mono ao gravador, mas o aparelho pode entregar dois — e aí ficar só com o
+     * primeiro jogaria fora metade do que o microfone captou.
+     */
+    private static monoOf(buffer: { numberOfChannels: number; getChannelData(c: number): Float32Array }): Int16Array {
+        const first = buffer.getChannelData(0);
+        if (buffer.numberOfChannels <= 1) return Pcm.toInt16(first);
+
+        const mixed = new Float32Array(first.length);
+        for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+            const samples = buffer.getChannelData(channel);
+            for (let i = 0; i < mixed.length; i += 1) mixed[i] += samples[i] / buffer.numberOfChannels;
+        }
+        return Pcm.toInt16(mixed);
     }
 
     /** A taxa vem do aparelho, não do que pedimos: trocá-la no meio recomeça a emenda. */

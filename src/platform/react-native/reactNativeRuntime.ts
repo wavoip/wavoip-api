@@ -1,13 +1,13 @@
-import { RNAudioDevices } from "@/platform/react-native/rnAudioDevices";
-import { RNAudioEngine } from "@/platform/react-native/RNAudioEngine";
-import { RNMicrophone } from "@/platform/react-native/RNMicrophone";
-import { rnPeerConnection } from "@/platform/react-native/rnPeerConnection";
-import { globalMediaSocket } from "@/platform/shared/globalMediaSocket";
 // O tipo vem de `@/index`, e não de `@/ports/...`, de propósito. A entrada desta plataforma
 // faz `export * from "@/index"`, e o gerador de `.d.ts` trata o símbolo reexportado por ali
 // como distinto do mesmo símbolo importado da origem: o resultado eram 23 tipos duplicados
 // na superfície pública, com o runtime saindo como `WavoipRuntime_2`, que nem é exportado.
 import type { WavoipRuntime } from "@/index";
+import { RNAudioEngine } from "@/platform/react-native/RNAudioEngine";
+import { RNMicrophone } from "@/platform/react-native/RNMicrophone";
+import { RNAudioDevices } from "@/platform/react-native/rnAudioDevices";
+import { rnPeerConnection } from "@/platform/react-native/rnPeerConnection";
+import { globalMediaSocket } from "@/platform/shared/globalMediaSocket";
 
 /**
  * The React Native runtime: `react-native-webrtc` for the microphone and the connection,
