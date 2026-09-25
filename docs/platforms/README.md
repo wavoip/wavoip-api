@@ -22,15 +22,15 @@ const wavoip = new Wavoip({ tokens, runtime })  // o runtime vem do seu ambiente
 | Import | `@wavoip/wavoip-api/web` | `@wavoip/wavoip-api/node` | `@wavoip/wavoip-api/react-native` |
 | Runtime | `webRuntime()` | `nodeRuntime({ source, sink })` | `reactNativeRuntime()` |
 | Chamada oficial (WebRTC) | ✅ | ✅ | ✅ (sem teste em aparelho) |
-| Chamada não oficial (relay) | ✅ | ✅ | — recusada com código |
+| Chamada não oficial (relay) | ✅ | ✅ | ✅ (sem teste em aparelho) |
 | Microfone e alto-falante | do aparelho | seus `source`/`sink` | do aparelho |
 | Nível do áudio (`level()`) | ✅ do motor | ✅ do motor | ✅ das estatísticas da conexão |
-| Espectro (`spectrum()`) | ✅ do `AnalyserNode` | ✅ por FFT do PCM | vazio: o áudio não passa pelo JS |
+| Espectro (`spectrum()`) | ✅ do `AnalyserNode` | ✅ por FFT do PCM | vazio na oficial: o áudio não passa pelo JS |
 | Sessão de áudio do sistema | do navegador | — (não há) | `InCallManager`, automático |
 | Listar aparelhos de áudio | ✅ | — (não há) | microfones ✅, saídas fone/viva-voz |
 | Escolher aparelho | entrada e saída | — (não há) | só a saída: o microfone é do sistema |
 | Tamanho do adaptador | ~2 MB | ~9 kB | ~3 kB |
-| Reamostragem automática | do navegador | ✅, opcionalmente em outro thread | não precisa: a track vai direto |
+| Reamostragem automática | do navegador | ✅, opcionalmente em outro thread | ✅ na não oficial, em JavaScript |
 
 {% hint style="info" %}
 O núcleo tem 54 kB e é o mesmo nos três. O peso do navegador é quase todo AudioWorklet com

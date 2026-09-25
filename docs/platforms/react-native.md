@@ -5,17 +5,13 @@ icon: mobile-screen
 
 # React Native
 
-{% hint style="warning" %}
-**Só chamada oficial, por enquanto.** Um device configurado como `UNOFFICIAL` não funciona
-aqui: a chamada não oficial carrega PCM cru, que este runtime ainda não sabe tratar. Em vez de
-quebrar no meio da ligação, `startCall` recusa de cara com o código
-`CALL_TYPE_UNSUPPORTED` — veja [O que ainda falta](#o-que-ainda-falta).
-{% endhint %}
+**Os dois tipos de chamada funcionam.** A oficial pelo `react-native-webrtc`; a não oficial
+convertendo o microfone do aparelho para os 16 kHz que o relay fala, em JavaScript puro.
 
 ## Instalar
 
 ```bash
-npm install @wavoip/wavoip-api react-native-webrtc react-native-incall-manager
+npm install @wavoip/wavoip-api react-native-webrtc react-native-incall-manager react-native-audio-api
 ```
 
 {% hint style="danger" %}
@@ -118,6 +114,7 @@ conexão. Não há grafo de áudio a montar nem alto-falante a abrir.
 | Sessão de áudio do sistema | `InCallManager`, iniciado quando o áudio do contato chega e encerrado no fim |
 | Viva-voz | `wavoip.audio.selectOutput("speaker")` ou `"earpiece"` |
 | Nível do áudio | `call.audio.in.level()` e `out.level()`, lidos das estatísticas da conexão |
+| Chamada não oficial | `AudioRecorder` captura, `AudioBufferQueueSourceNode` toca, e a reamostragem é em JavaScript |
 
 {% hint style="info" %}
 **Por que a sessão de áudio é configurada tão tarde.** O momento é o da track remota chegar, e
@@ -152,38 +149,42 @@ biblioteca — quem toca e captura é o nativo —, então não há o que medir 
 número vem do `audioLevel` que o `getStats()` da própria conexão publica, que é o nível que o
 WebRTC de fato vê. Para quem chama, é a mesma função.
 
+## A conversão de taxa, e por que ela é em JavaScript
+
+O `AudioRecorder` grava na taxa que o **aparelho** decidir: a taxa pedida é preferência, e a
+documentação dele avisa que varia conforme o hardware. A biblioteca lê a taxa real de cada
+bloco que chega e converte para os 16 kHz do relay; se o aparelho mudar de taxa no meio da
+chamada, ela acompanha.
+
+Essa conversão é JavaScript puro, sem WebAssembly, porque o **Hermes** — o motor JavaScript do
+React Native — não implementa WebAssembly. Uma biblioteca compilada como o `libsamplerate`
+serviria ao navegador e ao Node e deixaria o celular de fora.
+
+{% hint style="info" %}
+A FFT do espectro existe em JavaScript pelo mesmo motivo. Reparar que são coisas diferentes: o
+Hermes explica por que a **implementação** é em JavaScript. O espectro vazio na chamada oficial
+é outro assunto, logo abaixo.
+{% endhint %}
+
+## Por que o espectro vem vazio na chamada oficial
+
+Não é falta de capacidade de calcular: é falta do áudio. Na chamada **oficial** o
+`react-native-webrtc` toca em nativo e nunca entrega as amostras ao JavaScript, então não há o
+que analisar deste lado. No navegador e no Node o áudio atravessa o processo, e por isso os
+dois preenchem.
+
+Na chamada **não oficial** é diferente: o PCM passa por aqui, e o espectro funcionaria — falta
+ligá-lo ao medidor, que é trabalho pequeno e ainda não feito.
+
 ## O que ainda falta
 
 | | Situação |
 | --- | --- |
-| Chamada não oficial (relay) | recusada com `CALL_TYPE_UNSUPPORTED`; depende de um motor de áudio que trate PCM |
 | `call.stats.latency.playout_ms` | `null` — o nativo não informa |
 | Escolher o microfone | `selectInput` devolve `INPUT_SELECTION_UNSUPPORTED`: no Android e no iOS quem decide é o sistema, seguindo o que está conectado |
 | `wavoip.audio.currentInput` | `null` — o sistema não informa qual microfone está usando |
-| `call.audio.in.spectrum()` | vazio — ver abaixo |
-
-### Por que o espectro vem vazio
-
-Não é falta de capacidade de calcular: é falta do áudio. O `react-native-webrtc` toca a
-chamada em nativo e nunca entrega as amostras ao JavaScript, então não há o que analisar deste
-lado. No navegador e no Node o áudio atravessa o processo, e por isso os dois preenchem.
-
-A transformada em si já existe e é compartilhada — escrita em JavaScript puro, sem
-WebAssembly, precisamente para que o **Hermes** (o motor JS do React Native) possa executá-la.
-No dia em que o áudio chegar ao JavaScript, o espectro passa a funcionar sem código novo.
-
-{% hint style="info" %}
-São duas limitações independentes, e vale não confundi-las: o Hermes não ter WebAssembly é o
-motivo de a biblioteca não usar `libsamplerate` nem uma FFT compilada. O espectro vazio é
-outra coisa — o áudio não passa por aqui.
-{% endhint %}
-
-### O que a chamada não oficial precisa
-
-Ela depende do `react-native-audio-api`, que tem gravação a partir do microfone com taxa
-configurável e worklets em JavaScript na thread de áudio. É o mesmo pacote que traria o áudio
-ao JavaScript e, com ele, o espectro. O reamostrador de que ela precisa **já existe e é
-compartilhado**, pelo mesmo motivo de ser JS puro.
+| `call.audio.in.spectrum()` | vazio na chamada oficial (ver acima); na não oficial, falta ligá-lo |
+| Microfone em duas mãos na não oficial | o `getUserMedia` do WebRTC e o `AudioRecorder` abrem o microfone; se isso incomoda o aparelho, só o teste em hardware diz |
 
 {% hint style="danger" %}
 **Este adaptador ainda não foi executado num aparelho.** Os tipos batem com os do
