@@ -76,14 +76,21 @@ vez de esconder o caso.
 
 | Código | O que significa |
 | --- | --- |
-| `MICROPHONE_FOUND` | há ao menos um; `details.count` diz quantos |
-| `MICROPHONE_MISSING` | não há nenhum — impede os dois tipos de chamada |
+| `MICROPHONE_FOUND` | há ao menos um; `details.count` e `details.names` dizem quais |
+| `MICROPHONE_MISSING` | a plataforma disse que não há aparelho — impede os dois tipos de chamada |
 | `MICROPHONE_PERMISSION_DENIED` | a pessoa negou, ou a plataforma recusou — impede os dois tipos de chamada |
 | `SPEAKER_MISSING` | não há saída de áudio: a chamada acontece, mas ninguém ouve o contato |
 | `MICROPHONE_CLIPPING` | o microfone está estourando; `details.clipping` traz a fração |
 
 `MICROPHONE_FOUND` traz `details.count` e `details.names`, que só existem porque a permissão
 foi dada — antes dela a plataforma não diz o nome de nada.
+
+{% hint style="info" %}
+**Lista de aparelhos vazia não reprova o ambiente.** Quem prova que há entrada de áudio é o
+microfone ter aberto; a lista só diz o que existe para escolher. Num processo Node não há
+aparelho algum a enumerar — o áudio vem da fonte que você injetou —, e reprovar por isso diria
+que o ambiente não liga, quando ele liga.
+{% endhint %}
 
 Para checar o ganho, o diagnóstico **escuta o microfone por uns 300 ms**. Se o sinal já chega
 ceifado no teto, a voz vai sair áspera na chamada e nada recupera isso depois — quem fala não
