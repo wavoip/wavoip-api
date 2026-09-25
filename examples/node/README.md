@@ -4,6 +4,9 @@ Dois exemplos: um que **atende** e outro que **liga**. Os dois tocam uma saudaç
 conversa num `.wav` e percorrem o caminho inteiro do runtime de Node — diagnóstico, device,
 áudio nas duas direções e desligamento.
 
+O `@wavoip/wavoip-api` daqui é o do próprio repositório (`file:../..`), então o `dist/` tem
+que existir: rode `pnpm build` na raiz antes do primeiro `npm install`.
+
 ```bash
 npm install
 
