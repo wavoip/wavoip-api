@@ -59,10 +59,9 @@ export function watchAudio(call: ActiveCall): void {
     const timer = setInterval(() => {
         const saida = call.audio.out;
         const entrada = call.audio.in;
+        const aviso = warnClipping(saida.clipping(), entrada.clipping());
         console.log(
-            `  saída ${bar(saida.level())} ${pct(saida.level())}` +
-                `   entrada ${bar(entrada.level())} ${pct(entrada.level())}` +
-                warnClipping(saida.clipping(), entrada.clipping()),
+            `  saída ${bar(saida.level())} ${pct(saida.level())}   entrada ${bar(entrada.level())} ${pct(entrada.level())}${aviso}`,
         );
     }, 1_000);
 
