@@ -50,6 +50,7 @@ string you branch on and translate — the library ships no user-facing text.
 | --- | --- | --- |
 | `@wavoip/wavoip-api/web` | the core **and** `webRuntime()` | the browser |
 | `@wavoip/wavoip-api/node` | the core **and** `nodeRuntime()` | a headless process: bot, IVR, recording |
+| `@wavoip/wavoip-api/react-native` | the core **and** `reactNativeRuntime()` | iOS and Android apps |
 | `@wavoip/wavoip-api` | the core alone, with no platform in it | bringing your own runtime |
 
 Importing a platform path is what pulls that implementation into your bundle. The root path
@@ -63,7 +64,9 @@ browser install pulls neither.
 ## Requirements
 
 Everything platform-specific sits behind an injected port, so the core itself needs no DOM.
-The browser and Node.js runtimes ship today; React Native is in progress.
+The browser and Node.js runtimes are complete. React Native carries official calls through
+`react-native-webrtc` and refuses unofficial ones with a code, and has not been run on a
+device yet.
 
 ## License
 

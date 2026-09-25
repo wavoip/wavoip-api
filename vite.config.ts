@@ -31,6 +31,7 @@ export default defineConfig({
                       index: "src/index.ts",
                       web: "src/web.ts",
                       node: "src/node.ts",
+                      "react-native": "src/react-native.ts",
                       // Não é uma entrada de import: é o arquivo que o `new Worker(...)`
                       // carrega em tempo de execução, e por isso precisa existir no `dist`.
                       "node-worker": "src/platform/node/resampleWorker.ts",

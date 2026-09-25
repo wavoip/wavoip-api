@@ -7,7 +7,7 @@
 // aqui que se descobre.
 import { execFileSync } from "node:child_process";
 
-const PUBLISHED = ["dist/index.d.ts", "dist/web.d.ts", "dist/node.d.ts"];
+const PUBLISHED = ["dist/index.d.ts", "dist/web.d.ts", "dist/node.d.ts", "dist/react-native.d.ts"];
 
 for (const dts of PUBLISHED) {
     try {

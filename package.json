@@ -21,11 +21,17 @@
             "import": "./dist/node.mjs",
             "require": "./dist/node.cjs"
         },
+        "./react-native": {
+            "types": "./dist/react-native.d.ts",
+            "import": "./dist/react-native.mjs",
+            "require": "./dist/react-native.cjs"
+        },
         "./dist/web.umd.js": "./dist/web.umd.js"
     },
     "files": [
         "dist",
         "!dist/web.cjs",
+        "!dist/node-worker.d.ts",
         "LICENSE"
     ],
     "sideEffects": false,
@@ -53,6 +59,8 @@
         "@types/ws": "^8.18.1",
         "@vitest/coverage-v8": "^4.1.2",
         "happy-dom": "^20.8.9",
+        "react-native-audio-api": "^0.13.6",
+        "react-native-webrtc": "^124.0.8",
         "ts-node": "^10.9.2",
         "typescript": "~5.7.2",
         "vite": "^6.2.0",
@@ -70,13 +78,17 @@
     "jsdelivr": "./dist/web.umd.js",
     "peerDependencies": {
         "@roamhq/wrtc": "^0.10.0",
-        "ws": "^8.0.0"
+        "ws": "^8.0.0",
+        "react-native-webrtc": ">=124.0.0"
     },
     "peerDependenciesMeta": {
         "@roamhq/wrtc": {
             "optional": true
         },
         "ws": {
+            "optional": true
+        },
+        "react-native-webrtc": {
             "optional": true
         }
     }

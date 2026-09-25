@@ -12,6 +12,7 @@
 * [Mídia](media.md)
 * [Plataformas](platforms/README.md)
   * [Node.js](platforms/node.md)
+  * [React Native](platforms/react-native.md)
 
 ## Chamadas
 

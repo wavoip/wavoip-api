@@ -1,4 +1,4 @@
-import type { AudioDevice } from "@/domain/audio/device";
+import type { AudioDevice } from "@/index";
 import { type AudioSink, type AudioSource, SAMPLE_RATE } from "@/platform/node/audioIo";
 import { NodeAudioEngine } from "@/platform/node/NodeAudioEngine";
 import { NodeMicrophone } from "@/platform/node/NodeMicrophone";
@@ -9,7 +9,11 @@ import { LocalConverter, type PcmConverter } from "@/platform/node/PcmConverter"
 import { ResamplingSink } from "@/platform/node/ResamplingSink";
 import { SharedAudioSource } from "@/platform/node/SharedAudioSource";
 import { WorkerConverter } from "@/platform/node/WorkerConverter";
-import type { WavoipRuntime } from "@/ports/WavoipRuntime";
+// O tipo vem de `@/index`, e não de `@/ports/...`, de propósito. A entrada desta plataforma
+// faz `export * from "@/index"`, e o gerador de `.d.ts` trata o símbolo reexportado por ali
+// como distinto do mesmo símbolo importado da origem: o resultado eram 23 tipos duplicados
+// na superfície pública, com o runtime saindo como `WavoipRuntime_2`, que nem é exportado.
+import type { WavoipRuntime } from "@/index";
 
 /** There is no device to enumerate on a headless host: audio comes from what you passed in. */
 const NO_DEVICES = {

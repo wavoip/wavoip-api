@@ -12,6 +12,9 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 
+// A entrada `/react-native` fica fora: o `react-native-webrtc` é publicado com sintaxe que só
+// o Metro transforma, então nem o `import` dele funciona em Node. Quem cobre aquela entrada é
+// o `check-public-types.mjs`, que compila o `.d.ts` dela, e os testes com dublês do módulo.
 const PATHS = ["@wavoip/wavoip-api", "@wavoip/wavoip-api/web", "@wavoip/wavoip-api/node"];
 
 for (const path of PATHS) {
