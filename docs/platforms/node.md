@@ -73,24 +73,37 @@ pede. Se a sua fonte atrasar, sai silêncio em vez de a chamada engasgar.
 ### O que a reamostragem custa
 
 O reamostrador é sinc com janela e tabela pré-computada, em JavaScript puro — o mesmo que o
-React Native vai usar, onde WebAssembly não roda. Medido num core, por chamada ativa:
+React Native vai usar, onde WebAssembly não roda.
 
-| Conversão | Custo de um core | Chamadas por core |
-| --- | --- | --- |
-| 16 kHz → 16 kHz | **0%** — o PCM passa direto | — |
-| 44,1 kHz → 16 kHz (entrada) | 0,40% | ~250 |
-| 48 kHz → 16 kHz (entrada) | 0,36% | ~275 |
-| 16 kHz → 48 kHz (saída) | 1,07% | ~93 |
+O trabalho por amostra é **fixo e conhecido**: 33 taps de filtro, um por vizinho considerado.
+Dessa constante saem as três regras que valem em qualquer máquina:
+
+| | |
+| --- | --- |
+| **O custo acompanha a taxa de saída, não a de entrada** | converter 96 kHz → 16 kHz custa o mesmo que 8 kHz → 16 kHz |
+| **Taxas iguais custam zero** | o runtime devolve o mesmo buffer, sem tocar nele |
+| **Dobrar a taxa de saída dobra o custo** | entregar ao `sink` em 48 kHz custa 3× entregar em 16 kHz |
+
+Em multiplicações-acumulações por segundo de áudio:
+
+| Destino da conversão | Trabalho por segundo de áudio |
+| --- | --- |
+| nenhuma (16 kHz → 16 kHz) | — |
+| → 16 kHz (entrada da chamada) | 16.000 × 33 ≈ **530 mil** |
+| → 44,1 kHz (gravação em CD) | 44.100 × 33 ≈ **1,46 milhão** |
+| → 48 kHz (gravação em estúdio) | 48.000 × 33 ≈ **1,58 milhão** |
 
 {% hint style="success" %}
-**Fique em 16 kHz nas duas pontas e não paga nada**: o runtime detecta que não há o que
-fazer e devolve o mesmo buffer. Só converta o que precisar converter.
+**A economia que sempre vale: fique em 16 kHz nas duas pontas.** O runtime detecta que não há
+o que fazer e devolve o mesmo buffer. Converter só o que precisa ser convertido vale mais que
+qualquer ajuste depois.
 {% endhint %}
 
 {% hint style="warning" %}
-Node é single-thread. Uma chamada convertendo nas duas pontas ocupa ~1,5% de um core, o que
-dá cerca de 68 simultâneas antes de o event loop virar o gargalo. Acima disso, ou você mantém
-as pontas em 16 kHz, ou distribui os processos.
+Node é single-thread, e a reamostragem acontece no mesmo event loop das suas chamadas. Quantas
+cabem depende do seu hardware e da sua versão do Node — **meça no ambiente em que vai rodar**,
+não em outro. A tabela acima serve para comparar as opções entre si, não para dimensionar
+máquina.
 {% endhint %}
 
 ### Por que não µ-law nem WebAssembly

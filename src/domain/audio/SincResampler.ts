@@ -9,18 +9,23 @@
  * reamostragem num passo só. Sem esse escalonamento, reduzir a taxa dobraria toda frequência
  * acima do novo Nyquist de volta para dentro da banda, e voz viraria ruído metálico.
  */
+/** Vizinhos de cada lado. Os `2 × 16 + 1 = 33` taps são o custo por amostra que o
+ * `docs/platforms/node.md` publica: mexer aqui é mexer lá. */
 const HALF_TAPS = 16;
 const INT16_MAX = 32_767;
 const INT16_MIN = -32_768;
 
 /**
- * O kernel é tabelado, e não calculado por amostra. Calcular `Math.sin` e `Math.cos` a cada
- * um dos 33 taps de cada amostra de saída custava ~12% de um core por chamada ativa: oito
- * chamadas saturavam o event loop de um processo Node e a voz começava a atrasar.
+ * O kernel é tabelado, e não calculado por amostra. Chamar `Math.sin` e `Math.cos` em cada um
+ * dos 33 taps de cada amostra de saída deixava o reamostrador entre sete e oito vezes mais
+ * lento — o bastante para um processo Node com várias chamadas atrasar a voz.
  *
  * Com a tabela, cada tap vira duas multiplicações e uma soma. A resolução é alta o bastante
  * para que a interpolação entre dois pontos vizinhos fique abaixo do passo de quantização do
  * Int16 — o mesmo caminho que o `libsamplerate` toma.
+ *
+ * O custo restante acompanha a taxa de *saída*, e não a de entrada: são 33 taps por amostra
+ * produzida, venha ela de 8 kHz ou de 96 kHz.
  */
 const TABLE_RESOLUTION = 512;
 
