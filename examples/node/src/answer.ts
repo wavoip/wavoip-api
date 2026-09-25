@@ -1,14 +1,6 @@
 import type { IncomingCall } from "@wavoip/wavoip-api/node";
-import {
-    type CallRecording,
-    buildRuntime,
-    connect,
-    describeFailure,
-    reportEnvironment,
-    requireToken,
-    saveRecording,
-    watchAudio,
-} from "./shared.ts";
+import { type CallRecording, buildRuntime, connect, reportEnvironment, requireToken, saveRecording } from "./shared.ts";
+import { Trace } from "./trace.ts";
 
 /**
  * Atende as chamadas que chegam, toca a saudação e grava o que o contato falou.
@@ -25,23 +17,21 @@ async function main(): Promise<void> {
     const wavoip = connect(requireToken(), runtime);
     wavoip.on("offer", (offer) => void answer(offer, recording));
 
-    console.log("\nesperando chamada… (ctrl+c para sair)");
+    Trace.line("pronto", "esperando chamada… (ctrl+c para sair)");
 }
 
 async function answer(offer: IncomingCall, recording: CallRecording): Promise<void> {
-    console.log(`\nchamada de ${offer.peer.phone}`);
+    Trace.incoming(offer);
 
     const { data: call, error } = await offer.accept();
     if (error) {
-        console.error("não deu para atender:", describeFailure(error));
+        Trace.line("offer", `não deu para atender: ${error.code}`);
         return;
     }
 
-    console.log("atendida; tocando a saudação");
+    Trace.activeCall(call);
     call.on("ended", () => saveRecording(recording, "recebida"));
-    call.on("failed", (failure) => console.error("a chamada caiu:", describeFailure(failure)));
-
-    watchAudio(call);
+    call.on("failed", () => saveRecording(recording, "recebida"));
 }
 
 main().catch((error: unknown) => {

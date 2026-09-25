@@ -3,14 +3,13 @@ import {
     type CallRecording,
     buildRuntime,
     connect,
-    describeFailure,
     exitWith,
     reportEnvironment,
     requireToken,
     saveRecording,
     waitForDevice,
-    watchAudio,
 } from "./shared.ts";
+import { Trace } from "./trace.ts";
 
 const RING_TIMEOUT_MS = 45_000;
 
@@ -30,38 +29,37 @@ async function main(): Promise<void> {
     await reportEnvironment(runtime);
 
     const wavoip = connect(requireToken(), runtime);
-    const device = await waitForDevice(wavoip);
-    console.log(`device pronto: ${device.status}`);
+    await waitForDevice(wavoip);
 
     await dial(wavoip, to, recording);
 }
 
 async function dial(wavoip: ReturnType<typeof connect>, to: string, recording: CallRecording): Promise<void> {
-    console.log(`\nligando para ${to}…`);
+    Trace.line("call", `discando para ${to}`);
 
     const { data: outgoing, error } = await wavoip.startCall({ to });
     if (error) {
         // `error.devices` diz por que cada device recusou, e é o que explica um `NO_DEVICE`.
-        for (const attempt of error.devices) console.error(`  ${attempt.token}: ${attempt.error.code}`);
+        for (const attempt of error.devices) Trace.line("call", `${attempt.token}: ${attempt.error.code}`);
         exitWith(`não deu para ligar: ${error.code}`);
     }
 
-    watchOutgoing(outgoing, recording);
+    Trace.outgoing(outgoing);
+    saveWhenItIsOver(outgoing, recording);
     giveUpAfter(outgoing, RING_TIMEOUT_MS);
 }
 
-function watchOutgoing(outgoing: OutgoingCall, recording: CallRecording): void {
+/** Qualquer desfecho grava o que deu tempo de gravar: quem narra o motivo é o `Trace`. */
+function saveWhenItIsOver(outgoing: OutgoingCall, recording: CallRecording): void {
+    const done = () => finish(recording);
+    outgoing.on("rejected", done);
+    outgoing.on("unanswered", done);
+    outgoing.on("failed", done);
+    outgoing.on("ended", done);
     outgoing.on("accepted", (call) => {
-        console.log("atenderam; tocando a saudação");
-        call.on("ended", () => finish(recording));
-        call.on("failed", (failure) => console.error("a chamada caiu:", describeFailure(failure)));
-        watchAudio(call);
+        call.on("ended", done);
+        call.on("failed", done);
     });
-
-    outgoing.on("rejected", () => finish(recording, "recusaram"));
-    outgoing.on("unanswered", () => finish(recording, "ninguém atendeu"));
-    outgoing.on("failed", (failure) => finish(recording, `falhou: ${describeFailure(failure)}`));
-    outgoing.on("ended", () => finish(recording, "o servidor encerrou a oferta"));
 }
 
 /**
@@ -69,13 +67,15 @@ function watchOutgoing(outgoing: OutgoingCall, recording: CallRecording): void {
  * outro lado resolver alguma coisa.
  */
 function giveUpAfter(outgoing: OutgoingCall, ms: number): void {
-    const timer = setTimeout(() => void outgoing.cancel(), ms);
+    const timer = setTimeout(() => {
+        Trace.line("call", `${ms / 1_000}s de toque sem resposta: desistindo`);
+        void outgoing.cancel();
+    }, ms);
     outgoing.on("accepted", () => clearTimeout(timer));
     outgoing.on("ended", () => clearTimeout(timer));
 }
 
-function finish(recording: CallRecording, reason?: string): void {
-    if (reason) console.log(reason);
+function finish(recording: CallRecording): void {
     saveRecording(recording, "feita");
     process.exit(0);
 }

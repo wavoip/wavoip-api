@@ -79,6 +79,41 @@ nodeRuntime({ source, sink, resampleInWorker: true })
 Com uma chamada só isso é exagero — é a partir de algumas dezenas simultâneas que a
 reamostragem começa a segurar o event loop. Está ligado para mostrar onde fica a opção.
 
+## O trace: a chamada narrada linha por linha
+
+Os dois exemplos contam tudo o que acontece, com o tempo desde o início na frente — e é o
+tempo que responde onde a chamada travou:
+
+```
+   0.1s device  status BUILDING · conexão disconnected
+   0.4s device  conexão → connected
+   0.4s device  status → open
+   0.4s call    discando para 5511999999999
+   2.9s ice     coleta 2500ms (esgotou o tempo) · host 1 srflx 0 prflx 0 relay 0 · stun não alcançado · turn não usado · sem par escolhido
+   2.9s ice     problema: ICE_GATHERING_TIMEOUT
+   2.9s ice     problema: STUN_UNREACHABLE
+   3.0s call    call-abc123 · OFFICIAL · para 5511999999999 · status RINGING
+  11.2s call    atendida depois de 11.2s de toque
+  11.3s media   OFFICIAL · conexão connected
+  12.3s áudio   saída [#######   ]  35%   entrada [          ]   0%
+  12.3s rede    rtt 42ms · tx 312 pac / 0 perd / 24 kbps · rx 0 pac / 0 perd / 0 kbps · jitter 0ms
+```
+
+Como ler:
+
+| O que aparece | O que significa |
+| --- | --- |
+| `ice · srflx 0` | o STUN não devolveu candidato público: sem ele o outro lado não tem para onde mandar áudio, e a chamada oficial não conecta |
+| `ice · esgotou o tempo` | a coleta passou de 2,5 s e a biblioteca seguiu com o que tinha; o `iceConfig.gatheringTimeoutMs` do construtor do `Wavoip` aumenta esse teto |
+| `ice · problema: ICE_CONNECTION_FAILED` | os candidatos foram trocados e nenhum par funcionou — normalmente NAT simétrico das duas pontas, que só um TURN resolve |
+| `áudio · saída 0%` | o problema é a **fonte**: o arquivo não está sendo lido |
+| `áudio` andando e `rede · tx 0 pac` | a fonte está boa e a **rede** não passa; a resposta está nas linhas de `ice` acima |
+| `rede · rx 0 pac` com `tx` andando | você manda e não recebe: a mídia do outro lado não chegou |
+
+O diagnóstico de ICE aparece **mesmo quando a chamada não conecta** — a coleta de candidatos
+acontece antes de a chamada existir, e a biblioteca guarda o resultado para quem for observar
+depois.
+
 ## Os arquivos
 
 | Arquivo | O que demonstra |
@@ -86,6 +121,7 @@ reamostragem começa a segurar o event loop. Está ligado para mostrar onde fica
 | `src/answer.ts` | atender uma oferta, acompanhar a chamada, gravar ao desligar |
 | `src/dial.ts` | `startCall`, os eventos da chamada que sai, desistir por tempo |
 | `src/shared.ts` | montar o runtime, rodar o diagnóstico, conectar o device |
+| `src/trace.ts` | narrar a chamada: eventos, ICE, níveis e pacotes |
 | `src/audio.ts` | as duas pontas de áudio, cada uma numa taxa diferente da chamada |
 | `src/wav.ts` | ler e escrever WAV, mono ou estéreo, sem nenhuma dependência |
 

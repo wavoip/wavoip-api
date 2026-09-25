@@ -1,12 +1,6 @@
-import {
-    type ActiveCall,
-    type Device,
-    Wavoip,
-    type WavoipRuntime,
-    nodeRuntime,
-    runDiagnostics,
-} from "@wavoip/wavoip-api/node";
+import { type Device, Wavoip, type WavoipRuntime, nodeRuntime, runDiagnostics } from "@wavoip/wavoip-api/node";
 import { STUDIO_RATE, greetingSource, studioSink } from "./audio.ts";
+import { Trace } from "./trace.ts";
 import { writeStereoWav } from "./wav.ts";
 
 export type Recording = ReturnType<typeof studioSink>;
@@ -55,8 +49,7 @@ export async function reportEnvironment(runtime: WavoipRuntime): Promise<void> {
 export function connect(token: string, runtime: WavoipRuntime): Wavoip {
     const wavoip = new Wavoip({ tokens: [token], runtime });
     const device = wavoip.devices[0];
-    device?.on("statusChanged", (status) => console.log(`device: ${status}`));
-    device?.on("connectionStatusChanged", (status) => console.log(`conexão: ${status}`));
+    if (device) Trace.device(device);
     return wavoip;
 }
 
@@ -81,41 +74,6 @@ export function waitForDevice(wavoip: Wavoip, timeoutMs = 20_000): Promise<Devic
     });
 }
 
-/**
- * Mostra o nível das duas direções a cada segundo.
- *
- * É o que responde "estou mandando áudio?" sem adivinhação: se o `saída` fica em zero, o
- * problema é a fonte, e não a rede. O estouro entra na mesma linha porque é o defeito que
- * quem fala nunca percebe.
- */
-export function watchAudio(call: ActiveCall): void {
-    const timer = setInterval(() => {
-        const saida = call.audio.out;
-        const entrada = call.audio.in;
-        const aviso = warnClipping(saida.clipping(), entrada.clipping());
-        console.log(
-            `  saída ${bar(saida.level())} ${pct(saida.level())}   entrada ${bar(entrada.level())} ${pct(entrada.level())}${aviso}`,
-        );
-    }, 1_000);
-
-    call.on("ended", () => clearInterval(timer));
-}
-
-function bar(level: number): string {
-    const filled = Math.min(10, Math.round(level * 20));
-    return `[${"#".repeat(filled)}${" ".repeat(10 - filled)}]`;
-}
-
-function pct(level: number): string {
-    return `${String(Math.round(level * 100)).padStart(3)}%`;
-}
-
-function warnClipping(out: number, incoming: number): string {
-    if (out > 0.02) return `   ⚠ a sua saída está estourando (${Math.round(out * 100)}%)`;
-    if (incoming > 0.02) return `   ⚠ o contato está estourando (${Math.round(incoming * 100)}%)`;
-    return "";
-}
-
 /** Salva a conversa em dois canais: à esquerda o que mandamos, à direita o contato. */
 export function saveRecording(recording: CallRecording, prefix: string): void {
     const { self, peer } = recording;
@@ -131,22 +89,6 @@ export function saveRecording(recording: CallRecording, prefix: string): void {
     );
     self.blocks.length = 0;
     peer.blocks.length = 0;
-}
-
-/**
- * Mostra o código e, quando existe, o que a plataforma disse por baixo.
- *
- * Um `MEDIA_NEGOTIATION_FAILED` sozinho não diz se o relay recusou, se o plano veio errado ou
- * se a rede caiu — e é justamente isso que se precisa saber quando a chamada falha.
- */
-export function describeFailure(error: { code: string; cause?: unknown }): string {
-    if (error.cause === undefined) return error.code;
-    return `${error.code} — ${causeText(error.cause)}`;
-}
-
-function causeText(cause: unknown): string {
-    if (cause instanceof Error) return cause.message;
-    return typeof cause === "string" ? cause : JSON.stringify(cause);
 }
 
 export function requireToken(): string {
