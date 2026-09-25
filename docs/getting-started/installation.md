@@ -62,6 +62,17 @@ Importar o `/web` num servidor (SSR do Next.js, por exemplo) não quebra: nenhum
 navegador é tocado no momento do import. Só a chamada a `webRuntime()` precisa do navegador.
 {% endhint %}
 
+### Formatos publicados
+
+| Caminho | Formato | Quem usa |
+| --- | --- | --- |
+| `dist/index.mjs`, `web.mjs`, `node.mjs` | ESM | bundler e Node moderno |
+| `dist/index.cjs`, `node.cjs` | CommonJS | `require()` |
+| `dist/web.umd.js` | UMD | `<script>`, e o `require()` do `/web` |
+
+O `exports` do pacote escolhe sozinho: `import` pega o `.mjs`, `require` pega o CommonJS.
+Não há nada a configurar.
+
 ## Carregar por `<script>`
 
 ```html

@@ -16,6 +16,22 @@ Como não existe microfone nem alto-falante, você diz de onde o áudio vem e pa
 npm install @wavoip/wavoip-api @roamhq/wrtc ws
 ```
 
+Funciona nas duas convenções de módulo:
+
+{% tabs %}
+{% tab title="ESM" %}
+```typescript
+import { Wavoip, nodeRuntime } from "@wavoip/wavoip-api/node"
+```
+{% endtab %}
+
+{% tab title="CommonJS" %}
+```javascript
+const { Wavoip, nodeRuntime } = require("@wavoip/wavoip-api/node")
+```
+{% endtab %}
+{% endtabs %}
+
 {% hint style="warning" %}
 `@roamhq/wrtc` e `ws` são dependências de par **opcionais**: quem instala para o navegador
 não baixa nenhuma das duas. Num projeto Node, as duas são obrigatórias — o `@roamhq/wrtc`

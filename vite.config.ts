@@ -28,8 +28,8 @@ export default defineConfig({
               }
             : {
                   entry: { index: "src/index.ts", web: "src/web.ts", node: "src/node.ts" },
-                  formats: ["es"],
-                  fileName: (_format, name) => `${name}.mjs`,
+                  formats: ["es", "cjs"],
+                  fileName: (format, name) => `${name}.${format === "es" ? "mjs" : "cjs"}`,
               },
         rollupOptions: {
             external: [...Object.keys(pkg.dependencies || {}), ...Object.keys(pkg.peerDependencies || {})],

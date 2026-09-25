@@ -2,13 +2,14 @@
     "name": "@wavoip/wavoip-api",
     "version": "2.7.0",
     "license": "MIT",
-    "main": "./dist/index.mjs",
+    "main": "./dist/index.cjs",
     "types": "./dist/index.d.ts",
     "module": "./dist/index.mjs",
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",
-            "import": "./dist/index.mjs"
+            "import": "./dist/index.mjs",
+            "require": "./dist/index.cjs"
         },
         "./web": {
             "types": "./dist/web.d.ts",
@@ -17,11 +18,14 @@
         },
         "./node": {
             "types": "./dist/node.d.ts",
-            "import": "./dist/node.mjs"
-        }
+            "import": "./dist/node.mjs",
+            "require": "./dist/node.cjs"
+        },
+        "./dist/web.umd.js": "./dist/web.umd.js"
     },
     "files": [
         "dist",
+        "!dist/web.cjs",
         "LICENSE"
     ],
     "sideEffects": false,
