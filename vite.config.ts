@@ -11,7 +11,19 @@ import { workletPlugin } from "./vite-plugin-worklet";
 const umd = process.env.BUILD_FORMAT === "umd";
 
 export default defineConfig({
-    plugins: [tsconfigPaths(), workletPlugin(), ...(umd ? [] : [dts({ rollupTypes: true })])],
+    plugins: [tsconfigPaths(), workletPlugin(), ...(umd
+            ? []
+            : [
+                  // Sem `rollupTypes`: achatar cada entrada num `.d.ts` só fazia cada uma
+                  // redeclarar a classe `Wavoip`, e classe com membro privado é comparada
+                  // pelo nome, não pela forma. O integrador que importasse o tipo do núcleo e
+                  // a classe de `/web` recebia "Wavoip is not assignable to Wavoip".
+                  dts({
+                      // Sem o achatamento, o gerador percorre tudo que o `tsconfig` inclui, e
+                      // os testes e o playground iam parar no pacote publicado.
+                      exclude: ["src/test/**", "src/dev/**", "**/*.test.ts", "**/*.spec.ts"],
+                  }),
+              ])],
     resolve: {
         alias: {
             "@": path.resolve(__dirname, "src"),
