@@ -38,6 +38,34 @@ não baixa nenhuma das duas. Num projeto Node, as duas são obrigatórias — o 
 traz o WebRTC nativo e o `ws`, o socket binário do relay.
 {% endhint %}
 
+## O transporte e o áudio são coisas separadas
+
+Vale separar duas perguntas que se confundem com facilidade:
+
+| | O que é | Quem decide |
+| --- | --- | --- |
+| **Transporte** | por onde o áudio trafega na rede | o tipo do device: `OFFICIAL` usa WebRTC, `UNOFFICIAL` usa o socket do relay |
+| **Saída local** | o que fazer com o áudio que chega | o ambiente: no navegador é o alto-falante, aqui é o seu `sink` |
+
+Então **sim, a chamada oficial no Node usa WebRTC** — `RTCPeerConnection` nativa, negociação de
+SDP, ICE, Opus, tudo. O que muda é o fim da linha: como não existe alto-falante, o áudio
+decodificado é entregue ao seu `sink` como PCM, em vez de ir para um aparelho de som. Do outro
+lado da chamada nada disso aparece: é uma chamada WebRTC comum.
+
+```
+chamada OFICIAL      rede ──WebRTC/Opus──> wrtc decodifica ──PCM──> seu sink
+chamada NÃO OFICIAL  rede ──socket/PCM───────────────────────────>  seu sink
+```
+
+O mesmo vale na ida: o seu `source` entra numa track WebRTC na chamada oficial, e direto no
+socket na não oficial.
+
+{% hint style="info" %}
+É por isso que o espectro funciona nos dois tipos aqui: o PCM passa pelo processo de qualquer
+forma. No React Native a chamada oficial é diferente — lá o sistema toca em nativo e as
+amostras não chegam ao JavaScript.
+{% endhint %}
+
 ## As duas pontas do áudio
 
 ```typescript
