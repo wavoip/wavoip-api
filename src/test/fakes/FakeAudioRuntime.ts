@@ -1,16 +1,16 @@
 import type { MediaRuntime } from "@/modules/media/ITransport";
+import { globalMediaSocket } from "@/platform/shared/globalMediaSocket";
+import { webPeerConnection } from "@/platform/web/webPeerConnection";
 import type {
-    AudioEngineState,
     AudioEnginePort,
+    AudioEngineState,
     AudioHandle,
     AudioMeter,
     PcmPlayback,
 } from "@/ports/runtime/AudioEnginePort";
-import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 import type { MediaSocketFactory } from "@/ports/runtime/MediaSocketPort";
+import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 import type { MediaStreamLike, MediaTrackLike, PeerConnectionFactory } from "@/ports/runtime/PeerConnectionPort";
-import { globalMediaSocket } from "@/platform/shared/globalMediaSocket";
-import { webPeerConnection } from "@/platform/web/webPeerConnection";
 
 /** Uma track de microfone que só guarda o `enabled`, que é o que o mute mexe. */
 export class FakeAudioTrack implements MediaTrackLike {

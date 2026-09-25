@@ -1,10 +1,10 @@
+import type { CallAudio } from "@/domain/call/audio";
 import type { ConnectivityIssue, IceDiagnostics } from "@/domain/call/ice";
-import { type CallStats, Stats } from "@/domain/call/stats";
 import type { MediaPlan } from "@/domain/call/mediaPlan";
+import { type CallStats, Stats } from "@/domain/call/stats";
 import type { TransportStatus } from "@/domain/call/types";
 import type { Events, IRTCTransport, IWSTransport } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { CallAudio } from "@/domain/call/audio";
 
 /** O que os dois transportes falsos têm em comum: sem rede, sem áudio, e contando chamadas. */
 abstract class FakeTransportBase extends EventEmitter<Events> {
@@ -68,7 +68,11 @@ export class FakeTransport extends FakeTransportBase implements IWSTransport {
         return { type: "none" };
     }
 
+    /** O teste manda o transporte recusar, como o relay recusa sem endereço. */
+    failConnectWith: Error | null = null;
+
     async connect(plan: MediaPlan): Promise<void> {
+        if (this.failConnectWith) throw this.failConnectWith;
         if (plan.type !== "relay") throw new Error(`A relay call cannot connect with a ${plan.type} plan`);
         this.useRelay(plan);
         await this.start();

@@ -1,5 +1,5 @@
-import { FRAME_SAMPLES } from "@/platform/node/audioIo";
 import { PcmFrameQueue } from "@/platform/node/PcmFrameQueue";
+import { FRAME_SAMPLES } from "@/platform/node/audioIo";
 import { describe, expect, it } from "vitest";
 
 const FRAME_BYTES = FRAME_SAMPLES * 2;

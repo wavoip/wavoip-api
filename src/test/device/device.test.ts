@@ -85,14 +85,14 @@ vi.mock("@/modules/media/webrtc/Transport", () => ({
     },
 }));
 
-import type { Device } from "@/domain/device/Device";
 import { Wavoip } from "@/Wavoip";
-import type { WavoipRuntime } from "@/ports/WavoipRuntime";
-import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
-import type { CallType } from "@/domain/call/types";
 import type { CallSession } from "@/application/call/CallSession";
 import type { DeviceSession } from "@/application/device/DeviceSession";
+import type { CallType } from "@/domain/call/types";
+import type { Device } from "@/domain/device/Device";
 import { IncomingCallProxy } from "@/modules/call/IncomingCall";
+import type { WavoipRuntime } from "@/ports/WavoipRuntime";
+import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
 
 const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
 

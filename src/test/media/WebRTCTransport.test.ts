@@ -1,5 +1,5 @@
-import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
 import { Stats } from "@/domain/call/stats";
+import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
 import { FakeAudioRuntime, UnmeasuringAudioEngine } from "@/test/fakes/FakeAudioRuntime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 

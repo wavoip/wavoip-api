@@ -1,13 +1,13 @@
 import type { CallAudio } from "@/domain/call/audio";
-import type { MediaSocketFactory } from "@/ports/runtime/MediaSocketPort";
-import type { CallStats } from "@/domain/call/stats";
 import type { MediaPlan } from "@/domain/call/mediaPlan";
+import type { CallStats } from "@/domain/call/stats";
 import type { RelayAddress } from "@/modules/media/ITransport";
+import type { Events, ITransport, MediaRuntime, TransportStatus } from "@/modules/media/ITransport";
 import { WSAudioPipe } from "@/modules/media/relay/AudioPipe";
 import { WSConnection } from "@/modules/media/relay/Connection";
 import { WSStatsAdapter } from "@/modules/media/relay/StatsAdapter";
-import type { MediaRuntime, Events, ITransport, TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
+import type { MediaSocketFactory } from "@/ports/runtime/MediaSocketPort";
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
     public readonly kind = "ws" as const;
@@ -68,7 +68,11 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
 
     /** O outro lado atendeu: a resposta diz onde o relay espera a conexão. */
     async connect(plan: MediaPlan): Promise<void> {
-        if (plan.type !== "relay") throw new Error(`A relay call cannot connect with a ${plan.type} plan`);
+        if (plan.type !== "relay") {
+            throw new Error(
+                `a chamada não oficial precisa de um plano \`relay\` para conectar, e recebeu ${JSON.stringify(plan)}`,
+            );
+        }
         this.useRelay(plan);
         await this.start();
     }

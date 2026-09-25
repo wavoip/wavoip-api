@@ -2,9 +2,9 @@
 import { FRAME_SAMPLES, SAMPLE_RATE } from "@/platform/node/audioIo";
 import { nodeRuntime } from "@/platform/node/nodeRuntime";
 import { RTCPeerConnection } from "@/platform/node/wrtc";
-import { afterEach, describe, expect, it } from "vitest";
 import { RecordingSink } from "@/test/fakes/RecordingSink";
 import { ToneSource } from "@/test/fakes/ToneSource";
+import { afterEach, describe, expect, it } from "vitest";
 
 /**
  * O caminho de áudio do Node inteiro, sem navegador nenhum: o PCM que o integrador empurra

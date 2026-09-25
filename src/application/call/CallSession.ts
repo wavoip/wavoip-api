@@ -21,7 +21,8 @@ export type CallSessionEvents = {
     /** A mídia subiu e está ligada à chamada: é a hora de existir um ActiveCall. */
     activated: [];
     /** A passagem da chamada que sai para a chamada ativa falhou. */
-    handoverFailed: [];
+    /** A mídia não subiu quando o outro lado atendeu; `cause` é o que a plataforma disse. */
+    handoverFailed: [cause: unknown];
     /** A chamada acabou por decisão daqui e não espera mais nada do servidor. */
     closed: [];
     connectionStatus: [status: TransportStatus];
@@ -333,9 +334,11 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         this.events.emit("status", this.status);
         try {
             await this.transport.connect(plan);
-        } catch {
+        } catch (cause) {
+            // A causa viaja junto: sem ela o integrador recebe um `MEDIA_NEGOTIATION_FAILED`
+            // mudo, e a diferença entre "o relay recusou" e "o plano veio errado" se perde.
             await this.stopMedia();
-            this.events.emit("handoverFailed");
+            this.events.emit("handoverFailed", cause);
             return;
         }
         this.activate();

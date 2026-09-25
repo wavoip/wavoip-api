@@ -1,7 +1,7 @@
 import { runDiagnostics } from "@/application/diagnostics/runDiagnostics";
 import type { DiagnosticCode } from "@/domain/diagnostics/types";
-import { type FakeAudioEngine, FakeAudioRuntime, type FakeMicrophone } from "@/test/fakes/FakeAudioRuntime";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
+import { type FakeAudioEngine, FakeAudioRuntime, type FakeMicrophone } from "@/test/fakes/FakeAudioRuntime";
 import { describe, expect, it, vi } from "vitest";
 
 /** Um runtime completo de mentira, para cada teste tirar dele só o que quer provar. */

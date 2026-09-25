@@ -52,10 +52,14 @@ describe("OutgoingCall — the peer answers", () => {
         const { outgoing, session } = makeOutgoing("UNOFFICIAL");
         const failed = vi.fn();
         outgoing.on("failed", failed);
-        harness.transports.current.startFailure = new Error("no mic");
+        const motivo = new Error("no mic");
+        harness.transports.current.startFailure = motivo;
 
         harness.fromServer(session, { type: "answered", plan: relayPlan });
-        await vi.waitFor(() => expect(failed).toHaveBeenCalledWith({ code: "MEDIA_NEGOTIATION_FAILED" }));
+        // A causa vai junto: sem ela o integrador não sabe o que impediu a mídia de subir.
+        await vi.waitFor(() =>
+            expect(failed).toHaveBeenCalledWith({ code: "MEDIA_NEGOTIATION_FAILED", cause: motivo }),
+        );
     });
 });
 

@@ -105,6 +105,22 @@ export function saveRecording(recording: CallRecording, prefix: string): void {
     peer.blocks.length = 0;
 }
 
+/**
+ * Mostra o código e, quando existe, o que a plataforma disse por baixo.
+ *
+ * Um `MEDIA_NEGOTIATION_FAILED` sozinho não diz se o relay recusou, se o plano veio errado ou
+ * se a rede caiu — e é justamente isso que se precisa saber quando a chamada falha.
+ */
+export function describeFailure(error: { code: string; cause?: unknown }): string {
+    if (error.cause === undefined) return error.code;
+    return `${error.code} — ${causeText(error.cause)}`;
+}
+
+function causeText(cause: unknown): string {
+    if (cause instanceof Error) return cause.message;
+    return typeof cause === "string" ? cause : JSON.stringify(cause);
+}
+
 export function requireToken(): string {
     const token = process.env.WAVOIP_TOKEN;
     if (!token) exitWith("defina WAVOIP_TOKEN com o token do seu device");

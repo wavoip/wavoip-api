@@ -45,7 +45,7 @@ export function OutgoingCallProxy(session: CallSession): OutgoingCall {
 
     session.on("activated", () => emitter.emit("accepted", ActiveCallProxy(session)));
     // A passagem da oferta pré-montada falhou: para quem ligou, a mídia é que não subiu.
-    session.on("handoverFailed", () => emitter.emit("failed", { code: "MEDIA_NEGOTIATION_FAILED" }));
+    session.on("handoverFailed", (cause) => emitter.emit("failed", { code: "MEDIA_NEGOTIATION_FAILED", cause }));
     session.on("rejected", () => emitter.emit("rejected"));
     session.on("unanswered", () => emitter.emit("unanswered"));
     session.on("failed", (error) => emitter.emit("failed", error));

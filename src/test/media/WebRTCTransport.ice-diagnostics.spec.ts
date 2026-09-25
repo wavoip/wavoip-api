@@ -1,7 +1,7 @@
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildMockPeerConnection } from "./ice-test-helpers";
 
 describe("WebRTCTransport ICE diagnostics", () => {

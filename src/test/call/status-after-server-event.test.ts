@@ -1,6 +1,6 @@
 import { ActiveCallProxy } from "@/modules/call/ActiveCall";
-import { OutgoingCallProxy } from "@/modules/call/OutgoingCall";
 import { IncomingCallProxy } from "@/modules/call/IncomingCall";
+import { OutgoingCallProxy } from "@/modules/call/OutgoingCall";
 import { CallHarness, relayPlan } from "@/test/support/CallHarness";
 import { beforeEach, describe, expect, it } from "vitest";
 

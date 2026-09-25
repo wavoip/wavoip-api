@@ -3,6 +3,7 @@ import {
     type CallRecording,
     buildRuntime,
     connect,
+    describeFailure,
     reportEnvironment,
     requireToken,
     saveRecording,
@@ -31,13 +32,13 @@ async function answer(offer: IncomingCall, recording: CallRecording): Promise<vo
 
     const { data: call, error } = await offer.accept();
     if (error) {
-        console.error("não deu para atender:", error.code);
+        console.error("não deu para atender:", describeFailure(error));
         return;
     }
 
     console.log("atendida; tocando a saudação");
     call.on("ended", () => saveRecording(recording, "recebida"));
-    call.on("failed", (failure) => console.error("a chamada caiu:", failure.code));
+    call.on("failed", (failure) => console.error("a chamada caiu:", describeFailure(failure)));
 
     watchAudio(call);
 }

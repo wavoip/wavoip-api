@@ -35,8 +35,8 @@ vi.mock("@/adapters/socketio/DeviceSocket", async (importOriginal) => {
 });
 
 import { Wavoip } from "@/Wavoip";
-import type { IceServer, PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
+import type { IceServer, PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
 import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
 import { buildMockPeerConnection } from "@/test/media/ice-test-helpers";
 

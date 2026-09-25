@@ -1,8 +1,8 @@
-import type { CallAudio } from "@/domain/call/audio";
 import { ClipDetector } from "@/domain/audio/ClipDetector";
 import { SpectrumAnalyser } from "@/domain/audio/SpectrumAnalyser";
-import { rmsInt16 } from "@/modules/media/audio-level";
+import type { CallAudio } from "@/domain/call/audio";
 import type { MediaRuntime } from "@/modules/media/ITransport";
+import { rmsInt16 } from "@/modules/media/audio-level";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { AudioHandle, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 

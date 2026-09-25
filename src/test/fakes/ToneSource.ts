@@ -1,4 +1,4 @@
-import { SAMPLE_RATE, type AudioSource } from "@/platform/node/audioIo";
+import { type AudioSource, SAMPLE_RATE } from "@/platform/node/audioIo";
 
 const TONE_HZ = 440;
 const AMPLITUDE = 12_000;

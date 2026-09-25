@@ -1,5 +1,5 @@
-import { WSStatsAdapter } from "@/modules/media/relay/StatsAdapter";
 import type { RelayMeasurements } from "@/modules/media/ITransport";
+import { WSStatsAdapter } from "@/modules/media/relay/StatsAdapter";
 import type { AudioEnginePort } from "@/ports/runtime/AudioEnginePort";
 import { describe, expect, it, vi } from "vitest";
 

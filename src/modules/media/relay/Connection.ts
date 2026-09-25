@@ -1,7 +1,7 @@
 import type { TransportStatus } from "@/modules/media/ITransport";
-import { EventEmitter } from "@/modules/shared/EventEmitter";
-import { SOCKET_OPEN, type MediaSocketFactory, type MediaSocketLike } from "@/ports/runtime/MediaSocketPort";
 import type { RelayAddress } from "@/modules/media/ITransport";
+import { EventEmitter } from "@/modules/shared/EventEmitter";
+import { type MediaSocketFactory, type MediaSocketLike, SOCKET_OPEN } from "@/ports/runtime/MediaSocketPort";
 
 // 1000 = o servidor encerrou de propósito; 1008 = o servidor recusou (ex.: token
 // inválido). Reconectar entraria em loop ou desfaria um fim intencional.
@@ -45,7 +45,12 @@ export class WSConnection extends EventEmitter<WSConnectionEvents> {
 
     async start(): Promise<void> {
         if (this.ws) return;
-        if (!this.server) throw new Error("O relay ainda não informou host e porta");
+        if (!this.server) {
+            throw new Error(
+                "a chamada não oficial não recebeu o endereço do relay: o servidor respondeu ao atendimento " +
+                    "sem um plano do tipo `relay`",
+            );
+        }
         this.ws = this.connect();
     }
 

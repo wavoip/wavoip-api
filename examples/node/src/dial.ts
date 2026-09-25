@@ -3,6 +3,7 @@ import {
     type CallRecording,
     buildRuntime,
     connect,
+    describeFailure,
     exitWith,
     reportEnvironment,
     requireToken,
@@ -48,13 +49,13 @@ function watchOutgoing(outgoing: OutgoingCall, recording: CallRecording): void {
     outgoing.on("accepted", (call) => {
         console.log("atenderam; tocando a saudação");
         call.on("ended", () => finish(recording));
-        call.on("failed", (failure) => console.error("a chamada caiu:", failure.code));
+        call.on("failed", (failure) => console.error("a chamada caiu:", describeFailure(failure)));
         watchAudio(call);
     });
 
     outgoing.on("rejected", () => finish(recording, "recusaram"));
     outgoing.on("unanswered", () => finish(recording, "ninguém atendeu"));
-    outgoing.on("failed", (failure) => finish(recording, `falhou: ${failure.code}`));
+    outgoing.on("failed", (failure) => finish(recording, `falhou: ${describeFailure(failure)}`));
     outgoing.on("ended", () => finish(recording, "o servidor encerrou a oferta"));
 }
 
