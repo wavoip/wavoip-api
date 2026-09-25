@@ -43,11 +43,29 @@ pelo número de canais, o áudio sai na metade da velocidade — e é o tipo de 
 arquivo mono nunca revelaria.
 {% endhint %}
 
-Para usar outro áudio, aponte para qualquer WAV de 16 bits:
+### Que arquivos dá para usar
 
 ```bash
 WAVOIP_AUDIO=./minha-mensagem.wav npm run answer
 ```
+
+O leitor aceita **qualquer WAV de PCM**, em qualquer taxa, mono ou estéreo:
+
+| Profundidade | Lê |
+| --- | --- |
+| 8 bits sem sinal | ✅ |
+| 16, 24 e 32 bits inteiros | ✅ |
+| 32 e 64 bits em ponto flutuante | ✅ |
+| `WAVE_FORMAT_EXTENSIBLE` (o cabeçalho de gravadores modernos) | ✅ |
+
+**Formatos comprimidos não**: mp3, ogg, m4a e opus precisam ser decodificados, e decodificar
+não é papel de um exemplo de telefonia. Converta antes:
+
+```bash
+ffmpeg -i musica.mp3 -c:a pcm_s16le saudacao.wav
+```
+
+O erro diz isso quando acontece, com o comando pronto.
 
 Por isso os exemplos também ligam o worker:
 
