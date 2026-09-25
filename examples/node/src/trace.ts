@@ -47,13 +47,14 @@ function device(target: Device): void {
 /** A chamada que sai, do primeiro toque ao desfecho. */
 function outgoing(call: OutgoingCall): void {
     line("call", `${call.id} · ${call.type} · para ${call.peer.phone} · status ${call.status}`);
+    const ringingSince = Date.now();
     ice(call);
     call.on("rejected", () => line("call", "o contato recusou"));
     call.on("unanswered", () => line("call", "ninguém atendeu"));
     call.on("ended", () => line("call", `oferta encerrada · status ${call.status}`));
     call.on("failed", (failure) => line("call", `falhou: ${failure.code}${causeOf(failure.cause)}`));
     call.on("accepted", (active) => {
-        line("call", `atendida depois de ${((Date.now() - startedAt) / 1_000).toFixed(1)}s de toque`);
+        line("call", `atendida depois de ${((Date.now() - ringingSince) / 1_000).toFixed(1)}s de toque`);
         activeCall(active);
     });
 }
