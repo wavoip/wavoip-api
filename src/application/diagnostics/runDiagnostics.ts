@@ -67,7 +67,7 @@ async function microphoneChecks(runtime: WavoipRuntime): Promise<DiagnosticCheck
     try {
         await runtime.microphone.open();
     } catch (cause) {
-        return [{ code: "MICROPHONE_PERMISSION_DENIED", severity: "failure", details: { cause: String(cause) } }];
+        return [refusalOf(cause)];
     }
 
     try {
@@ -108,22 +108,38 @@ function listenFor(ms: number): Promise<void> {
     return new Promise((done) => setTimeout(done, ms));
 }
 
-/** Com a permissão dada, a lista vem com nome e conta o que existe de verdade. */
+/**
+ * Por que o microfone não abriu. A plataforma diz a diferença entre "ninguém deixou" e "não
+ * há aparelho", e são coisas distintas para quem lê: uma se resolve na caixa de permissão, a
+ * outra ligando um microfone.
+ */
+function refusalOf(cause: unknown): DiagnosticCheck {
+    const name = (cause as { name?: unknown })?.name;
+    const details = { cause: String(cause) };
+
+    if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+        return { code: "MICROPHONE_MISSING", severity: "failure", details };
+    }
+    return { code: "MICROPHONE_PERMISSION_DENIED", severity: "failure", details };
+}
+
+/**
+ * Com o microfone aberto, a lista diz o que existe — e nome só aparece depois da permissão.
+ *
+ * Lista vazia **não** reprova o ambiente: quem provou que há entrada de áudio foi o `open()`
+ * que acabou de funcionar. Num processo sem cabeça não há aparelho algum a enumerar, porque o
+ * áudio vem da fonte que o integrador injetou, e reprovar por isso seria falso.
+ */
 function deviceChecks(runtime: WavoipRuntime): DiagnosticCheck[] {
     const inputs = runtime.audio.listInputDevices();
     const outputs = runtime.audio.listOutputDevices();
+    if (inputs.length === 0) return [];
 
     const checks: DiagnosticCheck[] = [
-        inputs.length === 0
-            ? { code: "MICROPHONE_MISSING", severity: "failure" }
-            : { code: "MICROPHONE_FOUND", severity: "ok", details: { count: inputs.length, names: nameOf(inputs) } },
+        { code: "MICROPHONE_FOUND", severity: "ok", details: { count: inputs.length, names: nameOf(inputs) } },
     ];
-
-    // Um processo sem cabeça não tem alto-falante e não deveria ser reprovado por isso; quem
-    // tem lista de saída e ela vem vazia é que perdeu o aparelho.
-    if (outputs.length === 0 && inputs.length > 0) {
-        checks.push({ code: "SPEAKER_MISSING", severity: "warning" });
-    }
+    // Quem tem lista de entrada e não tem a de saída perdeu o aparelho no caminho.
+    if (outputs.length === 0) checks.push({ code: "SPEAKER_MISSING", severity: "warning" });
     return checks;
 }
 

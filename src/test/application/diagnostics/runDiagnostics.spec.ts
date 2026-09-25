@@ -102,9 +102,12 @@ describe("runDiagnostics", () => {
         expect(found?.details).toEqual({ count: 1, names: ["Microfone"] });
     });
 
-    it("fails when there is no microphone at all, for either call type", async () => {
+    /** Quem denuncia a falta de microfone é a plataforma ao recusar, e não a lista vazia. */
+    it("fails when the platform says there is no microphone", async () => {
         const runtime = runtimeWith();
-        runtime.audio.listInputDevices = () => [];
+        runtime.microphone.failWith = Object.assign(new Error("Requested device not found"), {
+            name: "NotFoundError",
+        });
 
         const report = await runDiagnostics({ runtime, stunServers: [] });
 
@@ -113,12 +116,28 @@ describe("runDiagnostics", () => {
     });
 
     /**
+     * Num processo sem cabeça não há aparelho algum a enumerar: o áudio vem da fonte que o
+     * integrador injetou. Reprovar por lista vazia diria que o ambiente não liga, e ele liga.
+     */
+    it("does not fail a platform that has audio but no devices to list", async () => {
+        const runtime = runtimeWith();
+        runtime.audio.listInputDevices = () => [];
+        runtime.audio.listOutputDevices = () => [];
+
+        const report = await runDiagnostics({ runtime, stunServers: [] });
+
+        expect(codesOf(report.checks)).not.toContain("MICROPHONE_MISSING");
+        expect(report.readiness.OFFICIAL.ready).toBe(true);
+        expect(report.readiness.UNOFFICIAL.ready).toBe(true);
+    });
+
+    /**
      * Pedir a permissão é o ponto: sem ela a plataforma devolve entradas anônimas e o
      * diagnóstico não saberia dizer se a chamada vai sair.
      */
     it("asks for the microphone, and fails the environment when it is denied", async () => {
         const runtime = runtimeWith();
-        runtime.microphone.failWith = new Error("NotAllowedError: Permission denied");
+        runtime.microphone.failWith = Object.assign(new Error("Permission denied"), { name: "NotAllowedError" });
 
         const report = await runDiagnostics({ runtime, stunServers: [] });
         const denied = report.checks.find((check) => check.code === "MICROPHONE_PERMISSION_DENIED");
