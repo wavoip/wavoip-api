@@ -1,5 +1,13 @@
-import type { ActiveCall, IncomingCall } from "@wavoip/wavoip-api/node";
-import { type Recording, buildRuntime, connect, reportEnvironment, requireToken, saveRecording } from "./shared.ts";
+import type { IncomingCall } from "@wavoip/wavoip-api/node";
+import {
+    type Recording,
+    buildRuntime,
+    connect,
+    reportEnvironment,
+    requireToken,
+    saveRecording,
+    watchAudio,
+} from "./shared.ts";
 
 /**
  * Atende as chamadas que chegam, toca a saudação e grava o que o contato falou.
@@ -31,20 +39,7 @@ async function answer(offer: IncomingCall, recording: Recording): Promise<void> 
     call.on("ended", () => saveRecording(recording, "recebida"));
     call.on("failed", (failure) => console.error("a chamada caiu:", failure.code));
 
-    watchQuality(call);
-}
-
-/**
- * O estouro é o defeito que quem fala nunca percebe, só quem ouve — e o ganho do outro lado
- * pode mudar no meio da conversa, então não basta olhar no diagnóstico.
- */
-function watchQuality(call: ActiveCall): void {
-    const timer = setInterval(() => {
-        const clipping = call.audio.in.clipping();
-        if (clipping > 0.02) console.warn(`  o áudio do contato está estourando (${(clipping * 100).toFixed(0)}%)`);
-    }, 1_000);
-
-    call.on("ended", () => clearInterval(timer));
+    watchAudio(call);
 }
 
 main().catch((error: unknown) => {

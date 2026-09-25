@@ -1,4 +1,4 @@
-import { Wavoip, type WavoipRuntime, nodeRuntime, runDiagnostics } from "@wavoip/wavoip-api/node";
+import { type ActiveCall, Wavoip, type WavoipRuntime, nodeRuntime, runDiagnostics } from "@wavoip/wavoip-api/node";
 import { STUDIO_RATE, greetingSource, studioSink } from "./audio.ts";
 import { writeWav } from "./wav.ts";
 
@@ -46,6 +46,42 @@ export function connect(token: string, runtime: WavoipRuntime): Wavoip {
     device?.on("statusChanged", (status) => console.log(`device: ${status}`));
     device?.on("connectionStatusChanged", (status) => console.log(`conexão: ${status}`));
     return wavoip;
+}
+
+/**
+ * Mostra o nível das duas direções a cada segundo.
+ *
+ * É o que responde "estou mandando áudio?" sem adivinhação: se o `saída` fica em zero, o
+ * problema é a fonte, e não a rede. O estouro entra na mesma linha porque é o defeito que
+ * quem fala nunca percebe.
+ */
+export function watchAudio(call: ActiveCall): void {
+    const timer = setInterval(() => {
+        const saida = call.audio.out;
+        const entrada = call.audio.in;
+        console.log(
+            `  saída ${bar(saida.level())} ${pct(saida.level())}` +
+                `   entrada ${bar(entrada.level())} ${pct(entrada.level())}` +
+                warnClipping(saida.clipping(), entrada.clipping()),
+        );
+    }, 1_000);
+
+    call.on("ended", () => clearInterval(timer));
+}
+
+function bar(level: number): string {
+    const filled = Math.min(10, Math.round(level * 20));
+    return `[${"#".repeat(filled)}${" ".repeat(10 - filled)}]`;
+}
+
+function pct(level: number): string {
+    return `${String(Math.round(level * 100)).padStart(3)}%`;
+}
+
+function warnClipping(out: number, incoming: number): string {
+    if (out > 0.02) return `   ⚠ a sua saída está estourando (${Math.round(out * 100)}%)`;
+    if (incoming > 0.02) return `   ⚠ o contato está estourando (${Math.round(incoming * 100)}%)`;
+    return "";
 }
 
 export function saveRecording(recording: Recording, prefix: string): void {

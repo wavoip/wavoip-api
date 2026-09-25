@@ -1,4 +1,4 @@
-import type { ActiveCall, OutgoingCall } from "@wavoip/wavoip-api/node";
+import type { OutgoingCall } from "@wavoip/wavoip-api/node";
 import {
     type Recording,
     buildRuntime,
@@ -7,6 +7,7 @@ import {
     reportEnvironment,
     requireToken,
     saveRecording,
+    watchAudio,
 } from "./shared.ts";
 
 const RING_TIMEOUT_MS = 45_000;
@@ -48,7 +49,7 @@ function watchOutgoing(outgoing: OutgoingCall, recording: Recording): void {
         console.log("atenderam; tocando a saudação");
         call.on("ended", () => finish(recording));
         call.on("failed", (failure) => console.error("a chamada caiu:", failure.code));
-        watchQuality(call);
+        watchAudio(call);
     });
 
     outgoing.on("rejected", () => finish(recording, "recusaram"));
@@ -65,15 +66,6 @@ function giveUpAfter(outgoing: OutgoingCall, ms: number): void {
     const timer = setTimeout(() => void outgoing.cancel(), ms);
     outgoing.on("accepted", () => clearTimeout(timer));
     outgoing.on("ended", () => clearTimeout(timer));
-}
-
-function watchQuality(call: ActiveCall): void {
-    const timer = setInterval(() => {
-        const clipping = call.audio.out.clipping();
-        if (clipping > 0.02) console.warn(`  a sua saudação está estourando (${(clipping * 100).toFixed(0)}%)`);
-    }, 1_000);
-
-    call.on("ended", () => clearInterval(timer));
 }
 
 function finish(recording: Recording, reason?: string): void {
