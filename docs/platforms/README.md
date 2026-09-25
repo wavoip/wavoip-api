@@ -25,6 +25,7 @@ const wavoip = new Wavoip({ tokens, runtime })  // o runtime vem do seu ambiente
 | Chamada não oficial (relay) | ✅ | ✅ | — recusada com código |
 | Microfone e alto-falante | do aparelho | seus `source`/`sink` | do aparelho |
 | Nível do áudio (`level()`) | ✅ | ✅ | — devolve 0 |
+| Sessão de áudio do sistema | do navegador | — (não há) | `InCallManager`, automático |
 | Listar aparelhos de áudio | ✅ | — (não há) | ✅ |
 | Tamanho do adaptador | ~2 MB | ~9 kB | ~3 kB |
 | Reamostragem automática | do navegador | ✅, opcionalmente em outro thread | não precisa: a track vai direto |

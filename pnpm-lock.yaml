@@ -36,6 +36,9 @@ importers:
       react-native-audio-api:
         specifier: ^0.13.6
         version: 0.13.6(react-native@0.87.1(@babel/core@7.29.7)(react@19.3.0))(react@19.3.0)
+      react-native-incall-manager:
+        specifier: ^4.3.0
+        version: 4.3.0(react-native@0.87.1(@babel/core@7.29.7)(react@19.3.0))
       react-native-webrtc:
         specifier: ^124.0.8
         version: 124.0.8(react-native@0.87.1(@babel/core@7.29.7)(react@19.3.0))
@@ -1582,6 +1585,11 @@ packages:
       react-native-worklets:
         optional: true
 
+  react-native-incall-manager@4.3.0:
+    resolution: {integrity: sha512-T9TayjZH0n8kVX0KMaVCRethCJWgWC83xL8elVUV54Ue0BpFh5B8YvQUsn8p0Kxoh5zYz+MCOD9/6RrFpC+IRg==}
+    peerDependencies:
+      react-native: '>=0.40.0'
+
   react-native-webrtc@124.0.8:
     resolution: {integrity: sha512-uuQxvmk+mvnk5U0tr+1N42sKZqgm41fJrBA+fmCvML9J9P4roSh2So82t5RHAlu/vE9vxu5AKgivAiH61clCBg==}
     peerDependencies:
@@ -2375,7 +2383,7 @@ snapshots:
   '@react-native/codegen@0.87.1(@babel/core@7.29.7)':
     dependencies:
       '@babel/core': 7.29.7
-      '@babel/parser': 7.29.2
+      '@babel/parser': 7.29.9
       hermes-parser: 0.36.1
       invariant: 2.2.4
       nullthrows: 1.1.1
@@ -2389,7 +2397,7 @@ snapshots:
       debug: 4.4.0
       invariant: 2.2.4
       metro: 0.87.1
-      semver: 7.5.4
+      semver: 7.8.5
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -3361,7 +3369,7 @@ snapshots:
   metro-source-map@0.87.1:
     dependencies:
       '@babel/traverse': 7.29.8
-      '@babel/types': 7.29.0
+      '@babel/types': 7.29.8
       flow-enums-runtime: 0.0.6
       invariant: 2.2.4
       metro-symbolicate: 0.87.1
@@ -3398,8 +3406,8 @@ snapshots:
     dependencies:
       '@babel/core': 7.29.7
       '@babel/generator': 7.29.8
-      '@babel/parser': 7.29.2
-      '@babel/types': 7.29.0
+      '@babel/parser': 7.29.9
+      '@babel/types': 7.29.8
       flow-enums-runtime: 0.0.6
       metro: 0.87.1
       metro-babel-transformer: 0.87.1
@@ -3419,10 +3427,10 @@ snapshots:
       '@babel/code-frame': 7.29.7
       '@babel/core': 7.29.7
       '@babel/generator': 7.29.8
-      '@babel/parser': 7.29.2
+      '@babel/parser': 7.29.9
       '@babel/template': 7.29.7
       '@babel/traverse': 7.29.8
-      '@babel/types': 7.29.0
+      '@babel/types': 7.29.8
       accepts: 2.0.0
       connect: 3.7.0
       debug: 4.4.0
@@ -3599,6 +3607,10 @@ snapshots:
       react-native: 0.87.1(@babel/core@7.29.7)(react@19.3.0)
       semver: 7.8.5
 
+  react-native-incall-manager@4.3.0(react-native@0.87.1(@babel/core@7.29.7)(react@19.3.0)):
+    dependencies:
+      react-native: 0.87.1(@babel/core@7.29.7)(react@19.3.0)
+
   react-native-webrtc@124.0.8(react-native@0.87.1(@babel/core@7.29.7)(react@19.3.0)):
     dependencies:
       base64-js: 1.5.1
@@ -3634,7 +3646,7 @@ snapshots:
       react-refresh: 0.14.2
       regenerator-runtime: 0.13.11
       scheduler: 0.27.0
-      semver: 7.5.4
+      semver: 7.8.5
       stacktrace-parser: 0.1.11
       tinyglobby: 0.2.15
       whatwg-fetch: 3.6.20

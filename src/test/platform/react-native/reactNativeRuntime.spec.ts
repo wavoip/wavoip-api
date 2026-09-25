@@ -5,6 +5,18 @@ const devices = new FakeRNMediaDevices();
 
 // O `react-native-webrtc` é publicado com sintaxe que só o Metro transforma, então aqui ele é
 // substituído inteiro. O que se testa é a nossa lógica em volta dele.
+const inCall = { started: [] as unknown[], stops: 0 };
+
+// O `InCallManager` mexe na sessão de áudio do sistema; aqui só se registra o que foi pedido.
+vi.mock("react-native-incall-manager", () => ({
+    default: {
+        start: (setup: unknown) => inCall.started.push(setup),
+        stop: () => {
+            inCall.stops += 1;
+        },
+    },
+}));
+
 vi.mock("react-native-webrtc", () => ({
     mediaDevices: devices,
     RTCPeerConnection: class {
@@ -17,6 +29,8 @@ const { RNMicrophone } = await import("@/platform/react-native/RNMicrophone");
 const { RNAudioDevices } = await import("@/platform/react-native/rnAudioDevices");
 
 beforeEach(() => {
+    inCall.started.length = 0;
+    inCall.stops = 0;
     devices.getUserMediaCalls = 0;
     devices.failWith = null;
     devices.listed = [];
@@ -41,6 +55,34 @@ describe("reactNativeRuntime", () => {
         expect((peer as unknown as { config: unknown }).config).toEqual({
             iceServers: [{ urls: "stun:example:3478" }],
         });
+    });
+
+    /**
+     * Sem isto o iOS fica na categoria `Ambient`, que obedece ao botão de silencioso: a
+     * chamada conecta, os pacotes chegam, e ninguém ouve nada. O momento é o da track remota
+     * — antes o WebRTC nativo sobrescreve, depois o áudio já saiu pela rota errada.
+     */
+    it("tells the system this is a call, at the moment the remote track arrives", () => {
+        const engine = reactNativeRuntime().engine;
+
+        expect(inCall.started).toEqual([]);
+        const meter = engine.renderRemote({} as never);
+
+        expect(inCall.started).toEqual([{ media: "audio" }]);
+        expect(inCall.stops).toBe(0);
+
+        meter.stop();
+        expect(inCall.stops).toBe(1);
+    });
+
+    it("hands the audio session back when the engine closes", async () => {
+        await reactNativeRuntime().engine.close();
+        expect(inCall.stops).toBe(1);
+    });
+
+    it("does not claim the audio session just to watch the microphone", () => {
+        reactNativeRuntime().engine.monitorStream({} as never);
+        expect(inCall.started).toEqual([]);
     });
 
     it("reports no playout latency, because the platform does not tell", () => {

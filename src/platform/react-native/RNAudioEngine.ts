@@ -1,29 +1,28 @@
 import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
+import InCallManager from "react-native-incall-manager";
 
 /**
- * Um medidor que ainda não mede: o react-native-webrtc não expõe o nível do áudio, e ler o
- * `getStats()` dele não serve porque o campo não está no contrato — seria adivinhação.
- *
- * Medir de verdade pede o `react-native-audio-api`, que é o mesmo pacote de que o relay vai
- * precisar. Até lá, `level()` devolve 0, e a matriz de plataformas no `docs/` diz isso —
- * chegar a zero por falta de implementação, e não por silêncio, é a única parte que o
- * integrador precisa saber.
+ * Um medidor que ainda não mede: o `react-native-webrtc` não expõe o nível do áudio, e o
+ * `audioLevel` do `getStats()` dele não está nas tipagens nem tem suporte igual nas duas
+ * plataformas — ler dali seria adivinhação. Medir de verdade pede o `react-native-audio-api`,
+ * o mesmo pacote de que o relay vai precisar. A matriz de plataformas no `docs/` diz isso.
  */
 function unmeasuredMeter(stop: () => void): AudioMeter {
     return { level: () => 0, stop };
 }
 
 /**
- * O áudio de uma chamada oficial no React Native, que é quase todo trabalho do nativo.
+ * O áudio de uma chamada oficial no React Native, que é quase todo trabalho do nativo: o
+ * `react-native-webrtc` toca a track remota por conta própria, sem grafo de áudio nenhum.
  *
- * O react-native-webrtc toca o áudio que chega por conta própria, assim que a track entra na
- * conexão: não há alto-falante para abrir nem grafo de áudio a montar, e é por isso que este
- * motor é tão pequeno comparado ao do navegador.
+ * O que sobra, e não é pouco, é a **sessão de áudio do sistema**. Sem ela configurada o iOS
+ * mantém a categoria `Ambient`, que obedece ao botão de silencioso: a chamada conecta, o
+ * `inbound-rtp` conta pacotes, e o usuário não ouve nada. O `InCallManager` é quem acerta
+ * isso, e é por isso que ele é dependência de par deste caminho e não um extra.
  *
- * O caminho do relay (`capturePcm` e `playPcm`) não passa por aqui, porque o runtime do React
- * Native não declara `openSocket`: o `Wavoip` recusa a chamada não oficial antes de abri-la,
- * em vez de descobrir no meio que não sabe tratar PCM.
+ * O caminho do relay não passa por aqui: o runtime não declara `openSocket`, então o núcleo
+ * recusa a chamada não oficial com `CALL_TYPE_UNSUPPORTED` antes de abri-la.
  */
 export class RNAudioEngine implements AudioEnginePort {
     /** O nativo não informa a latência até o alto-falante. */
@@ -32,11 +31,22 @@ export class RNAudioEngine implements AudioEnginePort {
     async prepare(): Promise<void> {}
     async resume(): Promise<void> {}
     async suspend(): Promise<void> {}
-    async close(): Promise<void> {}
 
-    /** Já está tocando: o nativo roteia a track remota para a saída do aparelho sozinho. */
+    async close(): Promise<void> {
+        InCallManager.stop();
+    }
+
+    /**
+     * A track já está tocando; o que falta é dizer ao sistema que isto é uma chamada.
+     *
+     * Este é o momento exato de fazê-lo — quando a track remota chega, e não quando a conexão
+     * abre. É o que a comunidade do `react-native-webrtc` apurou depois de casos de chamada
+     * silenciosa no iOS: configurar antes disso o WebRTC nativo sobrescreve, e configurar
+     * depois o áudio já saiu pela rota errada.
+     */
     renderRemote(_stream: MediaStreamLike): AudioMeter {
-        return unmeasuredMeter(() => {});
+        InCallManager.start({ media: "audio" });
+        return unmeasuredMeter(() => InCallManager.stop());
     }
 
     monitorStream(_stream: MediaStreamLike): AudioMeter {
