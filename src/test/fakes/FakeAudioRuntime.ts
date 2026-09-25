@@ -54,14 +54,20 @@ export class FakeMicrophone implements MicrophonePort {
     muted = false;
     opens = 0;
     closes = 0;
+    isOpen = false;
+    /** O teste faz o microfone recusar, como o navegador recusa quem nega a permissão. */
+    failWith: Error | null = null;
 
     async open(): Promise<MediaStreamLike> {
         this.opens += 1;
+        if (this.failWith) throw this.failWith;
+        this.isOpen = true;
         return this.stream;
     }
 
     async close(): Promise<void> {
         this.closes += 1;
+        this.isOpen = false;
     }
 
     setMuted(muted: boolean): void {

@@ -22,7 +22,7 @@ export type DiagnosticsOptions = {
 export async function runDiagnostics({ runtime, stunServers }: DiagnosticsOptions): Promise<DiagnosticsReport> {
     const checks: DiagnosticCheck[] = [
         ...(await audioChecks(runtime)),
-        ...microphoneChecks(runtime),
+        ...(await microphoneChecks(runtime)),
         ...transportChecks(runtime),
         ...(await networkChecks(runtime, stunServers ?? DEFAULT_STUN_SERVERS)),
     ];
@@ -48,19 +48,50 @@ async function audioChecks(runtime: WavoipRuntime): Promise<DiagnosticCheck[]> {
 }
 
 /**
- * A lista de aparelhos, e não `open()`: abrir o microfone dispara o pedido de permissão, e um
- * diagnóstico não pode mexer com a pessoa. Nome vazio já diz o que precisa ser dito — é o que
- * a plataforma devolve enquanto a permissão não foi dada.
+ * Abre o microfone, e é de propósito que abra: sem permissão a plataforma não conta o que está
+ * ligado — devolve entradas anônimas, e às vezes nem isso. Um diagnóstico que não pede a
+ * permissão não responde à pergunta que ele existe para responder, que é se a chamada vai sair.
+ *
+ * Fecha só se foi ele que abriu. O stream é o mesmo de todas as chamadas: fechar um que uma
+ * chamada está usando cortaria o áudio dela no meio.
  */
-function microphoneChecks(runtime: WavoipRuntime): DiagnosticCheck[] {
-    const inputs = runtime.audio.listInputDevices();
-    if (inputs.length === 0) return [{ code: "MICROPHONE_MISSING", severity: "failure" }];
+async function microphoneChecks(runtime: WavoipRuntime): Promise<DiagnosticCheck[]> {
+    const wasOpen = runtime.microphone.isOpen;
 
-    const found: DiagnosticCheck = { code: "MICROPHONE_FOUND", severity: "ok", details: { count: inputs.length } };
-    if (inputs.every((device) => device.label === "")) {
-        return [found, { code: "MICROPHONE_PERMISSION_PENDING", severity: "warning" }];
+    try {
+        await runtime.microphone.open();
+    } catch (cause) {
+        return [{ code: "MICROPHONE_PERMISSION_DENIED", severity: "failure", details: { cause: String(cause) } }];
     }
-    return [found];
+
+    try {
+        return deviceChecks(runtime);
+    } finally {
+        if (!wasOpen) await runtime.microphone.close().catch(() => {});
+    }
+}
+
+/** Com a permissão dada, a lista vem com nome e conta o que existe de verdade. */
+function deviceChecks(runtime: WavoipRuntime): DiagnosticCheck[] {
+    const inputs = runtime.audio.listInputDevices();
+    const outputs = runtime.audio.listOutputDevices();
+
+    const checks: DiagnosticCheck[] = [
+        inputs.length === 0
+            ? { code: "MICROPHONE_MISSING", severity: "failure" }
+            : { code: "MICROPHONE_FOUND", severity: "ok", details: { count: inputs.length, names: nameOf(inputs) } },
+    ];
+
+    // Um processo sem cabeça não tem alto-falante e não deveria ser reprovado por isso; quem
+    // tem lista de saída e ela vem vazia é que perdeu o aparelho.
+    if (outputs.length === 0 && inputs.length > 0) {
+        checks.push({ code: "SPEAKER_MISSING", severity: "warning" });
+    }
+    return checks;
+}
+
+function nameOf(devices: readonly { label: string }[]): string[] {
+    return devices.map((device) => device.label).filter((label) => label !== "");
 }
 
 function transportChecks(runtime: WavoipRuntime): DiagnosticCheck[] {

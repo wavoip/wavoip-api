@@ -15,8 +15,8 @@ export type Readiness = {
  * reprovar o ambiente por isso seria alarme falso. Ele é aviso, não impedimento.
  */
 const BLOCKERS: Readonly<Record<CallType, readonly DiagnosticCode[]>> = {
-    OFFICIAL: ["AUDIO_ENGINE_FAILED", "MICROPHONE_MISSING", "WEBRTC_MISSING"],
-    UNOFFICIAL: ["AUDIO_ENGINE_FAILED", "MICROPHONE_MISSING", "BINARY_SOCKET_MISSING"],
+    OFFICIAL: ["AUDIO_ENGINE_FAILED", "MICROPHONE_MISSING", "MICROPHONE_PERMISSION_DENIED", "WEBRTC_MISSING"],
+    UNOFFICIAL: ["AUDIO_ENGINE_FAILED", "MICROPHONE_MISSING", "MICROPHONE_PERMISSION_DENIED", "BINARY_SOCKET_MISSING"],
 };
 
 function of(checks: readonly DiagnosticCheck[]): Readonly<Record<CallType, Readiness>> {

@@ -16,8 +16,10 @@ export type DiagnosticCode =
     | "MICROPHONE_FOUND"
     /** Não há microfone algum para a chamada usar. */
     | "MICROPHONE_MISSING"
-    /** Os aparelhos aparecem sem nome, o que só acontece antes da permissão ser dada. */
-    | "MICROPHONE_PERMISSION_PENDING"
+    /** A pessoa negou o microfone, ou a plataforma o recusou: sem ele não há chamada. */
+    | "MICROPHONE_PERMISSION_DENIED"
+    /** Não há saída de áudio: a chamada acontece, mas ninguém ouve o contato. */
+    | "SPEAKER_MISSING"
     /** A plataforma faz chamada oficial: existe WebRTC. */
     | "WEBRTC_AVAILABLE"
     | "WEBRTC_MISSING"

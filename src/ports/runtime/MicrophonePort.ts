@@ -8,6 +8,14 @@ import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
  * the same one.
  */
 export interface MicrophonePort {
+    /**
+     * Whether the shared stream is already open.
+     *
+     * Whoever opens the microphone for a moment — the diagnostics do — has to know this
+     * before closing it: the stream belongs to every call at once, and closing one that a
+     * call is using cuts that call's audio.
+     */
+    readonly isOpen: boolean;
     open(): Promise<MediaStreamLike>;
     close(): Promise<void>;
     readonly muted: boolean;

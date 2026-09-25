@@ -84,6 +84,10 @@ export class WebAudioDevices extends EventEmitter<WebAudioDevicesEvents> impleme
         return hasMic && hasSpeaker;
     }
 
+    get isOpen(): boolean {
+        return this.stream !== undefined;
+    }
+
     async open(): Promise<MediaStream> {
         if (this.stream) return this.stream;
 

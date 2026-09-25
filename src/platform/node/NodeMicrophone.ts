@@ -28,6 +28,10 @@ export class NodeMicrophone implements MicrophonePort {
         return this._muted;
     }
 
+    get isOpen(): boolean {
+        return this.stream !== null;
+    }
+
     async open(): Promise<MediaStreamLike> {
         if (this.stream) return this.stream;
 

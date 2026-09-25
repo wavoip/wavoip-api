@@ -1,18 +1,21 @@
 import { runDiagnostics } from "@/application/diagnostics/runDiagnostics";
 import type { DiagnosticCode } from "@/domain/diagnostics/types";
-import { type FakeAudioEngine, FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
+import { type FakeAudioEngine, FakeAudioRuntime, type FakeMicrophone } from "@/test/fakes/FakeAudioRuntime";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
 import { describe, expect, it } from "vitest";
 
 /** Um runtime completo de mentira, para cada teste tirar dele só o que quer provar. */
-function runtimeWith(overrides: Partial<WavoipRuntime> = {}): WavoipRuntime & { engine: FakeAudioEngine } {
+function runtimeWith(overrides: Partial<WavoipRuntime> = {}): WavoipRuntime & {
+    engine: FakeAudioEngine;
+    microphone: FakeMicrophone;
+} {
     const fake = new FakeAudioRuntime();
     return {
         engine: fake.engine,
         microphone: fake.microphone,
         audio: {
             listInputDevices: () => [{ id: "mic", label: "Microfone", kind: "input" as const }],
-            listOutputDevices: () => [],
+            listOutputDevices: () => [{ id: "speaker", label: "Alto-falante", kind: "output" as const }],
             currentInput: null,
             currentOutput: null,
             selectInput: async () => ({ data: null, error: { code: "INPUT_SELECTION_UNSUPPORTED" as const } }),
@@ -21,7 +24,7 @@ function runtimeWith(overrides: Partial<WavoipRuntime> = {}): WavoipRuntime & { 
         createPeer: fake.createPeer,
         openSocket: fake.openSocket,
         ...overrides,
-    } as WavoipRuntime & { engine: FakeAudioEngine };
+    } as WavoipRuntime & { engine: FakeAudioEngine; microphone: FakeMicrophone };
 }
 
 const codesOf = (checks: readonly { code: DiagnosticCode }[]) => checks.map((check) => check.code);
@@ -71,11 +74,11 @@ describe("runDiagnostics", () => {
         expect(report.readiness.OFFICIAL.ready).toBe(false);
     });
 
-    it("counts the microphones it found", async () => {
+    it("counts the microphones it found, with their names", async () => {
         const report = await runDiagnostics({ runtime: runtimeWith(), stunServers: [] });
         const found = report.checks.find((check) => check.code === "MICROPHONE_FOUND");
 
-        expect(found?.details).toEqual({ count: 1 });
+        expect(found?.details).toEqual({ count: 1, names: ["Microfone"] });
     });
 
     it("fails when there is no microphone at all, for either call type", async () => {
@@ -88,16 +91,53 @@ describe("runDiagnostics", () => {
         expect(report.readiness.UNOFFICIAL.blockedBy).toContain("MICROPHONE_MISSING");
     });
 
-    /** Nome vazio é o que a plataforma devolve enquanto a permissão não foi dada. */
-    it("notices that the permission has not been granted yet, without asking for it", async () => {
+    /**
+     * Pedir a permissão é o ponto: sem ela a plataforma devolve entradas anônimas e o
+     * diagnóstico não saberia dizer se a chamada vai sair.
+     */
+    it("asks for the microphone, and fails the environment when it is denied", async () => {
         const runtime = runtimeWith();
-        runtime.audio.listInputDevices = () => [{ id: "mic", label: "", kind: "input" }];
+        runtime.microphone.failWith = new Error("NotAllowedError: Permission denied");
+
+        const report = await runDiagnostics({ runtime, stunServers: [] });
+        const denied = report.checks.find((check) => check.code === "MICROPHONE_PERMISSION_DENIED");
+
+        expect(denied?.details?.cause).toContain("Permission denied");
+        expect(report.readiness.OFFICIAL.ready).toBe(false);
+        expect(report.readiness.UNOFFICIAL.ready).toBe(false);
+    });
+
+    it("closes the microphone it opened, so the recording indicator goes away", async () => {
+        const runtime = runtimeWith();
+
+        await runDiagnostics({ runtime, stunServers: [] });
+
+        expect(runtime.microphone.opens).toBe(1);
+        expect(runtime.microphone.closes).toBe(1);
+        expect(runtime.microphone.isOpen).toBe(false);
+    });
+
+    /**
+     * Regressão: o stream é o mesmo de todas as chamadas. Rodar o diagnóstico durante uma
+     * chamada não pode fechá-lo, ou o áudio dela morre no meio.
+     */
+    it("leaves a microphone that was already open alone", async () => {
+        const runtime = runtimeWith();
+        await runtime.microphone.open();
+
+        await runDiagnostics({ runtime, stunServers: [] });
+
+        expect(runtime.microphone.closes).toBe(0);
+        expect(runtime.microphone.isOpen).toBe(true);
+    });
+
+    it("warns when there is no output, without failing the call", async () => {
+        const runtime = runtimeWith();
+        runtime.audio.listOutputDevices = () => [];
 
         const report = await runDiagnostics({ runtime, stunServers: [] });
 
-        expect(codesOf(report.checks)).toContain("MICROPHONE_PERMISSION_PENDING");
-        // Avisar não é reprovar: a chamada pede a permissão quando abrir.
+        expect(codesOf(report.checks)).toContain("SPEAKER_MISSING");
         expect(report.readiness.OFFICIAL.ready).toBe(true);
-        expect(runtime.microphone.muted).toBe(false);
     });
 });
