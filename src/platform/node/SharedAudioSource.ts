@@ -1,4 +1,4 @@
-import type { AudioSource } from "@/platform/node/audioIo";
+import type { NormalizedSource } from "@/platform/node/NormalizingSource";
 import type { Unsubscribe } from "@/modules/shared/EventEmitter";
 
 /**
@@ -17,7 +17,7 @@ export class SharedAudioSource {
     private running = false;
     private silenced = false;
 
-    constructor(private readonly source: AudioSource) {}
+    constructor(private readonly source: NormalizedSource) {}
 
     /** Cala a fonte para todos os consumidores de uma vez. */
     silence(silenced: boolean): void {

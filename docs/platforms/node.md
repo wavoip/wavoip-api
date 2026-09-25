@@ -42,18 +42,22 @@ traz o WebRTC nativo e o `ws`, o socket binário do relay.
 
 ```typescript
 type AudioSource = {
-    start(onFrame: (pcm: Int16Array) => void): void
+    sampleRate?: number      // padrão 16000; o resto é reamostrado
+    channelCount?: number    // padrão 1; estéreo intercalado é misturado
+    start(onFrame: (pcm: Int16Array | Float32Array) => void): void
     stop(): void
 }
 
 type AudioSink = {
+    sampleRate?: number      // padrão 16000; a taxa em que você quer receber
     write(pcm: Int16Array): void
     end(): void
 }
 ```
 
-Os dois falam **PCM Int16, 16 kHz, mono** — o mesmo formato que a biblioteca usa de ponta a
-ponta. Por isso nada é reamostrado no caminho, e o adaptador de Node não precisa de WebAssembly.
+**Entregue o que o seu decodificador já produz.** `Int16Array` ou `Float32Array`, qualquer
+taxa, mono ou estéreo intercalado — você declara o formato e o runtime converte, mistura os
+canais e reamostra.
 
 | | Quem escreve | Quando é chamado |
 | --- | --- | --- |
@@ -65,6 +69,36 @@ ponta. Por isso nada é reamostrado no caminho, e o adaptador de Node não preci
 Empurre frames de qualquer tamanho: o runtime os recorta nos blocos de 10 ms que o WebRTC
 pede. Se a sua fonte atrasar, sai silêncio em vez de a chamada engasgar.
 {% endhint %}
+
+### O que a reamostragem custa
+
+O reamostrador é sinc com janela e tabela pré-computada, em JavaScript puro — o mesmo que o
+React Native vai usar, onde WebAssembly não roda. Medido num core, por chamada ativa:
+
+| Conversão | Custo de um core | Chamadas por core |
+| --- | --- | --- |
+| 16 kHz → 16 kHz | **0%** — o PCM passa direto | — |
+| 44,1 kHz → 16 kHz (entrada) | 0,40% | ~250 |
+| 48 kHz → 16 kHz (entrada) | 0,36% | ~275 |
+| 16 kHz → 48 kHz (saída) | 1,07% | ~93 |
+
+{% hint style="success" %}
+**Fique em 16 kHz nas duas pontas e não paga nada**: o runtime detecta que não há o que
+fazer e devolve o mesmo buffer. Só converta o que precisar converter.
+{% endhint %}
+
+{% hint style="warning" %}
+Node é single-thread. Uma chamada convertendo nas duas pontas ocupa ~1,5% de um core, o que
+dá cerca de 68 simultâneas antes de o event loop virar o gargalo. Acima disso, ou você mantém
+as pontas em 16 kHz, ou distribui os processos.
+{% endhint %}
+
+### Por que não µ-law nem WebAssembly
+
+O filtro anti-aliasing não é ornamento. Reduzir 48 kHz para 16 kHz sem filtrar não descarta o
+que está acima de 8 kHz: **dobra para dentro da banda de voz**. Medido com um tom de 15 kHz,
+interpolação linear devolve energia cheia (RMS 7071) onde o sinc devolve zero — é a diferença
+entre voz limpa e ruído metálico.
 
 ## Uma chamada completa
 
