@@ -72,9 +72,10 @@ export class FakeMicrophone implements MicrophonePort {
 /** Um handle que só registra que foi fechado. */
 class FakeAudioHandle implements AudioMeter {
     stopped = false;
-    reading = 0;
+    /** `null` imita a plataforma que não mede aqui, como o React Native. */
+    reading: number | null = 0;
 
-    level(): number {
+    level(): number | null {
         return this.reading;
     }
 
@@ -155,8 +156,24 @@ export class FakeAudioEngine implements AudioEnginePort {
     }
 }
 
+/** Um motor que não mede nada, como o do React Native: o nativo toca e captura sozinho. */
+export class UnmeasuringAudioEngine extends FakeAudioEngine {
+    override renderRemote(): AudioMeter {
+        return silence(super.renderRemote());
+    }
+
+    override monitorStream(): AudioMeter {
+        return silence(super.monitorStream());
+    }
+}
+
+function silence(meter: AudioMeter): AudioMeter {
+    (meter as FakeAudioHandle).reading = null;
+    return meter;
+}
+
 export class FakeAudioRuntime implements MediaRuntime {
-    readonly engine = new FakeAudioEngine();
+    readonly engine: FakeAudioEngine = new FakeAudioEngine();
     readonly microphone = new FakeMicrophone();
     // Os testes de WebRTC e de relay trocam o global; a fábrica padrão é a da web para eles
     // continuarem valendo. Quem quer provar ambiente sem WebRTC zera o campo.

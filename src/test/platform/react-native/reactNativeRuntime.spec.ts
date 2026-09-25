@@ -5,7 +5,7 @@ const devices = new FakeRNMediaDevices();
 
 // O `react-native-webrtc` é publicado com sintaxe que só o Metro transforma, então aqui ele é
 // substituído inteiro. O que se testa é a nossa lógica em volta dele.
-const inCall = { started: [] as unknown[], stops: 0 };
+const inCall = { started: [] as unknown[], stops: 0, speakerphone: [] as boolean[] };
 
 // O `InCallManager` mexe na sessão de áudio do sistema; aqui só se registra o que foi pedido.
 vi.mock("react-native-incall-manager", () => ({
@@ -14,6 +14,7 @@ vi.mock("react-native-incall-manager", () => ({
         stop: () => {
             inCall.stops += 1;
         },
+        setForceSpeakerphoneOn: (on: boolean) => inCall.speakerphone.push(on),
     },
 }));
 
@@ -31,6 +32,7 @@ const { RNAudioDevices } = await import("@/platform/react-native/rnAudioDevices"
 beforeEach(() => {
     inCall.started.length = 0;
     inCall.stops = 0;
+    inCall.speakerphone.length = 0;
     devices.getUserMediaCalls = 0;
     devices.failWith = null;
     devices.listed = [];
@@ -139,10 +141,9 @@ describe("RNMicrophone", () => {
 });
 
 describe("RNAudioDevices", () => {
-    it("keeps only the entries that really are audio devices", async () => {
+    it("keeps only the microphones the platform really reported", async () => {
         devices.listed = [
             { deviceId: "mic", kind: "audioinput", label: "Microfone" },
-            { deviceId: "speaker", kind: "audiooutput", label: "Alto-falante" },
             { deviceId: "cam", kind: "videoinput", label: "Câmera" },
             { kind: "audioinput" }, // sem id: o nativo às vezes manda isso
             null,
@@ -151,7 +152,6 @@ describe("RNAudioDevices", () => {
 
         await vi.waitFor(() => expect(audio.listInputDevices()).toHaveLength(1));
         expect(audio.listInputDevices()[0]).toEqual({ id: "mic", label: "Microfone", kind: "input" });
-        expect(audio.listOutputDevices()[0]).toEqual({ id: "speaker", label: "Alto-falante", kind: "output" });
     });
 
     it("survives a platform that answers with something unexpected", async () => {
@@ -159,10 +159,9 @@ describe("RNAudioDevices", () => {
         const audio = new RNAudioDevices();
 
         await vi.waitFor(() => expect(audio.listInputDevices()).toEqual([]));
-        expect(audio.listOutputDevices()).toEqual([]);
     });
 
-    it("reads the list again when the system says it changed", async () => {
+    it("reads the microphones again when the system says they changed", async () => {
         const audio = new RNAudioDevices();
         await vi.waitFor(() => expect(audio.listInputDevices()).toEqual([]));
 
@@ -170,5 +169,44 @@ describe("RNAudioDevices", () => {
         devices.announceChange();
 
         await vi.waitFor(() => expect(audio.listInputDevices()).toHaveLength(1));
+    });
+
+    /**
+     * As saídas não vêm do `enumerateDevices`: ele devolve `unknown` e não separa fone de
+     * alto-falante. A escolha que um app de chamada faz é viva-voz ou não, e é ela que está
+     * aqui.
+     */
+    it("offers the two outputs a phone really has", () => {
+        const audio = new RNAudioDevices();
+
+        expect(audio.listOutputDevices().map((device) => device.id)).toEqual(["earpiece", "speaker"]);
+        expect(audio.currentOutput.id).toBe("earpiece");
+    });
+
+    it("turns the speaker on and off, and remembers which is on", async () => {
+        const audio = new RNAudioDevices();
+
+        expect((await audio.selectOutput("speaker")).error).toBeNull();
+        expect(inCall.speakerphone).toEqual([true]);
+        expect(audio.currentOutput.id).toBe("speaker");
+
+        expect((await audio.selectOutput("earpiece")).error).toBeNull();
+        expect(inCall.speakerphone).toEqual([true, false]);
+        expect(audio.currentOutput.id).toBe("earpiece");
+    });
+
+    it("refuses an output it never offered, naming it", async () => {
+        const { error } = await new RNAudioDevices().selectOutput("bluetooth-headset");
+
+        expect(error?.code).toBe("AUDIO_DEVICE_NOT_FOUND");
+        expect(error?.details).toEqual({ id: "bluetooth-headset" });
+        expect(inCall.speakerphone).toEqual([]);
+    });
+
+    /** Trocar o microfone não é possível aqui, e dizer isso é melhor que aceitar e não fazer. */
+    it("says the system chooses the microphone, instead of pretending to switch", async () => {
+        const { error } = await new RNAudioDevices().selectInput("mic");
+
+        expect(error?.code).toBe("INPUT_SELECTION_UNSUPPORTED");
     });
 });

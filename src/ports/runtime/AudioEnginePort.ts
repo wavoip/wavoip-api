@@ -5,9 +5,15 @@ export interface AudioHandle {
     stop(): void;
 }
 
-/** A handle that also measures what flows through it, from 0 to 1. */
+/**
+ * A handle that also measures what flows through it, from 0 to 1.
+ *
+ * `null` means this platform does not measure here — which is not the same as measuring
+ * silence. React Native is the case: playback is the system's job and never passes through
+ * the engine, so the level comes from the connection's own statistics instead.
+ */
 export interface AudioMeter extends AudioHandle {
-    level(): number;
+    level(): number | null;
 }
 
 /** Playback of the PCM arriving over the relay. */

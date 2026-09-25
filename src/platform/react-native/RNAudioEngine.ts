@@ -3,13 +3,15 @@ import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 import InCallManager from "react-native-incall-manager";
 
 /**
- * Um medidor que ainda não mede: o `react-native-webrtc` não expõe o nível do áudio, e o
- * `audioLevel` do `getStats()` dele não está nas tipagens nem tem suporte igual nas duas
- * plataformas — ler dali seria adivinhação. Medir de verdade pede o `react-native-audio-api`,
- * o mesmo pacote de que o relay vai precisar. A matriz de plataformas no `docs/` diz isso.
+ * O áudio não passa pelo motor aqui: quem toca a track remota e quem lê o microfone é o
+ * nativo, então não há nada neste processo para medir. `null` diz exatamente isso — e é
+ * diferente de medir silêncio.
+ *
+ * Quem preenche a lacuna é o transporte, com o `audioLevel` que o `getStats()` da conexão
+ * já publica e o `RTCStatsAdapter` já coleta. Sai o nível que o próprio WebRTC vê.
  */
 function unmeasuredMeter(stop: () => void): AudioMeter {
-    return { level: () => 0, stop };
+    return { level: () => null, stop };
 }
 
 /**

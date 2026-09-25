@@ -1,6 +1,6 @@
 import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
 import { Stats } from "@/domain/call/stats";
-import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
+import { FakeAudioRuntime, UnmeasuringAudioEngine } from "@/test/fakes/FakeAudioRuntime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 class MockMediaStreamTrack {
@@ -463,3 +463,50 @@ describe("WebRTCTransport on a runtime without WebRTC", () => {
         expect(() => new WebRTCTransport(audio, "offer-sdp")).toThrow(/runtime sem createPeer/);
     });
 });
+
+/**
+ * O caso do React Native: o áudio não passa pelo motor, porque o nativo toca e captura
+ * sozinho. O medidor diz `null` — que é diferente de medir silêncio — e o nível sai do
+ * `audioLevel` que o `getStats()` da conexão publica e o adaptador de estatísticas já coleta.
+ */
+describe("WebRTCTransport on a platform that does not measure audio", () => {
+    beforeEach(() => {
+        vi.stubGlobal("RTCPeerConnection", MockRTCPeerConnection);
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("reads the level from the connection statistics instead", async () => {
+        const audio = new FakeAudioRuntime();
+        Object.defineProperty(audio, "engine", { value: new UnmeasuringAudioEngine() });
+        const transport = new WebRTCTransport(audio, "offer-sdp");
+
+        await startTransport(transport);
+        statsOf(transport).rx.level = 0.42;
+        statsOf(transport).tx.level = 0.17;
+
+        expect(transport.audio.in.level()).toBe(0.42);
+        expect(transport.audio.out.level()).toBe(0.17);
+
+        await transport.stop();
+    });
+
+    it("still prefers the engine where it does measure", async () => {
+        const audio = new FakeAudioRuntime();
+        const transport = new WebRTCTransport(audio, "offer-sdp");
+
+        await startTransport(transport);
+        statsOf(transport).rx.level = 0.9;
+        audio.engine.played[0].reading = 0.3;
+
+        // O motor mede: o número dele vale, mesmo com estatística dizendo outra coisa.
+        expect(transport.audio.in.level()).toBe(0.3);
+
+        await transport.stop();
+    });
+});
+
+function statsOf(transport: WebRTCTransport): { rx: { level: number }; tx: { level: number } } {
+    return transport.stats.audio;
+}

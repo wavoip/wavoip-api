@@ -1,4 +1,4 @@
-import type { CallAudio } from "@/domain/call/audio";
+
 import type { MediaRuntime } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { AudioMeter } from "@/ports/runtime/AudioEnginePort";
@@ -15,10 +15,13 @@ export type PipeEvents = {
 
 export class RTCAudioPipe extends EventEmitter<PipeEvents> {
     peerMuted = false;
-    /** Zero enquanto a mídia não subiu: a chamada existe antes de o áudio passar. */
-    readonly audio: CallAudio = {
-        in: { level: () => this.remotePlayback?.level() ?? 0 },
-        out: { level: () => this.micMeter?.level() ?? 0 },
+    /**
+     * `null` enquanto a mídia não subiu, ou onde a plataforma não mede — a chamada existe
+     * antes de o áudio passar. Quem decide o que mostrar no lugar é o transporte.
+     */
+    readonly audio: { in: { level(): number | null }; out: { level(): number | null } } = {
+        in: { level: () => this.remotePlayback?.level() ?? null },
+        out: { level: () => this.micMeter?.level() ?? null },
     };
 
     private micMeter: AudioMeter | null = null;

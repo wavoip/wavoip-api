@@ -39,8 +39,17 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
         return this.connection.emittedConnectivityIssues;
     }
 
+    /**
+     * O nível vem do motor de áudio onde ele passa por aqui, e das estatísticas da conexão
+     * onde não passa. No React Native é o segundo caso: o nativo toca e captura sozinho, e o
+     * `audioLevel` do `getStats()` é a única medida que existe.
+     */
     get audio(): CallAudio {
-        return this.audioPipe.audio;
+        const stats = () => this.statsAdapter.snapshot().audio;
+        return {
+            in: { level: () => this.audioPipe.audio.in.level() ?? stats().rx.level },
+            out: { level: () => this.audioPipe.audio.out.level() ?? stats().tx.level },
+        };
     }
 
     get stats(): CallStats {
