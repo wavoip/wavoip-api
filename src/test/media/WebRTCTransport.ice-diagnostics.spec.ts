@@ -172,6 +172,52 @@ describe("WebRTCTransport ICE diagnostics", () => {
             expect(issues).toContain("ICE_CONNECTION_FAILED");
         });
 
+        /**
+         * Regressão: a janela começava no fim da coleta, então toda chamada que sai levava um
+         * `SYMMETRIC_NAT_SUSPECTED` se o contato demorasse dez segundos para atender — sem
+         * resposta remota não existe verificação de conectividade para falhar.
+         */
+        it("does not suspect symmetric NAT while the peer has not answered", async () => {
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
+
+            const issues: ConnectivityIssue[] = [];
+            transport.on("connectivityIssue", (i) => issues.push(i));
+
+            const offerPromise = transport.createOffer();
+            const pc = pcFactory.last();
+            pc._fireIceCandidate("host");
+            pc._fireIceCandidate("srflx");
+            await vi.advanceTimersByTimeAsync(5);
+            pc._completeGathering();
+            await offerPromise;
+
+            await vi.advanceTimersByTimeAsync(30_000);
+
+            expect(issues).not.toContain("SYMMETRIC_NAT_SUSPECTED");
+        });
+
+        it("suspects symmetric NAT when the answer is in and ICE still does not connect", async () => {
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
+
+            const issues: ConnectivityIssue[] = [];
+            transport.on("connectivityIssue", (i) => issues.push(i));
+
+            const offerPromise = transport.createOffer();
+            const pc = pcFactory.last();
+            pc._fireIceCandidate("host");
+            pc._fireIceCandidate("srflx");
+            await vi.advanceTimersByTimeAsync(5);
+            pc._completeGathering();
+            await offerPromise;
+
+            await transport.connect({ type: "webRTC", sdp: "v=0 remote-answer" });
+            await vi.advanceTimersByTimeAsync(11_000);
+
+            expect(issues).toContain("SYMMETRIC_NAT_SUSPECTED");
+        });
+
         it("does not emit duplicates for the same issue", async () => {
             const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio);

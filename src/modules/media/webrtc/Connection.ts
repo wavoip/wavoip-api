@@ -47,6 +47,8 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
         relay: 0,
     };
     private symmetricNatTimer: ReturnType<typeof setTimeout> | null = null;
+    private stunReached = false;
+    private negotiated = false;
     private _emittedConnectivityIssues = new Set<ConnectivityIssue>();
 
     get emittedConnectivityIssues(): ReadonlySet<ConnectivityIssue> {
@@ -97,6 +99,7 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
         if (!this.remoteOffer) return;
 
         await this.pc.setRemoteDescription(this.remoteOffer);
+        this.negotiated = true;
         const answer = await this.pc.createAnswer();
         await this.pc.setLocalDescription(answer);
 
@@ -119,6 +122,8 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
 
     async setAnswer(sdp: string): Promise<void> {
         await this.pc.setRemoteDescription({ type: "answer", sdp });
+        this.negotiated = true;
+        this.watchForSymmetricNat();
     }
 
     async stop(): Promise<void> {
@@ -146,13 +151,14 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
             turnReached,
         };
         this.lastDiagnostics = diag;
+        this.stunReached = stunReached;
         this.emit("iceDiagnostics", diag);
 
         if (timedOut) this.emitIssue("ICE_GATHERING_TIMEOUT");
         if (timedOut && !stunReached) this.emitIssue("STUN_UNREACHABLE");
         if (this.candidatesByType.host === 0) this.emitIssue("NO_HOST_CANDIDATES");
 
-        this.scheduleSymmetricNatCheck(stunReached);
+        this.watchForSymmetricNat();
     }
 
     private raceGatheringWithTimeout(): Promise<boolean> {
@@ -175,8 +181,14 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
         });
     }
 
-    private scheduleSymmetricNatCheck(stunReached: boolean): void {
-        if (!stunReached) return;
+    /**
+     * A janela só abre quando as duas descrições estão na mesa: antes disso não existe
+     * verificação de conectividade nenhuma, e o "não conectou" seria apenas a chamada ainda
+     * tocando. Era o que fazia sair um `SYMMETRIC_NAT_SUSPECTED` em toda chamada que demora
+     * dez segundos para o contato atender.
+     */
+    private watchForSymmetricNat(): void {
+        if (!this.stunReached || !this.negotiated) return;
         if (this.symmetricNatTimer) return;
         this.symmetricNatTimer = setTimeout(() => {
             const noConnection =
