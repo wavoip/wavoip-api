@@ -66,6 +66,21 @@ forma. No React Native a chamada oficial é diferente — lá o sistema toca em 
 amostras não chegam ao JavaScript.
 {% endhint %}
 
+### O `wrtc` é libwebrtc M106, e isso aparece na oferta
+
+O `@roamhq/wrtc` é o fork mantido do `node-webrtc` (que parou em 2023), e é o **único** binding
+de WebRTC para Node que entrega PCM nas duas pontas — o `RTCAudioSource` e o `RTCAudioSink` de
+que este runtime depende. O `node-datachannel` e o `werift` são bem mais atuais, mas trabalham
+no nível do RTP: com eles, codificar e decodificar Opus passaria a ser problema nosso.
+
+O preço é o núcleo nativo: libwebrtc **M106**, o Chrome de setembro de 2022. Ele ainda anuncia
+codecs que navegador nenhum anuncia mais — ISAC, ILBC, CN e telephone-event em taxas extras —,
+o que dava 15 payloads na oferta contra 8 do Chrome de hoje.
+
+Por isso o adaptador aplica `setCodecPreferences` no transceiver de áudio: a oferta sai com os
+mesmos 8 payloads do navegador. Quem recebe a nossa oferta numa chamada oficial é o WhatsApp, e
+o SDP que se sabe que ele aceita é o do navegador.
+
 ### A coleta de ICE do `wrtc` nunca termina sozinha
 
 Medido no `@roamhq/wrtc`: com servidor STUN configurado, ele entrega todos os candidatos em
