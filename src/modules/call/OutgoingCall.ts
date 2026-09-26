@@ -11,6 +11,8 @@ import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 export type OutgoingCallFailure = WavoipError<CallFailureCode | "MEDIA_NEGOTIATION_FAILED" | "UNKNOWN">;
 
 export type OutgoingCallEvents = {
+    /** The server confirmed the peer's phone is ringing. */
+    ringing: [];
     /** The peer picked up: from here on, the call lives in the `ActiveCall`. */
     accepted: [call: ActiveCall];
     /** The peer declined. */
@@ -44,6 +46,7 @@ export function OutgoingCallProxy(session: CallSession): OutgoingCall {
     const emitter = new EventEmitter<OutgoingCallEvents>();
     const ice = new IceTrail(session.iceSnapshot);
 
+    session.on("ringing", () => emitter.emit("ringing"));
     session.on("activated", () => emitter.emit("accepted", ActiveCallProxy(session)));
     // A passagem da oferta pré-montada falhou: para quem ligou, a mídia é que não subiu.
     session.on("handoverFailed", (cause) => emitter.emit("failed", { code: "MEDIA_NEGOTIATION_FAILED", cause }));

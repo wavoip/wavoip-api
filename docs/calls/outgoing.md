@@ -84,6 +84,7 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
 | Evento              | Payload             | Descrição                                                                                                       |
 | ------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `ringing`           | —                   | O servidor confirmou que o aparelho do destinatário está tocando. Antes dele, `status` já é `RINGING` porque a chamada saiu — o evento é a confirmação do outro lado. |
 | `accepted`          | `ActiveCall`        | Destinatário atendeu — a chamada continua no `ActiveCall` que vem no payload.                                   |
 | `rejected`          | —                   | Destinatário recusou a chamada.                                                                                 |
 | `unanswered`        | —                   | Tocou até o fim sem ninguém atender.                                                                            |

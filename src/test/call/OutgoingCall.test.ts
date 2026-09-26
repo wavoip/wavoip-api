@@ -38,6 +38,17 @@ describe("OutgoingCall — getters", () => {
 });
 
 describe("OutgoingCall — the peer answers", () => {
+    it("says when the server confirms the peer's phone is ringing", () => {
+        const { outgoing, session } = makeOutgoing();
+        const ringing = vi.fn();
+        outgoing.on("ringing", ringing);
+
+        harness.fromServer(session, { type: "ringing" });
+
+        expect(ringing).toHaveBeenCalledOnce();
+        expect(outgoing.status).toBe("RINGING");
+    });
+
     it("hands the active call to accepted once the media is up", async () => {
         const { outgoing, session } = makeOutgoing();
         const accepted = vi.fn();

@@ -256,6 +256,7 @@ type IncomingCallEvents = {
 
 ```typescript
 type OutgoingCallEvents = {
+    ringing:           []
     accepted:          [call: ActiveCall]
     rejected:          []
     unanswered:        []
