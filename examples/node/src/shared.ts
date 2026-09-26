@@ -1,4 +1,11 @@
-import { type Device, Wavoip, type WavoipRuntime, nodeRuntime, runDiagnostics } from "@wavoip/wavoip-api/node";
+import {
+    type Device,
+    type IceConfig,
+    Wavoip,
+    type WavoipRuntime,
+    nodeRuntime,
+    runDiagnostics,
+} from "@wavoip/wavoip-api/node";
 import { STUDIO_RATE, greetingSource, studioSink } from "./audio.ts";
 import { Trace } from "./trace.ts";
 import { writeStereoWav } from "./wav.ts";
@@ -47,10 +54,25 @@ export async function reportEnvironment(runtime: WavoipRuntime): Promise<void> {
 }
 
 export function connect(token: string, runtime: WavoipRuntime): Wavoip {
-    const wavoip = new Wavoip({ tokens: [token], runtime });
+    const wavoip = new Wavoip({ tokens: [token], runtime, iceConfig: iceConfigFromEnv() });
     const device = wavoip.devices[0];
     if (device) Trace.device(device);
     return wavoip;
+}
+
+/**
+ * `WAVOIP_ICE_TIMEOUT=6000` dá mais tempo à coleta de candidatos ICE.
+ *
+ * O teto padrão é 2,5 s e ele é o atraso da discagem: o SDP da chamada que sai carrega os
+ * candidatos coletados até ali, e o que chegar depois se perde. Numa máquina com muitas
+ * interfaces — docker, VPN, veth — a coleta passa desse teto, e aí o `ICE_GATHERING_TIMEOUT`
+ * aparece no trace.
+ */
+function iceConfigFromEnv(): IceConfig | undefined {
+    const timeout = Number(process.env.WAVOIP_ICE_TIMEOUT);
+    if (!Number.isFinite(timeout) || timeout <= 0) return undefined;
+    Trace.line("ice", `teto da coleta em ${timeout}ms (WAVOIP_ICE_TIMEOUT)`);
+    return { gatheringTimeoutMs: timeout };
 }
 
 /**

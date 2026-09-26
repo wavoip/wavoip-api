@@ -49,6 +49,7 @@ function outgoing(call: OutgoingCall): void {
     line("call", `${call.id} · ${call.type} · para ${call.peer.phone} · status ${call.status}`);
     const ringingSince = Date.now();
     ice(call);
+    call.on("ringing", () => line("call", "o servidor confirmou: o aparelho do contato está tocando"));
     call.on("rejected", () => line("call", "o contato recusou"));
     call.on("unanswered", () => line("call", "ninguém atendeu"));
     call.on("ended", () => line("call", `oferta encerrada · status ${call.status}`));
