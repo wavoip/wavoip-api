@@ -39,8 +39,7 @@ pico do sinal:                   6.056 no arquivo → 5.968 depois  (98,5% prese
 16 kHz → 48 kHz:                 2,96 s gravados de 3 s de chamada
 ```
 
-{% hint style="info" %}
-**Repare no tamanho do frame em `audio.ts`.** Num arquivo estéreo as amostras vêm
+> **Repare no tamanho do frame em `audio.ts`.** Num arquivo estéreo as amostras vêm
 intercaladas, uma de cada canal, então um frame de 20 ms tem o dobro delas. Sem multiplicar
 pelo número de canais, o áudio sai na metade da velocidade — e é o tipo de engano que um
 arquivo mono nunca revelaria.
