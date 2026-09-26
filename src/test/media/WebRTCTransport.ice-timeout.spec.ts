@@ -69,6 +69,51 @@ describe("WebRTCTransport ICE gathering timeout", () => {
             expect(settled).toBe(true);
         });
 
+        /**
+         * O `@roamhq/wrtc` nunca chega a `complete` com STUN configurado: entrega tudo em
+         * dezenas de milissegundos e fica em `gathering`. Sem esta saída, toda chamada de Node
+         * pagava os 2,5 s do teto e saía com um `ICE_GATHERING_TIMEOUT` que não era verdade.
+         */
+        it("stops waiting once the candidates go quiet, without calling it a timeout", async () => {
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
+            const diagnostics = vi.fn();
+            transport.on("iceDiagnostics", diagnostics);
+
+            const offerPromise = transport.createOffer();
+            const pc = pcFactory.last();
+            pc._fireIceCandidate("host");
+            pc._fireIceCandidate("srflx");
+
+            await vi.advanceTimersByTimeAsync(600);
+            await offerPromise;
+
+            expect(diagnostics.mock.calls[0][0].gatheringTimedOut).toBe(false);
+        });
+
+        it("keeps waiting for the cap while STUN has not answered yet", async () => {
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio, undefined, { iceConfig: { gatheringTimeoutMs: 2000 } });
+
+            const offerPromise = transport.createOffer();
+            const pc = pcFactory.last();
+            pc._fireIceCandidate("host");
+
+            // O silêncio depois de um candidato host não vale: é o `srflx` que se espera.
+            await vi.advanceTimersByTimeAsync(900);
+            let settled = false;
+            offerPromise.then(() => {
+                settled = true;
+            });
+            await Promise.resolve();
+            expect(settled).toBe(false);
+
+            pc._fireIceCandidate("srflx");
+            await vi.advanceTimersByTimeAsync(600);
+            await offerPromise;
+            expect(settled).toBe(true);
+        });
+
         it("removes the icegatheringstatechange listener after resolving on completion", async () => {
             const audio = new FakeAudioRuntime();
             const transport = new WebRTCTransport(audio);

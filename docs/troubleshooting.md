@@ -35,15 +35,17 @@ Nenhum dos servidores STUN configurados respondeu durante a coleta ICE.
 
 A coleta de candidatos ICE excedeu o `gatheringTimeoutMs` configurado e a chamada seguiu com o que havia sido coletado até então.
 
+A espera termina por três caminhos: o `iceGatheringState` virar `complete`, meio segundo sem candidato novo **depois** de o STUN ter respondido, ou o teto. Só o terceiro emite este problema — então ele significa que o STUN ainda não tinha respondido quando o teto venceu.
+
 **Possíveis causas**
 
-* Servidores STUN/TURN lentos.
+* Servidores STUN/TURN lentos ou inacessíveis.
 * Rede de alta latência.
 * Restrições do navegador (ex: rede privada com limitações).
 
 **O que investigar**
 
-* Conferir `IceDiagnostics.gatheringDurationMs` e `candidatesByType` no payload do evento `iceDiagnostics` que precede.
+* Conferir `IceDiagnostics.candidatesByType.srflx` no payload do evento `iceDiagnostics` que precede: zero confirma que o STUN não respondeu.
 * Aumentar `gatheringTimeoutMs` se a infraestrutura legitimamente demora a responder.
 
 ### `ICE_CONNECTION_FAILED`

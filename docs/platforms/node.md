@@ -66,6 +66,21 @@ forma. No React Native a chamada oficial é diferente — lá o sistema toca em 
 amostras não chegam ao JavaScript.
 {% endhint %}
 
+### A coleta de ICE do `wrtc` nunca termina sozinha
+
+Medido no `@roamhq/wrtc`: com servidor STUN configurado, ele entrega todos os candidatos em
+algumas dezenas de milissegundos e o `iceGatheringState` **fica em `gathering` para sempre** —
+não chega a `complete` nem depois de 20 s. Sem STUN nenhum ele completa em 150 ms.
+
+Por isso a biblioteca não espera só o `complete`: meio segundo sem candidato novo, depois de o
+STUN já ter respondido, encerra a coleta. Na mesma máquina, a discagem passou de 2,5 s (o teto)
+para 604 ms, com o SDP completo — 16 candidatos, 2 deles `srflx`.
+
+{% hint style="info" %}
+Um `ICE_GATHERING_TIMEOUT` no Node, portanto, quer dizer o que diz: o STUN não respondeu dentro
+do teto. Antes ele aparecia em toda chamada.
+{% endhint %}
+
 ## As duas pontas do áudio
 
 ```typescript

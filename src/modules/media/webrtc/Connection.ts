@@ -13,6 +13,9 @@ import type { PeerConnectionFactory, PeerConnectionLike, SessionDescription } fr
 
 const SYMMETRIC_NAT_DETECTION_WINDOW_MS = 10_000;
 
+/** Quanto tempo sem candidato novo já conta como coleta encerrada. */
+const GATHERING_QUIET_MS = 500;
+
 /**
  * Quem chama anexa os senders com `pc.addTrack` antes do `start()`.
  *
@@ -161,23 +164,49 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
         this.watchForSymmetricNat();
     }
 
+    /**
+     * Espera a coleta acabar, e devolve se o teto venceu antes disso.
+     *
+     * Há três jeitos de acabar. O `iceGatheringState` virar `complete` é o do navegador. O
+     * segundo existe porque o `@roamhq/wrtc` **nunca** chega a `complete` quando há servidor
+     * STUN configurado: medido, ele entrega os 16 candidatos em 40 ms e fica em `gathering`
+     * para sempre. Então o silêncio depois do último candidato também encerra — mas só
+     * depois de o STUN ter respondido, porque enquanto não veio candidato `srflx` é ele que
+     * se está esperando, e desistir antes mandaria um SDP sem endereço público. O terceiro é
+     * o teto, e só ele conta como estouro.
+     */
     private raceGatheringWithTimeout(): Promise<boolean> {
         if (this.pc.iceGatheringState === "complete") return Promise.resolve(false);
 
         return new Promise<boolean>((resolve) => {
-            const handler = () => {
-                if (this.pc.iceGatheringState !== "complete") return;
+            let quiet: ReturnType<typeof setTimeout> | null = null;
+
+            const finish = (timedOut: boolean) => {
                 this.pc.removeEventListener("icegatheringstatechange", handler);
+                this.pc.removeEventListener("icecandidate", onCandidate);
+                if (quiet) clearTimeout(quiet);
                 clearTimeout(timer);
-                resolve(false);
+                resolve(timedOut);
             };
 
-            const timer = setTimeout(() => {
-                this.pc.removeEventListener("icegatheringstatechange", handler);
-                resolve(true);
-            }, this.gatheringTimeoutMs);
+            const handler = () => {
+                if (this.pc.iceGatheringState !== "complete") return;
+                finish(false);
+            };
+
+            const onCandidate = () => {
+                if (this.candidatesByType.srflx === 0) return;
+                if (quiet) clearTimeout(quiet);
+                quiet = setTimeout(() => finish(false), GATHERING_QUIET_MS);
+            };
+
+            const timer = setTimeout(() => finish(true), this.gatheringTimeoutMs);
 
             this.pc.addEventListener("icegatheringstatechange", handler);
+            this.pc.addEventListener("icecandidate", onCandidate);
+            // O STUN pode ter respondido antes de chegarmos aqui: sem isto a espera ficaria
+            // presa no teto, porque nenhum candidato novo viria para começar o silêncio.
+            onCandidate();
         });
     }
 

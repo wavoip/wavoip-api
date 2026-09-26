@@ -110,15 +110,15 @@ Como ler:
 | `áudio` andando e `rede · tx 0 pac` | a fonte está boa e a **rede** não passa; a resposta está nas linhas de `ice` acima |
 | `rede · rx 0 pac` com `tx` andando | você manda e não recebe: a mídia do outro lado não chegou |
 
-Quando a coleta esgota o tempo, o `WAVOIP_ICE_TIMEOUT` aumenta o teto:
+Se o `ICE_GATHERING_TIMEOUT` aparecer, é porque o STUN não respondeu dentro do teto — e aí o
+`WAVOIP_ICE_TIMEOUT` dá mais tempo:
 
 ```bash
 WAVOIP_ICE_TIMEOUT=6000 WAVOIP_TOKEN=... npm run dial -- 5511999999999
 ```
 
-O padrão são 2,5 s, e ele é o atraso da discagem: o SDP da chamada que sai leva os candidatos
-coletados até ali, e o que chegar depois se perde. Numa máquina com muitas interfaces — docker,
-VPN, veth — a coleta costuma passar disso; `host 14` no trace é o sinal.
+O teto padrão é 2,5 s, mas a coleta normalmente acaba muito antes: meio segundo sem candidato
+novo, depois de o STUN ter respondido, já encerra ([por que](../../docs/platforms/node.md)).
 
 O diagnóstico de ICE aparece **mesmo quando a chamada não conecta** — a coleta de candidatos
 acontece antes de a chamada existir, e a biblioteca guarda o resultado para quem for observar
