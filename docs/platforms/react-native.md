@@ -46,6 +46,13 @@ escritas contra as APIs do navegador, que precisam achar esses nomes soltos.
 Esta biblioteca não é uma delas: o runtime recebe as implementações por injeção, e nenhum
 global é lido. Chamar `registerGlobals()` não quebra nada, mas para nós não faz diferença.
 
+## Um app de exemplo
+
+O código de uma tela que conecta o device, liga, atende, mede o nível nas duas direções e
+mostra o log na própria tela está em
+[`examples/react-native`](https://github.com/wavoip/wavoip-api/tree/main/examples/react-native),
+com o passo a passo para colocá-lo num app novo.
+
 ## Requisitos do app
 
 {% stepper %}
