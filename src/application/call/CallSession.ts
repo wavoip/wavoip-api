@@ -354,7 +354,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         this.events.emit("status", this.status);
         this.events.emit("answered");
         try {
-            await this.transport.connect(plan);
+            await withTimeout(this.transport.connect(plan), CallPolicy.mediaHandoverTimeoutMs);
         } catch (cause) {
             // A causa viaja junto: sem ela o integrador recebe um `MEDIA_NEGOTIATION_FAILED`
             // mudo, e a diferença entre "o relay recusou" e "o plano veio errado" se perde.
@@ -386,4 +386,12 @@ export class CallSession implements Subscribable<CallSessionEvents> {
 function ackFailure(ack: Exclude<SignalAck<unknown>, { kind: "ok" }>): Result<never, CommandFailure> {
     if (ack.kind === "timeout") return Result.fail("ACK_TIMEOUT");
     return Result.fail(ack.code, { cause: ack.cause });
+}
+
+/** O teto vira exceção, e a exceção vira a causa que o integrador lê. */
+function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`A mídia não subiu em ${ms}ms`)), ms);
+        work.then(resolve, reject).finally(() => clearTimeout(timer));
+    });
 }

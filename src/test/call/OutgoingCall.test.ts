@@ -61,6 +61,26 @@ describe("OutgoingCall — the peer answers", () => {
         expect(order).toEqual(["answered", "accepted"]);
     });
 
+    /**
+     * Sem teto, um `connect()` que não volta deixava a chamada em ACTIVE sem áudio e sem
+     * falha — e o telefone do outro lado em "conectando" para sempre.
+     */
+    it("gives up on the media handover when it never finishes", async () => {
+        vi.useFakeTimers();
+        const { outgoing, session } = makeOutgoing();
+        const failed = vi.fn();
+        outgoing.on("failed", failed);
+        // O `connect()` do transporte falso passa pelo `start()`, que este bloqueio segura.
+        harness.transports.current.blockStart();
+
+        harness.fromServer(session, { type: "answered", plan: relayPlan });
+        await vi.advanceTimersByTimeAsync(11_000);
+
+        expect(failed).toHaveBeenCalledOnce();
+        expect(failed.mock.calls[0][0].code).toBe("MEDIA_NEGOTIATION_FAILED");
+        vi.useRealTimers();
+    });
+
     it("hands the active call to accepted once the media is up", async () => {
         const { outgoing, session } = makeOutgoing();
         const accepted = vi.fn();
