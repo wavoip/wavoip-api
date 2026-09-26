@@ -49,6 +49,18 @@ describe("OutgoingCall — the peer answers", () => {
         expect(outgoing.status).toBe("RINGING");
     });
 
+    it("says the peer picked up before the media is up", async () => {
+        const { outgoing, session } = makeOutgoing();
+        const order: string[] = [];
+        outgoing.on("answered", () => order.push("answered"));
+        outgoing.on("accepted", () => order.push("accepted"));
+
+        harness.fromServer(session, { type: "answered", plan: relayPlan });
+        await vi.waitFor(() => expect(order).toHaveLength(2));
+
+        expect(order).toEqual(["answered", "accepted"]);
+    });
+
     it("hands the active call to accepted once the media is up", async () => {
         const { outgoing, session } = makeOutgoing();
         const accepted = vi.fn();

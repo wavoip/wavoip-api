@@ -13,7 +13,9 @@ export type OutgoingCallFailure = WavoipError<CallFailureCode | "MEDIA_NEGOTIATI
 export type OutgoingCallEvents = {
     /** The server confirmed the peer's phone is ringing. */
     ringing: [];
-    /** The peer picked up: from here on, the call lives in the `ActiveCall`. */
+    /** The peer picked up. The media is still coming up: `accepted` follows when it is. */
+    answered: [];
+    /** The media is up: from here on, the call lives in the `ActiveCall`. */
     accepted: [call: ActiveCall];
     /** The peer declined. */
     rejected: [];
@@ -47,6 +49,7 @@ export function OutgoingCallProxy(session: CallSession): OutgoingCall {
     const ice = new IceTrail(session.iceSnapshot);
 
     session.on("ringing", () => emitter.emit("ringing"));
+    session.on("answered", () => emitter.emit("answered"));
     session.on("activated", () => emitter.emit("accepted", ActiveCallProxy(session)));
     // A passagem da oferta pré-montada falhou: para quem ligou, a mídia é que não subiu.
     session.on("handoverFailed", (cause) => emitter.emit("failed", { code: "MEDIA_NEGOTIATION_FAILED", cause }));

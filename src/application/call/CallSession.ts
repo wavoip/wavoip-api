@@ -18,9 +18,10 @@ export type CallSessionEvents = {
     unanswered: [];
     failed: [error: WavoipError<CallFailureCode | "UNKNOWN">];
     ended: [];
+    /** O outro lado atendeu; a mídia da chamada que sai ainda está subindo. */
+    answered: [];
     /** A mídia subiu e está ligada à chamada: é a hora de existir um ActiveCall. */
     activated: [];
-    /** A passagem da chamada que sai para a chamada ativa falhou. */
     /** A mídia não subiu quando o outro lado atendeu; `cause` é o que a plataforma disse. */
     handoverFailed: [cause: unknown];
     /** A chamada acabou por decisão daqui e não espera mais nada do servidor. */
@@ -351,6 +352,7 @@ export class CallSession implements Subscribable<CallSessionEvents> {
     /** O outro lado atendeu a chamada que saiu: a resposta dele completa o transporte. */
     private async handleAnswered(plan: MediaPlan): Promise<void> {
         this.events.emit("status", this.status);
+        this.events.emit("answered");
         try {
             await this.transport.connect(plan);
         } catch (cause) {
