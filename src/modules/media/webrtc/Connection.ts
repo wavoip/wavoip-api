@@ -9,7 +9,12 @@ import {
 } from "@/modules/media/ICEDiagnostics";
 import type { TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import type { PeerConnectionFactory, PeerConnectionLike, SessionDescription } from "@/ports/runtime/PeerConnectionPort";
+import type {
+    PeerConnectionFactory,
+    PeerConnectionLike,
+    SessionDescription,
+    StatEntry,
+} from "@/ports/runtime/PeerConnectionPort";
 
 const SYMMETRIC_NAT_DETECTION_WINDOW_MS = 10_000;
 
@@ -83,6 +88,7 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
             }
             if (this.pc.iceConnectionState === "connected" || this.pc.iceConnectionState === "completed") {
                 if (this.symmetricNatTimer) clearTimeout(this.symmetricNatTimer);
+                void this.reportSelectedPair();
             }
         });
 
@@ -211,6 +217,38 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
     }
 
     /**
+     * O par que a negociação escolheu, assim que ela escolhe um.
+     *
+     * É o que separa "a mídia não passa" de "a mídia passa e o áudio é que não sai": sem par
+     * escolhido nenhum caminho entre as duas pontas funcionou, e aí o problema é a rede, e não
+     * o áudio.
+     */
+    private async reportSelectedPair(): Promise<void> {
+        const previous = this.lastDiagnostics;
+        if (!previous || previous.selectedCandidatePair) return;
+
+        const selectedCandidatePair = await this.readSelectedPair();
+        if (!selectedCandidatePair) return;
+
+        const diag: IceDiagnostics = { ...previous, selectedCandidatePair };
+        this.lastDiagnostics = diag;
+        this.emit("iceDiagnostics", diag);
+    }
+
+    private async readSelectedPair(): Promise<IceDiagnostics["selectedCandidatePair"] | null> {
+        const entries = [...(await this.pc.getStats()).values()];
+        const pair = entries.find(isSelectedPair);
+        if (!pair) return null;
+
+        const local = kindOf(entries, pair.localCandidateId);
+        const remote = kindOf(entries, pair.remoteCandidateId);
+        if (!local || !remote) return null;
+
+        const rtt = pair.currentRoundTripTime;
+        return { local, remote, rtt: typeof rtt === "number" ? rtt * 1_000 : undefined };
+    }
+
+    /**
      * A janela só abre quando as duas descrições estão na mesa: antes disso não existe
      * verificação de conectividade nenhuma, e o "não conectou" seria apenas a chamada ainda
      * tocando. Era o que fazia sair um `SYMMETRIC_NAT_SUSPECTED` em toda chamada que demora
@@ -236,4 +274,17 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
         this.status = status;
         this.emit("statusChanged", status);
     }
+}
+
+/** O par em uso: o `selected` é do Firefox, o `nominated` + `succeeded` é do resto. */
+function isSelectedPair(stat: StatEntry): boolean {
+    if (stat.type !== "candidate-pair") return false;
+    if (stat.selected === true) return true;
+    return stat.nominated === true && stat.state === "succeeded";
+}
+
+function kindOf(entries: StatEntry[], candidateId: unknown): IceCandidateKind | null {
+    const candidate = entries.find((entry) => entry.id === candidateId);
+    const kind = candidate?.candidateType;
+    return typeof kind === "string" ? (kind as IceCandidateKind) : null;
 }

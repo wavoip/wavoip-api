@@ -104,6 +104,71 @@ describe("WebRTCTransport ICE diagnostics", () => {
         });
     });
 
+    describe("selected candidate pair", () => {
+        const statsWithPair = () =>
+            new Map<string, Record<string, unknown>>([
+                [
+                    "cp1",
+                    {
+                        type: "candidate-pair",
+                        id: "cp1",
+                        nominated: true,
+                        state: "succeeded",
+                        localCandidateId: "l1",
+                        remoteCandidateId: "r1",
+                        currentRoundTripTime: 0.042,
+                    },
+                ],
+                ["l1", { type: "local-candidate", id: "l1", candidateType: "srflx" }],
+                ["r1", { type: "remote-candidate", id: "r1", candidateType: "relay" }],
+            ]);
+
+        /** O campo existe no tipo público desde sempre, e ninguém preenchia. */
+        it("reports which pair ICE chose once it connects", async () => {
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
+            const diagnostics = vi.fn();
+            transport.on("iceDiagnostics", diagnostics);
+
+            const offerPromise = transport.createOffer();
+            const pc = pcFactory.last();
+            pc._fireIceCandidate("srflx");
+            await vi.advanceTimersByTimeAsync(5);
+            pc._completeGathering();
+            await offerPromise;
+
+            pc.getStats.mockResolvedValue(statsWithPair());
+            pc._fireIceConnectionState("connected");
+            await vi.waitFor(() => expect(diagnostics).toHaveBeenCalledTimes(2));
+
+            expect(diagnostics.mock.calls[1][0].selectedCandidatePair).toEqual({
+                local: "srflx",
+                remote: "relay",
+                rtt: 42,
+            });
+        });
+
+        it("says nothing when ICE never chooses a pair", async () => {
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
+            const diagnostics = vi.fn();
+            transport.on("iceDiagnostics", diagnostics);
+
+            const offerPromise = transport.createOffer();
+            const pc = pcFactory.last();
+            pc._fireIceCandidate("srflx");
+            await vi.advanceTimersByTimeAsync(5);
+            pc._completeGathering();
+            await offerPromise;
+
+            pc._fireIceConnectionState("connected");
+            await vi.advanceTimersByTimeAsync(10);
+
+            expect(diagnostics).toHaveBeenCalledTimes(1);
+            expect(diagnostics.mock.calls[0][0].selectedCandidatePair).toBeUndefined();
+        });
+    });
+
     describe("connectivityIssue event", () => {
         it("emits STUN_UNREACHABLE when gathering times out without an srflx candidate", async () => {
             const audio = new FakeAudioRuntime();

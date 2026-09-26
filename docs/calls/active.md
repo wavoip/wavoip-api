@@ -212,7 +212,7 @@ type ServerCallStats = {
 
 ## Diagnóstico ICE e problemas de conectividade
 
-Use `iceDiagnostics` para inspecionar a coleta de candidatos ICE (host/srflx/prflx/relay), confirmar se STUN/TURN foram alcançados e identificar o par selecionado. Use `connectivityIssue` para reagir a falhas conhecidas como `STUN_UNREACHABLE` ou `ICE_CONNECTION_FAILED`.
+Use `iceDiagnostics` para inspecionar a coleta de candidatos ICE (host/srflx/prflx/relay) e confirmar se STUN/TURN foram alcançados. O evento sai uma segunda vez, com `selectedCandidatePair` preenchido, quando o ICE escolhe um par — a ausência dessa segunda emissão é o que diz que nenhum caminho entre as duas pontas funcionou. Use `connectivityIssue` para reagir a falhas conhecidas como `STUN_UNREACHABLE` ou `ICE_CONNECTION_FAILED`.
 
 ```typescript
 call.on("iceDiagnostics", (diag) => {
