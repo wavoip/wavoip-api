@@ -77,9 +77,18 @@ O preço é o núcleo nativo: libwebrtc **M106**, o Chrome de setembro de 2022. 
 codecs que navegador nenhum anuncia mais — ISAC, ILBC, CN e telephone-event em taxas extras —,
 o que dava 15 payloads na oferta contra 8 do Chrome de hoje.
 
-Por isso o adaptador aplica `setCodecPreferences` no transceiver de áudio: a oferta sai com os
-mesmos 8 payloads do navegador. Quem recebe a nossa oferta numa chamada oficial é o WhatsApp, e
-o SDP que se sabe que ele aceita é o do navegador.
+Por isso o adaptador aplica `setCodecPreferences` na hora de produzir o SDP — no `createOffer` e
+no `createAnswer` —, e a oferta e a resposta saem com os mesmos 8 payloads do navegador. Quem
+recebe o nosso SDP numa chamada oficial é o WhatsApp, e o que se sabe que ele aceita é o do
+navegador.
+
+{% hint style="warning" %}
+Configurar um transceiver criado adiantado, na criação da conexão, parece equivalente e não é:
+ao aplicar a oferta remota o libwebrtc associa a linha de mídia dela a um transceiver novo, e o
+que carrega a track fica de fora. A resposta sai `recvonly` — quem atende ouve o contato, e o
+contato não ouve nada. A gravação local ainda mostra a sua voz nesse caso, porque ela copia a
+fonte, e não o que foi para a rede.
+{% endhint %}
 
 ### A coleta de ICE do `wrtc` nunca termina sozinha
 
