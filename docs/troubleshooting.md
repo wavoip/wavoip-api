@@ -5,7 +5,7 @@ icon: bug
 
 # Solução de Problemas
 
-`@wavoip/wavoip-api` expõe o evento `connectivityIssue` em `Offer`, `CallOutgoing` e `CallActive`. Cada valor identifica uma classe de falha detectada durante a coleta ICE ou ao longo da chamada e ajuda a direcionar a investigação.
+`@wavoip/wavoip-api` expõe o evento `connectivityIssue` em `IncomingCall`, `OutgoingCall` e `ActiveCall`. Cada valor identifica uma classe de falha detectada durante a coleta ICE ou ao longo da chamada e ajuda a direcionar a investigação.
 
 ```typescript
 call.on("connectivityIssue", (issue) => {
@@ -27,7 +27,7 @@ Nenhum dos servidores STUN configurados respondeu durante a coleta ICE.
 
 **O que investigar**
 
-* Rodar `runStunProbe(servers)` para confirmar quais servidores estão acessíveis.
+* Rodar o [diagnóstico de ambiente](diagnostics.md) e ler o `STUN_REACHABLE`.
 * Conferir se a rede do usuário usa um proxy que precisa de whitelisting.
 * Verificar se os servidores STUN customizados (caso passados via `iceServers`) estão respondendo.
 
@@ -35,15 +35,17 @@ Nenhum dos servidores STUN configurados respondeu durante a coleta ICE.
 
 A coleta de candidatos ICE excedeu o `gatheringTimeoutMs` configurado e a chamada seguiu com o que havia sido coletado até então.
 
+A espera termina por três caminhos: o `iceGatheringState` virar `complete`, meio segundo sem candidato novo **depois** de o STUN ter respondido, ou o teto. Só o terceiro emite este problema — então ele significa que o STUN ainda não tinha respondido quando o teto venceu.
+
 **Possíveis causas**
 
-* Servidores STUN/TURN lentos.
+* Servidores STUN/TURN lentos ou inacessíveis.
 * Rede de alta latência.
 * Restrições do navegador (ex: rede privada com limitações).
 
 **O que investigar**
 
-* Conferir `IceDiagnostics.gatheringDurationMs` e `candidatesByType` no payload do evento `iceDiagnostics` que precede.
+* Conferir `IceDiagnostics.candidatesByType.srflx` no payload do evento `iceDiagnostics` que precede: zero confirma que o STUN não respondeu.
 * Aumentar `gatheringTimeoutMs` se a infraestrutura legitimamente demora a responder.
 
 ### `ICE_CONNECTION_FAILED`

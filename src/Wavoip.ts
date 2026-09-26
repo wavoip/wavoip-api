@@ -1,79 +1,70 @@
-import type { CallOutgoing } from "@/modules/call/CallOutgoing";
-import type { Offer } from "@/modules/call/Offer";
-import { type Device, DeviceConnection } from "@/modules/device/DeviceConnection";
-import { DeviceProxy } from "@/modules/device/DeviceProxy";
+import type { AudioControl } from "@/domain/audio/control";
+import type { DeviceApiFailure, DeviceAttempt, StartCallFailure } from "@/domain/shared/errors";
+import { Result } from "@/domain/shared/Result";
+import { type OutgoingCall, OutgoingCallProxy } from "@/modules/call/OutgoingCall";
+import { type IncomingCall, IncomingCallProxy } from "@/modules/call/IncomingCall";
+import type { Device } from "@/domain/device/Device";
+
 import type { IceConfig } from "@/modules/media/ICEDiagnostics";
 import type { TransportOptions } from "@/modules/media/ITransport";
-import { MediaManager } from "@/modules/media/MediaManager";
-import { EventEmitter } from "@/modules/shared/EventEmitter";
-import { type Language, setLanguage } from "@/modules/shared/i18n";
+import { FetchDeviceApi } from "@/adapters/http/FetchDeviceApi";
+import { DeviceWebSocketFactory } from "@/adapters/socketio/DeviceSocket";
+import { SocketIoSignaling } from "@/adapters/socketio/SocketIoSignaling";
+import type { TransportFactory } from "@/application/call/CallSession";
+import { DeviceSession } from "@/application/device/DeviceSession";
+import { WebsocketTransport } from "@/modules/media/relay/Transport";
+import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
+import type { WavoipRuntime } from "@/ports/WavoipRuntime";
+import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 
 type Events = {
-    offer: [offer: Offer];
+    offer: [offer: IncomingCall];
 };
 
-export class Wavoip extends EventEmitter<Events> {
-    private readonly mediaManager: MediaManager;
+/** What waking one device answered. */
+export type DeviceWakeUp = { readonly token: string; readonly result: Result<void, DeviceApiFailure> };
+
+export class Wavoip {
+    /** The audio devices the library can see. */
+    readonly audio: AudioControl;
+
+    private readonly runtime: WavoipRuntime;
     private readonly transportOptions?: TransportOptions;
     private readonly platform?: string;
-    private _devices: DeviceConnection[] = [];
-    private _onOfferUnsub?: () => void;
+    private _devices: DeviceSession[] = [];
+    // Composição, e não herança: herdar do EventEmitter poria `emit` e `removeAllListeners`
+    // na mão do integrador, que poderia forjar uma oferta ou desligar os nossos listeners.
+    private readonly events = new EventEmitter<Events>();
 
     constructor(params: {
         tokens: string[];
         platform?: string;
-        language?: Language;
         iceConfig?: IceConfig;
         /**
-         * Throttle for the deprecated `stats` / `serverStats` event tick (ms).
-         * Defaults to 200ms. Has no effect on `Call.getStats()` — that is a
-         * pull API and runs at the caller's chosen cadence.
+         * The platform to run on. Import one from the adapter for your environment:
+         * `webRuntime()` from `@wavoip/wavoip-api/web`.
          */
-        statsTickMs?: number;
+        runtime: WavoipRuntime;
     }) {
-        super();
-
-        setLanguage(params.language ?? "pt-BR");
-
-        this.mediaManager = new MediaManager();
+        // O TypeScript já cobra, mas quem chama de JavaScript puro só descobriria isso num
+        // `undefined` solto lá dentro, e sem pista de qual import faltou.
+        if (!params.runtime) {
+            const usage =
+                'new Wavoip({ tokens, runtime: webRuntime() }), com o webRuntime vindo de "@wavoip/wavoip-api/web"';
+            throw new TypeError(`Wavoip precisa de um runtime, e recebeu ${params.runtime}: ${usage}.`);
+        }
+        this.runtime = params.runtime;
+        // O tipo do campo é o que o integrador vê: por ele só dá para listar os aparelhos e
+        // ler o que está em uso.
+        this.audio = this.runtime.audio;
         this.transportOptions = collectTransportOptions(params);
         this.platform = params.platform;
 
         for (const token of [...new Set(params.tokens)]) {
-            const device = new DeviceConnection(this.mediaManager, token, this.platform, this.transportOptions);
+            const device = this.connect(token);
             this.bindDeviceEvents(device);
             this._devices.push(device);
         }
-    }
-
-    /** @deprecated Use `on("offer", callback)` instead. */
-    onOffer(cb: (offer: Offer) => void) {
-        this._onOfferUnsub?.();
-        this._onOfferUnsub = this.on("offer", cb);
-    }
-
-    /**
-     * Switch the locale of the library-emitted strings, such as the per-device
-     * reasons `startCall()` reports when a device cannot place a call. Affects
-     * every Wavoip instance — locale state is module-global within the
-     * `wavoip-api` a18n namespace.
-     *
-     * @example
-     * wavoip.setLanguage("es")
-     */
-    setLanguage(lang: Language): void {
-        setLanguage(lang);
-    }
-
-    get multimedia() {
-        return {
-            microphone: this.mediaManager.activeMic,
-            speaker: this.mediaManager.activeSpeaker,
-        };
-    }
-
-    getMultimediaDevices(): MediaDeviceInfo[] {
-        return this.mediaManager.devices;
     }
 
     /**
@@ -82,36 +73,18 @@ export class Wavoip extends EventEmitter<Events> {
      * Tries each device in sequence until one successfully initiates a call.
      * If all devices fail, returns a detailed error report listing reasons per device.
      */
-    async startCall(params: {
-        fromTokens?: string[];
-        to: string;
-    }): Promise<
-        | { call: CallOutgoing; err: null }
-        | { call: null; err: { message: string; devices: { token: string; reason: string }[] } }
-    > {
-        const devices = params.fromTokens?.length
-            ? params.fromTokens
-                  .map((token) => this._devices.find((d) => d.token === token))
-                  .filter((d): d is DeviceConnection => !!d)
-            : this._devices;
+    async startCall(params: { fromTokens?: string[]; to: string }): Promise<Result<OutgoingCall, StartCallFailure>> {
+        const devices = this.devicesFor(params.fromTokens);
+        if (!devices.length) return { data: null, error: { code: "NO_DEVICES", devices: [] } };
 
-        if (!devices.length) {
-            return { call: null, err: { devices: [], message: "Nenhum dispositivo encontrado" } };
-        }
-
-        const device_errors: { token: string; reason: string }[] = [];
-
+        const attempts: DeviceAttempt[] = [];
         for (const device of devices) {
-            const { call, err } = await device.startCall(params.to);
-            if (!call) {
-                device_errors.push({ token: device.token, reason: err as string });
-                continue;
-            }
-
-            return { call, err: null };
+            const started = await device.startCall(params.to);
+            if (!started.error) return Result.ok(OutgoingCallProxy(started.data));
+            attempts.push({ token: device.token, error: started.error });
         }
 
-        return { call: null, err: { message: "Não foi possível realizar a chamada", devices: device_errors } };
+        return { data: null, error: { ...attempts[0].error, devices: attempts } };
     }
 
     /**
@@ -120,39 +93,29 @@ export class Wavoip extends EventEmitter<Events> {
     async *startCallIterator(params: {
         fromTokens?: string[];
         to: string;
-    }): AsyncGenerator<
-        { call: null; token: string; err: string },
-        { call: CallOutgoing; token: string } | { call: null; err: string }
-    > {
-        const devices = params.fromTokens?.length
-            ? params.fromTokens
-                  .map((token) => this._devices.find((d) => d.token === token))
-                  .filter((d): d is DeviceConnection => !!d)
-            : this._devices;
+    }): AsyncGenerator<DeviceAttempt, Result<OutgoingCall, StartCallFailure>> {
+        const devices = this.devicesFor(params.fromTokens);
+        if (!devices.length) return { data: null, error: { code: "NO_DEVICES", devices: [] } };
 
-        if (!devices.length) {
-            return { call: null, err: "Nenhum dispositivo configurado" };
-        }
-
+        const attempts: DeviceAttempt[] = [];
         for (const device of devices) {
-            const { call, err } = await device.startCall(params.to);
-            if (!call) {
-                yield { call: null, token: device.token, err: err as string };
-                continue;
-            }
+            const started = await device.startCall(params.to);
+            if (!started.error) return Result.ok(OutgoingCallProxy(started.data));
 
-            return { call, token: device.token };
+            const attempt: DeviceAttempt = { token: device.token, error: started.error };
+            attempts.push(attempt);
+            yield attempt;
         }
 
-        return { call: null, err: "Não foi possível realizar a chamada" };
+        return { data: null, error: { ...attempts[0].error, devices: attempts } };
     }
 
     get devices(): Device[] {
-        return this._devices.map((d) => DeviceProxy(d));
+        return [...this._devices];
     }
 
     getDevices(): Device[] {
-        return this._devices.map((d) => DeviceProxy(d));
+        return [...this._devices];
     }
 
     /**
@@ -160,15 +123,15 @@ export class Wavoip extends EventEmitter<Events> {
      * @param tokens - Device tokens to add.
      */
     addDevices(tokens: string[] = []): Device[] {
-        const added: DeviceConnection[] = [];
+        const added: DeviceSession[] = [];
         for (const token of tokens) {
             if (this._devices.some((d) => d.token === token)) continue;
-            const device = new DeviceConnection(this.mediaManager, token, this.platform, this.transportOptions);
+            const device = this.connect(token);
             this._devices.push(device);
             added.push(device);
             this.bindDeviceEvents(device);
         }
-        return added.map((d) => DeviceProxy(d));
+        return [...added];
     }
 
     /**
@@ -176,9 +139,9 @@ export class Wavoip extends EventEmitter<Events> {
      * @param tokens - Device tokens to remove.
      */
     removeDevices(tokens: string[]): Device[] {
-        if (!tokens.length) return this._devices.map((d) => DeviceProxy(d));
+        if (!tokens.length) return [...this._devices];
 
-        const remaining: DeviceConnection[] = [];
+        const remaining: DeviceSession[] = [];
         for (const device of this._devices) {
             if (tokens.includes(device.token)) {
                 device.disconnect();
@@ -187,45 +150,92 @@ export class Wavoip extends EventEmitter<Events> {
             remaining.push(device);
         }
         this._devices = remaining;
-        return this._devices.map((d) => DeviceProxy(d));
+        return [...this._devices];
     }
 
     /**
      * Iteratively wakes up devices that are in hibernation.
      */
-    async *wakeUpDevicesIterator(
-        tokens: string[] = [],
-    ): AsyncGenerator<{ token: string; waken: boolean }, void, unknown> {
+    async *wakeUpDevicesIterator(tokens: string[] = []): AsyncGenerator<DeviceWakeUp, void, unknown> {
         const devices = tokens.length ? this._devices.filter((d) => tokens.includes(d.token)) : this._devices;
 
         for (const device of devices) {
-            const waken = await device.wakeUp();
-            yield { token: device.token, waken };
+            yield { token: device.token, result: await device.wakeUp() };
         }
     }
 
     /**
      * Wakes up devices and returns an array of Promises resolving to wake results.
      */
-    wakeUpDevices(tokens: string[] = []): Promise<{ token: string; waken: boolean }>[] {
+    wakeUpDevices(tokens: string[] = []): Promise<DeviceWakeUp>[] {
         const devices = tokens.length ? this._devices.filter((d) => tokens.includes(d.token)) : this._devices;
 
-        return devices.map((device) => device.wakeUp().then((waken) => ({ token: device.token, waken })));
+        return devices.map((device) => device.wakeUp().then((result) => ({ token: device.token, result })));
     }
 
-    private bindDeviceEvents(device: DeviceConnection) {
-        device.on("offerReceived", (offer) => {
-            this.emit("offer", offer);
-        });
+    private devicesFor(tokens?: string[]): DeviceSession[] {
+        // Sem `fromTokens`, todos; com ele, só os que existem, na ordem pedida.
+        if (!tokens?.length) return this._devices;
+        return tokens
+            .map((token) => this._devices.find((d) => d.token === token))
+            .filter((device): device is DeviceSession => !!device);
+    }
+
+    on<T extends keyof Events>(event: T, callback: (...args: Events[T]) => void): Unsubscribe {
+        return this.events.on(event, callback);
+    }
+
+    private connect(token: string): DeviceSession {
+        // O raiz de composição: é o único lugar que escolhe implementação. A sessão só
+        // conhece portas, e é por isto que ela roda igual em qualquer plataforma.
+        const session = new DeviceSession(
+            {
+                signaling: new SocketIoSignaling(DeviceWebSocketFactory(token, this.platform)),
+                api: new FetchDeviceApi(token),
+                transports: this.transportsFor(token),
+                setLocalMuted: (muted) => this.runtime.microphone.setMuted(muted),
+            },
+            token,
+        );
+
+        session.connect();
+        return session;
+    }
+
+    private transportsFor(token: string): TransportFactory {
+        // O device decide o transporte da chamada que sai: OFFICIAL fala WebRTC, UNOFFICIAL
+        // fala relay. Na oferta recebida, quem decide é o plano que veio nela.
+        const { runtime, transportOptions } = this;
+        return {
+            forCall: (type) => {
+                if (type === "OFFICIAL") {
+                    return runtime.createPeer ? new WebRTCTransport(runtime, undefined, transportOptions) : null;
+                }
+                return runtime.openSocket ? new WebsocketTransport(runtime, token) : null;
+            },
+            forOffer: (plan, deviceToken) => {
+                if (plan.type === "webRTC") return new WebRTCTransport(runtime, plan.sdp, transportOptions);
+                if (plan.type === "relay") {
+                    const relay = new WebsocketTransport(runtime, deviceToken);
+                    relay.useRelay(plan);
+                    return relay;
+                }
+                throw new Error(`Unsupported media plan type: ${plan.type}`);
+            },
+        };
+    }
+
+    // A sessão fala em chamada crua; quem a veste para o integrador é aqui, que é onde o
+    // evento público nasce.
+    private bindDeviceEvents(device: DeviceSession) {
+        device.on("incomingCall", (call) => this.events.emit("offer", IncomingCallProxy(call)));
     }
 }
 
 function collectTransportOptions(params: {
     iceConfig?: IceConfig;
-    statsTickMs?: number;
 }): TransportOptions | undefined {
     const out: TransportOptions = {};
     if (params.iceConfig) out.iceConfig = params.iceConfig;
-    if (params.statsTickMs !== undefined) out.statsTickMs = params.statsTickMs;
     return Object.keys(out).length ? out : undefined;
 }

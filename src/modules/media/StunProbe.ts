@@ -1,3 +1,4 @@
+import type { PeerConnectionFactory } from "@/ports/runtime/PeerConnectionPort";
 export type StunProbeResult = {
     server: string;
     reachable: boolean;
@@ -7,27 +8,25 @@ export type StunProbeResult = {
 const DEFAULT_PROBE_TIMEOUT_MS = 3000;
 
 /**
- * Probe a list of STUN servers in parallel. A server is reported as
- * `reachable: true` when at least one `srflx` candidate is gathered before
- * the timeout fires. Each probe uses its own throwaway RTCPeerConnection.
+ * Sonda uma lista de servidores STUN em paralelo. Um servidor conta como alcançável
+ * quando junta ao menos um candidato `srflx` antes do tempo acabar. Cada sonda usa uma
+ * conexão descartável, criada pela fábrica que a plataforma injeta — é o que faz a sonda
+ * rodar igual no navegador, no React Native e no Node.
  *
- * @example
- *   const results = await runStunProbe([
- *       "stun:stun.l.google.com:19302",
- *       "stun:stun.cloudflare.com:3478",
- *   ]);
+ * Interna de propósito: o caminho público para checar a rede é o diagnóstico de ambiente.
  */
 export function runStunProbe(
     servers: string[],
+    createPeer: PeerConnectionFactory,
     timeoutMs: number = DEFAULT_PROBE_TIMEOUT_MS,
 ): Promise<StunProbeResult[]> {
-    return Promise.all(servers.map((server) => probeOne(server, timeoutMs)));
+    return Promise.all(servers.map((server) => probeOne(server, timeoutMs, createPeer)));
 }
 
-function probeOne(server: string, timeoutMs: number): Promise<StunProbeResult> {
+function probeOne(server: string, timeoutMs: number, createPeer: PeerConnectionFactory): Promise<StunProbeResult> {
     return new Promise((resolve) => {
         const startedAt = Date.now();
-        const pc = new RTCPeerConnection({ iceServers: [{ urls: server }] });
+        const pc = createPeer({ iceServers: [{ urls: server }] });
         let settled = false;
 
         const cleanup = () => {
@@ -42,11 +41,10 @@ function probeOne(server: string, timeoutMs: number): Promise<StunProbeResult> {
             resolve(result);
         };
 
-        pc.onicecandidate = (event) => {
-            if (!event.candidate) return;
-            if (event.candidate.type !== "srflx") return;
+        pc.addEventListener("icecandidate", (event) => {
+            if (event.candidate?.type !== "srflx") return;
             finish({ server, reachable: true, latencyMs: Date.now() - startedAt });
-        };
+        });
 
         const timer = setTimeout(() => {
             finish({ server, reachable: false });

@@ -1,0 +1,19 @@
+{
+    "name": "wavoip-node-example",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "answer": "node --experimental-strip-types src/answer.ts",
+        "dial": "node --experimental-strip-types src/dial.ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@roamhq/wrtc": "^0.10.0",
+        "@wavoip/wavoip-api": "file:../..",
+        "ws": "^8.21.3"
+    },
+    "devDependencies": {
+        "@types/node": "^24.13.6",
+        "typescript": "^5.8.2"
+    }
+}

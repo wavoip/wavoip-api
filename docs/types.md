@@ -9,14 +9,13 @@ Todos os tipos listados aqui são re-exportados da raiz do pacote e podem ser im
 
 ```typescript
 import type {
-    CallActive, CallActiveEvents,
-    CallOutgoing, CallOutgoingEvents,
-    Offer, OfferEvents,
+    ActiveCall, ActiveCallEvents,
+    OutgoingCall, OutgoingCallEvents,
+    IncomingCall, IncomingCallEvents,
     Device, DeviceEvents,
     CallPeer, CallStats, ServerCallStats, CallStatus, CallType, CallDirection,
     DeviceStatus, Contact,
     IceDiagnostics, IceCandidateKind, ConnectivityIssue,
-    StunProbeResult,
     TransportStatus,
     Unsubscribe,
 } from "@wavoip/wavoip-api"
@@ -44,20 +43,20 @@ type CallStatus =
 ```
 
 {% hint style="info" %}
-`CANCELLED` chega pelo mesmo evento `ended` dos demais desfechos — não há um evento
-próprio. Instâncias antigas não informam o desfecho e reportam `ENDED`.
+Numa chamada recebida, `CANCELLED` tem evento próprio: `cancelled`. Instâncias antigas não
+informam o desfecho e reportam `ENDED`, que chega como `ended`.
 {% endhint %}
 
 ### `CallType`
 
 ```typescript
-type CallType = "official" | "unofficial"
+type CallType = "OFFICIAL" | "UNOFFICIAL"
 ```
 
 | Valor          | Transporte          | Descrição                                          |
 | -------------- | ------------------- | -------------------------------------------------- |
-| `"official"`   | WebRTC              | Chamada nativa do WhatsApp usando SRTP.            |
-| `"unofficial"` | Relay via WebSocket | Áudio retransmitido pelos servidores Wavoip.       |
+| `"OFFICIAL"`   | WebRTC              | Chamada nativa do WhatsApp usando SRTP.            |
+| `"UNOFFICIAL"` | Relay via WebSocket | Áudio retransmitido pelos servidores Wavoip.       |
 
 ### `CallDirection`
 
@@ -82,32 +81,30 @@ type CallPeer = {
 
 ## Estatísticas de chamada
 
-`CallStats` é o snapshot retornado por [`CallActive.getStats()`](calls/active.md#getstats). Em chamadas `official` todos os campos vêm de `RTCPeerConnection.getStats()`. Em chamadas `unofficial` os campos de RTT, perda e totais vêm do push `serverStats` do servidor, enquanto bitrate, audio levels, jitter RX e latência de saída vêm das medições do transporte WebSocket — `getStats()` retorna os dois mesclados.
+`CallStats` é o snapshot devolvido por [`ActiveCall.getStats()`](calls/active.md#getstats). Em chamadas `official` tudo vem do `RTCPeerConnection.getStats()`. Em chamadas `unofficial`, RTT, perda e totais vêm do push `call:stats` do servidor, e bitrate, níveis, jitter de chegada e as latências locais vêm do transporte WebSocket — `getStats()` devolve os dois mesclados.
 
 ```typescript
 type CallStats = {
-    rtt: {
-        min: number   // Tempo mínimo de ida e volta (ms)
-        max: number   // Tempo máximo de ida e volta (ms)
-        avg: number   // Tempo médio de ida e volta (ms)
+    // RTT da perna cliente ⇔ servidor, acumulado ao longo da chamada, em ms
+    rtt: { min: number; max: number; avg: number }
+
+    // `null` = não medido nesta plataforma ou neste tipo de chamada (não é zero)
+    latency: {
+        total_ms:         number | null  // a soma do que foi medido; é estimativa
+        network_ms:       number | null  // metade do RTT mais recente, cliente ⇔ servidor
+        whatsapp_ms:      number | null  // metade do RTT servidor ⇔ WhatsApp
+        jitter_buffer_ms: number | null  // áudio que chegou e ainda não tocou
+        playout_ms:       number | null  // do motor de áudio até sair no aparelho
     }
-    tx: {
-        total:        number  // Pacotes enviados
-        total_bytes:  number  // Bytes enviados
-        loss:         number  // Perda de pacotes
-        bitrate_kbps: number  // Bitrate de envio na última janela de tick
-        audio_level:  number  // RMS do microfone (0–1)
+
+    audio: {
+        tx: { level: number; bitrate_kbps: number }
+        rx: { level: number; bitrate_kbps: number; jitter_ms: number }
     }
-    rx: {
-        total:        number  // Pacotes recebidos
-        total_bytes:  number  // Bytes recebidos
-        loss:         number  // Perda de pacotes
-        bitrate_kbps: number  // Bitrate de recepção na última janela de tick
-        audio_level:  number  // RMS do alto-falante (0–1)
-        jitter_ms:    number  // Jitter estimado (RFC 3550)
-    }
-    audio_context: {
-        output_latency_ms: number  // AudioContext.outputLatency × 1000
+
+    packets: {
+        tx: { sent: number; lost: number; bytes: number }
+        rx: { received: number; lost: number; bytes: number }
     }
 }
 
@@ -126,6 +123,24 @@ type ServerCallStats = {
 ## Diagnóstico ICE
 
 Emitido como parte do ciclo de vida da chamada para ajudar a investigar problemas de conexão de mídia.
+
+O que o construtor do `Wavoip` aceita:
+
+```typescript
+type IceConfig = {
+    gatheringTimeoutMs?: number      // teto da coleta de candidatos; padrão 2500
+    iceServers?: IceServer[]         // padrão: STUN do Google e da Cloudflare
+}
+
+type IceServer = {
+    urls: string | string[]
+    username?: string
+    credential?: string
+}
+```
+
+Mesma forma do `RTCIceServer` do navegador, mas declarado pela biblioteca — assim o `.d.ts`
+não depende dos tipos do DOM.
 
 ```typescript
 type IceCandidateKind = "host" | "srflx" | "prflx" | "relay"
@@ -152,22 +167,8 @@ type ConnectivityIssue =
 ```
 
 {% hint style="info" %}
-`iceDiagnostics` e `connectivityIssue` são emitidos por `Offer`, `CallOutgoing` e `CallActive`. Em `CallActive`, o último `iceDiagnostics` e todos os `connectivityIssue` recebidos até o momento são re-emitidos para listeners tardios, garantindo que consumidores que assinam após o início da chamada não percam o estado inicial.
+`iceDiagnostics` e `connectivityIssue` são emitidos por `IncomingCall`, `OutgoingCall` e `ActiveCall`. Nos três, o último `iceDiagnostics` e todos os `connectivityIssue` observados até o momento são re-emitidos para listeners tardios: a coleta de candidatos acontece antes de o objeto da chamada existir, então quem assina depois — e é sempre depois — receberia um silêncio no lugar do diagnóstico.
 {% endhint %}
-
----
-
-## STUN
-
-```typescript
-type StunProbeResult = {
-    server:    string
-    reachable: boolean
-    latencyMs?: number
-}
-```
-
-Use `runStunProbe(servers, timeoutMs?)` para testar a alcançabilidade de servidores STUN em paralelo.
 
 ---
 
@@ -177,7 +178,6 @@ Use `runStunProbe(servers, timeoutMs?)` para testar a alcançabilidade de servid
 
 ```typescript
 type DeviceStatus =
-    | "UP"                        // (legado) Dispositivo em execução
     | "close"                     // Conectado, sem WhatsApp vinculado
     | "connecting"                // QR code pronto, aguardando leitura
     | "open"                      // Vinculado e pronto para chamadas
@@ -199,6 +199,14 @@ type ConnectionStatus =
     | "reconnecting"  // Tentando reabrir o WebSocket após queda
 ```
 
+### `DeviceRestriction`
+
+```typescript
+type DeviceRestriction = {
+    until: Date | null    // `null` quando o servidor não informa o prazo
+}
+```
+
 ### `Contact`
 
 ```typescript
@@ -217,52 +225,57 @@ type Contact = {
 type TransportStatus = "disconnected" | "connecting" | "connected" | "reconnecting"
 ```
 
+### `CallConnection`
+
+O estado de uma chamada ativa com as duas pernas somadas — a mídia local e a perna entre o
+servidor e o WhatsApp. Qualquer uma caindo de forma recuperável deixa a chamada em
+`"reconnecting"`; `"disconnected"` quer dizer chamada perdida.
+
+```typescript
+type CallConnection = "connected" | "reconnecting" | "disconnected"
+```
+
 ---
 
 ## Mapas de eventos
 
-### `OfferEvents`
+### `IncomingCallEvents`
 
 ```typescript
-type OfferEvents = {
+type IncomingCallEvents = {
     acceptedElsewhere: []
     rejectedElsewhere: []
-    unanswered:        []
+    cancelled:         []
     ended:             []
-    status:            [status: CallStatus]
     iceDiagnostics:    [diag: IceDiagnostics]
     connectivityIssue: [issue: ConnectivityIssue]
 }
 ```
 
-### `CallOutgoingEvents`
+### `OutgoingCallEvents`
 
 ```typescript
-type CallOutgoingEvents = {
-    peerAccept:        [call: CallActive]
-    peerReject:        []
+type OutgoingCallEvents = {
+    ringing:           []
+    answered:          []
+    accepted:          [call: ActiveCall]
+    rejected:          []
     unanswered:        []
+    failed:            [error: OutgoingCallFailure]
     ended:             []
-    status:            [status: CallStatus]
     iceDiagnostics:    [diag: IceDiagnostics]
     connectivityIssue: [issue: ConnectivityIssue]
 }
 ```
 
-### `CallActiveEvents`
+### `ActiveCallEvents`
 
 ```typescript
-type CallActiveEvents = {
-    error:             [err: CallFailReason]
-    peerMute:          []
-    peerUnmute:        []
+type ActiveCallEvents = {
     ended:             []
-    /** @deprecated Use `CallActive.getStats()` — você controla a cadência. */
-    stats:             [stats: CallStats]
-    /** @deprecated Use `CallActive.getStats()` — já mescla servidor + cliente. */
-    serverStats:       [stats: ServerCallStats]
-    connectionStatus:  [status: TransportStatus]
-    status:            [status: CallStatus]
+    failed:            [error: WavoipError<CallFailureCode | "UNKNOWN">]
+    peerMuteChanged:   [muted: boolean]
+    connectionChanged: [connection: CallConnection]
     iceDiagnostics:    [diag: IceDiagnostics]
     connectivityIssue: [issue: ConnectivityIssue]
 }
@@ -274,39 +287,143 @@ type CallActiveEvents = {
 type DeviceEvents = {
     statusChanged:           [status: DeviceStatus]
     connectionStatusChanged: [status: ConnectionStatus]
-    qrCodeChanged:           [qrCode?: string]
-    contactChanged:          [contact?: Contact]
-    restrictedChanged:       [restricted: boolean, restrictedUntil: Date | null]
+    qrCodeChanged:           [qrCode: string | null]
+    contactChanged:          [contact: Contact | null]
+    restrictionChanged:      [restriction: DeviceRestriction | null]
+    activeCallsChanged:      [count: number]
 }
 ```
 
-### `CallFailReason`
+## Result e erros
 
-Motivo de falha emitido no evento `error` de [`CallActive`](calls/active.md). É uma união aberta: os literais conhecidos abaixo dão autocomplete, mas qualquer string vinda do servidor é aceita — assim novos motivos podem surgir sem quebrar consumidores tipados.
+### `Result`
+
+O retorno de todo método que pode falhar.
 
 ```typescript
-type CallFailReason =
-    | "AUDIO_TIMEOUT"        // @deprecated — use "PEER_RX_TIMEOUT"
-    | "CORRUPTED_KEYS"
-    | "CONNECTION_TIMEOUT"
-    | "PEER_TX_TIMEOUT"
-    | "PEER_RX_TIMEOUT"
-    | "ACCOUNT_RESTRICTED"
-    | "NO_CALL_PERMISSION"
-    | "INTERNAL_ERROR"
-    | (string & {})
+type Result<T, E extends WavoipError = WavoipError> =
+    | { data: T;    error: null }
+    | { data: null; error: E }
 ```
 
-| Motivo                | Significado                                                                                            |
-| --------------------- | ------------------------------------------------------------------------------------------------------ |
-| `AUDIO_TIMEOUT`       | **Obsoleto.** Substituído por `PEER_RX_TIMEOUT`. Mantido para retrocompatibilidade.                    |
-| `CORRUPTED_KEYS`      | Não foi possível estabelecer a chamada com segurança.                                                  |
-| `CONNECTION_TIMEOUT`  | A chamada perdeu contato com o servidor.                                                               |
-| `PEER_TX_TIMEOUT`     | O contato parou de enviar áudio.                                                                       |
-| `PEER_RX_TIMEOUT`     | O usuário parou de enviar áudio. Substitui `AUDIO_TIMEOUT`.                                            |
-| `ACCOUNT_RESTRICTED`  | A conta do WhatsApp está restrita e não pode realizar chamadas.                                        |
-| `NO_CALL_PERMISSION`  | A conta não tem permissão para realizar chamadas.                                                      |
-| `INTERNAL_ERROR`      | Algo deu errado do lado do servidor.                                                                   |
+Cada método declara o subconjunto de códigos que **ele** pode devolver, então o autocomplete
+não oferece código impossível naquele ponto:
+
+| Alias | Onde aparece | Códigos |
+| --- | --- | --- |
+| `CommandFailure` | `mute`, `unmute`, `cancel`, `end`, `reject`, `pairingCode` | `CommandErrorCode \| "UNKNOWN"` |
+| `AcceptFailure` | `offer.accept()` | os de comando mais `MEDIA_NEGOTIATION_FAILED` e `CALL_TYPE_UNSUPPORTED` |
+| `DeviceApiFailure` | `restart`, `logout`, `wakeUp` | `DeviceErrorCode \| "NETWORK_ERROR" \| "UNKNOWN"` |
+| `OutgoingCallFailure` | evento `failed` da chamada que sai | `CallFailureCode \| "MEDIA_NEGOTIATION_FAILED" \| "UNKNOWN"` |
+| `StartCallFailure` | `wavoip.startCall()` | `StartCallErrorCode`, mais a lista `devices` |
+
+```typescript
+type StartCallFailure = WavoipError<StartCallErrorCode> & {
+    devices: DeviceAttempt[]      // o motivo de cada dispositivo, na ordem tentada
+}
+
+type DeviceAttempt = { token: string; error: WavoipError<StartCallErrorCode> }
+
+type DeviceWakeUp = { token: string; result: Result<void, DeviceApiFailure> }
+```
+
+### `WavoipError`
+
+O erro que todo método e todo evento de falha carrega. O `code` é o contrato: é estável, é nele que você decide o fluxo e é ele que você traduz. Código de protocolo (da instance, do UWP, da API central) é traduzido na borda da biblioteca e **nunca** chega até você.
+
+```typescript
+type WavoipError<C extends ErrorCode = ErrorCode> = {
+    code: C
+    details?: Record<string, unknown>   // valores para a sua mensagem, ex.: { min, max }
+    cause?: unknown                     // valor bruto, só para log e diagnóstico
+}
+```
+
+{% hint style="warning" %}
+Não escreva lógica em cima do `cause` — ele é diagnóstico, não contrato. Quando um valor aparece com frequência, ele vira um `code` novo numa versão seguinte.
+{% endhint %}
+
+### `ErrorCode`
+
+Um catálogo só, agrupado por origem. Cada método declara o subconjunto que ele pode devolver, então o autocomplete mostra só os códigos possíveis naquele ponto.
+
+```typescript
+type ErrorCode = DeviceErrorCode | CommandErrorCode | MediaErrorCode | CallFailureCode | "UNKNOWN"
+```
+
+| Grupo | Código | Significado |
+| ----- | ------ | ----------- |
+| `DeviceErrorCode` | `DEVICE_NOT_LINKED` | É preciso vincular um número ao dispositivo. |
+| | `DEVICE_RESTARTING` | O dispositivo está reiniciando. |
+| | `DEVICE_ERROR` | O dispositivo está em estado de erro ou desabilitado. |
+| | `DEVICE_NOT_READY` | O servidor ainda não descreveu o dispositivo; espere o primeiro `statusChanged`. |
+| | `DEVICE_NOT_FOUND` | O token não corresponde a nenhum dispositivo. |
+| | `WAKE_UP_RATE_LIMITED` | Pedidos de wake-up demais em sequência. |
+| | `NO_DEVICES` | Nenhum dispositivo disponível para a operação. |
+| `CommandErrorCode` | `ACK_TIMEOUT` | O servidor não confirmou o comando em 10s. |
+| | `CALL_ALREADY_ANSWERED` | O outro lado atendeu entre o clique e a confirmação. |
+| | `CALL_NOT_FOUND` | O servidor não conhece essa chamada. |
+| | `DEVICE_BUSY` | O dispositivo já está em outra chamada. |
+| | `NETWORK_ERROR` | O pedido não chegou ao servidor: rede, DNS ou TLS. |
+| `MediaErrorCode` | `MICROPHONE_PERMISSION_DENIED` | O usuário negou o microfone. |
+| | `AUDIO_DEVICE_NOT_FOUND` | O aparelho de áudio pedido não existe. |
+| | `OUTPUT_SELECTION_UNSUPPORTED` | A plataforma não permite escolher a saída. |
+| | `INPUT_SELECTION_UNSUPPORTED` | A plataforma não permite escolher o microfone; quem decide é o sistema. |
+| | `VOLUME_OUT_OF_RANGE` | Volume fora da faixa; a faixa vem em `details`. |
+| | `MEDIA_NEGOTIATION_FAILED` | A negociação de mídia falhou; a exceção original vem em `cause`. |
+| | `UNSUPPORTED_MEDIA_PLAN` | O servidor propôs um transporte que a biblioteca não fala. |
+| | `CALL_TYPE_UNSUPPORTED` | Esta plataforma não carrega chamada desse tipo; `details.type` diz qual. |
+| `CallFailureCode` | `LOCAL_AUDIO_TIMEOUT` | O seu microfone parou de enviar áudio. |
+| | `REMOTE_AUDIO_TIMEOUT` | O contato parou de enviar áudio. |
+| | `CONNECTION_TIMEOUT` | A chamada perdeu contato com o servidor. |
+| | `ENCRYPTION_FAILED` | Não foi possível estabelecer a chamada com segurança. |
+| | `ACCOUNT_RESTRICTED` | A conta do WhatsApp está restrita e não pode chamar. |
+| | `NO_CALL_PERMISSION` | A conta não tem permissão para chamar. |
+| | `SERVER_ERROR` | Algo deu errado do lado do servidor. |
+| — | `UNKNOWN` | Motivo que esta versão da biblioteca ainda não conhece. O valor bruto vai no `cause`. |
+
+{% hint style="info" %}
+`LOCAL_AUDIO_TIMEOUT` e `REMOTE_AUDIO_TIMEOUT` substituem os antigos `PEER_TX_TIMEOUT` e `PEER_RX_TIMEOUT`. Os nomes `TX` e `RX` eram do ponto de vista do motor de VoIP do servidor, e a v2 os documentava invertidos.
+{% endhint %}
+
+---
+
+## Aparelhos de áudio
+
+```typescript
+type AudioDevice = {
+    id: string                       // identificador da plataforma
+    label: string                    // vazio antes da permissão de microfone
+    kind: "input" | "output"
+}
+
+interface AudioControl {
+    listInputDevices(): AudioDevice[]
+    listOutputDevices(): AudioDevice[]
+    readonly currentInput: AudioDevice | null
+    readonly currentOutput: AudioDevice | null
+}
+```
+
+Veja [Mídia](media.md) para o uso.
+
+---
+
+## Áudio da chamada
+
+`call.audio` entrega um analisador por direção. Hoje eles medem o nível; a análise que vier
+depois (forma de onda, espectro) entra no mesmo objeto e vale para as duas direções.
+
+```typescript
+type AudioAnalyser = {
+    level(): number    // 0 a 1, síncrono
+}
+
+type CallAudio = {
+    in:  AudioAnalyser    // o que chega do outro lado
+    out: AudioAnalyser    // o que sai do microfone
+}
+```
 
 ---
 

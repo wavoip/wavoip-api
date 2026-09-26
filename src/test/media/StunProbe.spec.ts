@@ -1,23 +1,25 @@
 import { runStunProbe } from "@/modules/media/StunProbe";
+import type { PeerConnectionFactory, PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildMockPeerConnection } from "./ice-test-helpers";
 
 describe("runStunProbe", () => {
     const pcFactory = buildMockPeerConnection();
+    // Injetada, e não posta no global: é assim que a sonda roda fora do navegador.
+    const createPeer: PeerConnectionFactory = (config) =>
+        new pcFactory.MockRTCPeerConnection(config as RTCConfiguration) as unknown as PeerConnectionLike;
 
     beforeEach(() => {
         pcFactory.reset();
-        vi.stubGlobal("RTCPeerConnection", pcFactory.MockRTCPeerConnection);
         vi.useFakeTimers();
     });
 
     afterEach(() => {
-        vi.unstubAllGlobals();
         vi.useRealTimers();
     });
 
     it("returns reachable=true when an srflx candidate is gathered before the timeout", async () => {
-        const probe = runStunProbe(["stun:server-a.example:3478"], 1000);
+        const probe = runStunProbe(["stun:server-a.example:3478"], createPeer, 1000);
 
         await vi.advanceTimersByTimeAsync(10);
         pcFactory.instances[0]._fireIceCandidate("srflx");
@@ -31,7 +33,7 @@ describe("runStunProbe", () => {
     });
 
     it("returns reachable=false when no srflx candidate arrives before the timeout", async () => {
-        const probe = runStunProbe(["stun:dead.example:3478"], 500);
+        const probe = runStunProbe(["stun:dead.example:3478"], createPeer, 500);
 
         await vi.advanceTimersByTimeAsync(600);
 
@@ -41,7 +43,11 @@ describe("runStunProbe", () => {
     });
 
     it("probes every server in parallel and returns a result per server", async () => {
-        const probe = runStunProbe(["stun:a.example:3478", "stun:b.example:3478", "stun:c.example:3478"], 1000);
+        const probe = runStunProbe(
+            ["stun:a.example:3478", "stun:b.example:3478", "stun:c.example:3478"],
+            createPeer,
+            1000,
+        );
 
         await vi.advanceTimersByTimeAsync(10);
         expect(pcFactory.instances).toHaveLength(3);
@@ -61,7 +67,7 @@ describe("runStunProbe", () => {
     });
 
     it("closes every RTCPeerConnection after the probe finishes", async () => {
-        const probe = runStunProbe(["stun:a.example:3478", "stun:b.example:3478"], 300);
+        const probe = runStunProbe(["stun:a.example:3478", "stun:b.example:3478"], createPeer, 300);
 
         await vi.advanceTimersByTimeAsync(400);
         await probe;
@@ -72,7 +78,7 @@ describe("runStunProbe", () => {
     });
 
     it("uses a default timeout when none is provided", async () => {
-        const probe = runStunProbe(["stun:a.example:3478"]);
+        const probe = runStunProbe(["stun:a.example:3478"], createPeer);
 
         await vi.advanceTimersByTimeAsync(5000);
         const results = await probe;

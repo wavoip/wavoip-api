@@ -16,10 +16,11 @@ layout:
 
 # wavoip-api
 
-`@wavoip/wavoip-api` gerencia todo o ciclo de vida de chamadas de áudio do WhatsApp — recebidas e realizadas — diretamente no navegador. Abstrai a sinalização via WebSocket (Socket.IO), transporte de mídia via WebRTC e o gerenciamento de dispositivos de áudio por trás de uma API simples orientada a eventos.
+`@wavoip/wavoip-api` gerencia todo o ciclo de vida de chamadas de áudio do WhatsApp — recebidas e realizadas — diretamente no navegador. Abstrai a sinalização via WebSocket (Socket.IO), o transporte de mídia (WebRTC nas chamadas oficiais, relay por WebSocket nas não oficiais) e o áudio local por trás de uma API tipada e orientada a eventos.
 
 {% hint style="info" %}
-Versão **2.2.0** — suporta chamadas do tipo oficial (WebRTC) e não oficial (relay via WebSocket).
+**v3** — quebra compatibilidade com a v2. Se você vem de lá, comece por
+[Migrando da v2 para a v3](migration.md).
 {% endhint %}
 
 ## O que faz
@@ -27,30 +28,30 @@ Versão **2.2.0** — suporta chamadas do tipo oficial (WebRTC) e não oficial (
 * Conecta-se a um ou mais dispositivos Wavoip via WebSocket
 * Recebe e despacha ofertas de chamadas recebidas
 * Inicia chamadas com fallback automático entre dispositivos
-* Gerencia seleção de microfone e alto-falante com suporte a troca a quente
+* Lista os microfones e alto-falantes que a plataforma reporta
 * Expõe eventos tipados para cada mudança de estado da chamada
+* Devolve `{ data, error }` em tudo que pode falhar, com código de erro estável
 
 ## Início rápido
 
 ```typescript
-import { Wavoip } from "@wavoip/wavoip-api"
+import { Wavoip, webRuntime } from "@wavoip/wavoip-api/web"
 
-const wavoip = new Wavoip({ tokens: ["seu-token-de-dispositivo"] })
+const wavoip = new Wavoip({ tokens: ["seu-token-de-dispositivo"], runtime: webRuntime() })
 
 // Receber chamadas
 wavoip.on("offer", async (offer) => {
-    const { call } = await offer.accept()
-    if (!call) return
+    const { data: call, error } = await offer.accept()
+    if (error) return console.error(error.code)
 
-    call.on("ended", () => console.log("Chamada encerrada"))
+    call.on("ended", () => console.log("O outro lado desligou"))
 })
 
 // Realizar chamadas
-const { call, err } = await wavoip.startCall({ to: "+5511999999999" })
-if (call) {
-    call.on("peerAccept", (active) => {
-        console.log("Chamada conectada!")
-    })
+const { data: outgoing, error } = await wavoip.startCall({ to: "+5511999999999" })
+if (!error) {
+    outgoing.on("accepted", (active) => console.log("Chamada conectada!", active.id))
+    outgoing.on("rejected", () => console.log("Recusada"))
 }
 ```
 
