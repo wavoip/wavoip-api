@@ -306,6 +306,18 @@ describe("RNAudioEngine on the relay path", () => {
     });
 
     /**
+     * O `react-native-audio-api` recusa offset negativo e ainda assim usa `-1` como padrão:
+     * `start()` sem argumentos lança, e a chamada não oficial morria antes do primeiro bloco.
+     */
+    it("starts the queue with arguments the device accepts", () => {
+        reactNativeRuntime().engine.playPcm();
+
+        const startedWith = FakeAudioContext.instances[0].queue.startedWith;
+        expect(startedWith?.when).toBeGreaterThanOrEqual(0);
+        expect(startedWith?.offset).toBeGreaterThanOrEqual(0);
+    });
+
+    /**
      * O bloco que termina tem de sair da conta valendo o que valia ao entrar. Descontar um
      * valor fixo fazia a conta subir sozinha mesmo com o aparelho tocando no ritmo, e a
      * chamada emudecia depois do primeiro segundo. Blocos de 20 ms são o que o relay manda.

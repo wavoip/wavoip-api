@@ -26,7 +26,10 @@ export class RNPcmPlayback implements PcmPlayback {
         this.queue = context.createBufferQueueSource();
         this.queue.connect(context.destination);
         this.queue.onBufferEnded = (event) => this.settle(event.bufferId);
-        this.queue.start();
+        // `start()` sem argumentos lança: o `react-native-audio-api` assume `offset = -1` como
+        // sentinela e a validação logo abaixo rejeita todo offset negativo. Passar 0 é o que
+        // faz a fila começar — descoberto num Galaxy A55, porque o dublê do teste não valida.
+        this.queue.start(0, 0);
     }
 
     write(pcm: ArrayBuffer): void {

@@ -26,6 +26,7 @@ export class FakeAudioBuffer {
 export class FakeQueueSource {
     readonly enqueued: FakeAudioBuffer[] = [];
     started = false;
+    startedWith: { when: number; offset: number } | null = null;
     stopped = false;
     cleared = 0;
     connectedTo: unknown = null;
@@ -51,8 +52,13 @@ export class FakeQueueSource {
         this.connectedTo = destination;
     }
 
-    start(): void {
+    /**
+     * A fila de verdade valida os dois argumentos e recusa offset negativo — inclusive o
+     * `-1` que ela mesma usa como padrão. O dublê guarda o que recebeu para o teste cobrar.
+     */
+    start(when = -1, offset = -1): void {
         this.started = true;
+        this.startedWith = { when, offset };
     }
 
     stop(): void {
