@@ -121,13 +121,42 @@ conexão. Não há grafo de áudio a montar nem alto-falante a abrir.
 | Sessão de áudio do sistema | `InCallManager`, iniciado quando o áudio do contato chega e encerrado no fim |
 | Viva-voz | `wavoip.audio.selectOutput("speaker")` ou `"earpiece"` |
 | Nível do áudio | `call.audio.in.level()` e `out.level()`, lidos das estatísticas da conexão |
-| Chamada não oficial | `AudioRecorder` captura, `AudioBufferQueueSourceNode` toca, e a reamostragem é em JavaScript |
+| Chamada não oficial | `AudioRecorder` captura e `AudioBufferQueueSourceNode` toca, os dois na taxa do relay |
+| Transporte da não oficial | o `WebSocket` do React Native, que é o `NativeWebSocketModule` — OkHttp no Android |
 
 {% hint style="info" %}
 **Por que a sessão de áudio é configurada tão tarde.** O momento é o da track remota chegar, e
 não o da conexão abrir. Configurar antes disso não adianta — o WebRTC nativo sobrescreve — e
 configurar depois já é tarde, porque o áudio saiu pela rota errada. Foi o que a comunidade do
 `react-native-webrtc` apurou depois de casos de chamada silenciosa no iOS.
+{% endhint %}
+
+### O socket é o da plataforma, e o que ele cobra
+
+A chamada não oficial usa o `WebSocket` global do React Native, que não é uma implementação em
+JavaScript: por baixo é o `NativeWebSocketModule`, um TurboModule — OkHttp no Android. O núcleo
+não constrói socket nenhum; ele recebe um `openSocket` do runtime, e cada plataforma entrega o
+seu. O navegador entrega o mesmo global porque a API tem a mesma forma; o Node traz o `ws`.
+
+O que o React Native cobra a mais é a travessia até esse módulo: `WebSocket.send` de um
+`ArrayBuffer` chama `sendBinary(binaryToBase64(data))`, ou seja, **cada frame binário é
+codificado em base64 em JavaScript** antes de chegar ao nativo, que o decodifica de volta.
+Medido num Galaxy A55, para um bloco de 20 ms (640 bytes, que viram 856 de base64):
+
+| | |
+| --- | --- |
+| Codificar em base64, p50 | 0,082 ms |
+| p95 | 0,261 ms |
+
+São 0,4% do orçamento de tempo real, e não custam banda: quem fala com a rede é o módulo
+nativo, já com os bytes de volta. Não vale otimizar.
+
+{% hint style="info" %}
+O áudio passa pela thread de JavaScript porque é lá que esse socket vive. Mandá-lo direto da
+thread de áudio exigiria um socket alcançável de um runtime de worklet, e os runtimes de
+worklet não recebem os bindings de módulo nativo do React Native — seria preciso escrever um
+módulo nativo próprio. Se um dia valer a pena, é exatamente isso que o `openSocket` do runtime
+existe para permitir, sem tocar no núcleo.
 {% endhint %}
 
 ## Escolher onde a chamada é ouvida
