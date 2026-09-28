@@ -107,14 +107,13 @@ decide é o sistema.
 **Você não precisa do `registerGlobals()`.** O runtime recebe as implementações por injeção, e
 nenhum global do navegador é lido.
 
-## O que não foi executado num aparelho
+## O que já rodou num aparelho, e o que não
 
-Este exemplo compila contra os tipos publicados da biblioteca e contra os do
-`react-native-webrtc`, e o `npm run typecheck` prova isso. **Rodar num Android e num iPhone de
-verdade ainda não aconteceu** — nem para o exemplo, nem para o adaptador que ele usa. Trate os
-dois como prontos para serem testados, e não como prontos para produção.
+O adaptador foi executado num Galaxy A55 5G com Android 16, e as medições estão em
+[`docs/platforms/react-native.md`](../../docs/platforms/react-native.md): o `AudioRecorder`
+honra os 16 kHz pedidos, e reamostrar de 16 para 48 kHz na reprodução custa cerca de 11,8 ms
+por bloco de 20 ms.
 
-O que precisa ser medido num aparelho está listado em
-[`docs/platforms/react-native.md`](../../docs/platforms/react-native.md): se a taxa pedida ao
-`AudioRecorder` é honrada, a latência do caminho até a track, e o comportamento da sessão de
-áudio no iOS quando a chamada chega com o app em segundo plano.
+**No iPhone, nada disso foi executado.** O risco que sobra é o da própria plataforma: a sessão
+de áudio com a chamada chegando em segundo plano. Até alguém rodar isso num iPhone, trate o
+iOS como não testado.

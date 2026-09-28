@@ -167,6 +167,31 @@ Essa conversão é JavaScript puro, sem WebAssembly, porque o **Hermes** — o m
 React Native — não implementa WebAssembly. Uma biblioteca compilada como o `libsamplerate`
 serviria ao navegador e ao Node e deixaria o celular de fora.
 
+### O que ela custa, medido
+
+Num Galaxy A55 5G o `AudioRecorder` **honra os 16 kHz pedidos**: entrega blocos de 320 frames
+em um canal, a 15.996 Hz contados no relógio, com cadência de 20 ms (p95 de 22,7 ms). Nesse
+aparelho a captura não reamostra nada — entra 16 kHz, sai 16 kHz.
+
+A reprodução não tem essa sorte: o grafo do aparelho roda a 48 kHz, então cada bloco que volta
+do relay é convertido de 16 para 48 kHz. Aí está o custo:
+
+| Trecho de um bloco de 20 ms | Custo |
+| --- | --- |
+| `createBuffer` + `copyToChannel` + `enqueueBuffer` (o nativo) | 0,065 ms |
+| Reamostrar de 16 para 48 kHz e converter para Float32 (o Hermes) | ~11,8 ms |
+| **Total por bloco, com 20 ms de orçamento** | **~11,9 ms** |
+
+A travessia para o nativo é 0,5% da conta. O resto é aritmética interpretada: são 33 taps por
+amostra **produzida**, e subir de 16 para 48 kHz produz o triplo das amostras que entram.
+
+{% hint style="warning" %}
+São **60% do orçamento de tempo real gastos só em tocar**, num aparelho de linha média de
+2024, e sem contar a captura — que neste aparelho saiu de graça porque ele grava em 16 kHz.
+Um aparelho que grave em 48 kHz paga também a conversão de descida. Trate a chamada não
+oficial no React Native como funcional, e não como folgada.
+{% endhint %}
+
 {% hint style="info" %}
 A FFT do espectro existe em JavaScript pelo mesmo motivo. Reparar que são coisas diferentes: o
 Hermes explica por que a **implementação** é em JavaScript. O espectro vazio na chamada oficial
@@ -221,9 +246,8 @@ microfone é risco que não se corre de graça. Quem decide de onde tirar as amo
 | Escolher o microfone | `selectInput` devolve `INPUT_SELECTION_UNSUPPORTED`: no Android e no iOS quem decide é o sistema, seguindo o que está conectado |
 | `wavoip.audio.currentInput` | `null` — o sistema não informa qual microfone está usando |
 
-{% hint style="danger" %}
-**Este adaptador ainda não foi executado num aparelho.** Os tipos batem com os do
-`react-native-webrtc` e a lógica é coberta por testes com dublês do módulo, mas nada
-substitui rodar num Android e num iPhone de verdade. Trate-o como pronto para ser testado, e
-não como pronto para produção.
+{% hint style="warning" %}
+**Rodou num Android; num iPhone, ainda não.** As medições desta página vêm de um Galaxy A55 5G
+(Android 16, `arm64-v8a`). O iOS continua sem execução em aparelho — em especial a sessão de
+áudio com a chamada chegando em segundo plano, que é o risco próprio da plataforma.
 {% endhint %}
