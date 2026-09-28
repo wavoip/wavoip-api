@@ -1,4 +1,4 @@
-import { SincResampler } from "@/domain/audio/SincResampler";
+import { SincResampler } from "@/platform/node/SincResampler";
 
 /**
  * Reamostragem vista de fora, para que o caminho do áudio não saiba se o trabalho acontece

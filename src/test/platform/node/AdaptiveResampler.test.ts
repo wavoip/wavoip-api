@@ -1,4 +1,4 @@
-import { AdaptiveResampler } from "@/domain/audio/AdaptiveResampler";
+import { AdaptiveResampler } from "@/platform/node/AdaptiveResampler";
 import { describe, expect, it } from "vitest";
 
 describe("AdaptiveResampler", () => {

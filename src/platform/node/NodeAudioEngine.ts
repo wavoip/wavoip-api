@@ -1,5 +1,5 @@
 import { ClipDetector } from "@/domain/audio/ClipDetector";
-import { AdaptiveResampler } from "@/domain/audio/AdaptiveResampler";
+import { AdaptiveResampler } from "@/platform/node/AdaptiveResampler";
 import { SpectrumAnalyser } from "@/domain/audio/SpectrumAnalyser";
 import { rmsInt16 } from "@/modules/media/audio-level";
 import type { AudioSink } from "@/platform/node/audioIo";

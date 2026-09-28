@@ -1,4 +1,4 @@
-import { SincResampler } from "@/domain/audio/SincResampler";
+import { SincResampler } from "@/platform/node/SincResampler";
 import { parentPort } from "node:worker_threads";
 
 /**
