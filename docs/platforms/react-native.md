@@ -64,9 +64,10 @@ React Native 0.76.
 {% endstep %}
 
 {% step %}
-## Permissão de microfone
+## Permissões
 
-A permissão é pedida quando a chamada abre o microfone, mas o app tem de declará-la antes.
+O microfone é pedido quando a chamada o abre, mas o app tem de declarar antes — e, no Android,
+não é só o microfone.
 
 {% tabs %}
 {% tab title="Android" %}
@@ -74,6 +75,7 @@ A permissão é pedida quando a chamada abre o microfone, mas o app tem de decla
 <!-- android/app/src/main/AndroidManifest.xml -->
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
 <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+<uses-permission android:name="android.permission.WAKE_LOCK" />
 ```
 {% endtab %}
 
@@ -86,8 +88,20 @@ A permissão é pedida quando a chamada abre o microfone, mas o app tem de decla
 {% endtab %}
 {% endtabs %}
 
-Sem a declaração, o sistema recusa o microfone e a chamada devolve
+Sem o `RECORD_AUDIO`, o sistema recusa o microfone e a chamada devolve
 `MICROPHONE_PERMISSION_DENIED`.
+
+{% hint style="danger" %}
+**O `WAKE_LOCK` não é opcional, e esquecê-lo derruba o app.** A biblioteca chama o
+`InCallManager` sozinha, no instante em que o áudio do contato chega, e ele toma um wake lock
+para segurar a rota de áudio. Sem a permissão declarada, o Android lança
+`SecurityException: Neither user nor current process has android.permission.WAKE_LOCK` na
+thread principal — e isso **encerra o processo**, não devolve erro à chamada. Não há como a
+biblioteca transformar isso em `Result`: a exceção é nativa e não passa pelo JavaScript.
+
+O `react-native-incall-manager` não declara permissão nenhuma no manifesto dele, então a
+declaração é sempre sua. Visto num Galaxy A55 ao atender a primeira chamada oficial.
+{% endhint %}
 {% endstep %}
 
 {% step %}

@@ -36,13 +36,20 @@ cp -r <este-diretório>/App.tsx <este-diretório>/src .
 
 O `index.js` que o CLI gerou já importa o `App`, então não há mais nada a ligar.
 
-### 4. Declarar a permissão de microfone
+### 4. Declarar as permissões
 
 `android/app/src/main/AndroidManifest.xml`:
 
 ```xml
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
+<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+<uses-permission android:name="android.permission.WAKE_LOCK" />
 ```
+
+O `WAKE_LOCK` é o que mais se esquece, e é o que derruba o app: a biblioteca chama o
+`InCallManager` quando o áudio do contato chega, ele toma um wake lock, e sem a permissão o
+Android encerra o processo com `SecurityException` — sem passar pelo JavaScript, então não há
+erro para tratar.
 
 `ios/WavoipExemplo/Info.plist`:
 
