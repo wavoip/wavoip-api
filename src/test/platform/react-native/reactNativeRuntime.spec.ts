@@ -305,6 +305,24 @@ describe("RNAudioEngine on the relay path", () => {
         expect(FakeAudioContext.instances[0].queue.enqueued.length).toBeLessThan(100);
     });
 
+    /**
+     * O bloco que termina tem de sair da conta valendo o que valia ao entrar. Descontar um
+     * valor fixo fazia a conta subir sozinha mesmo com o aparelho tocando no ritmo, e a
+     * chamada emudecia depois do primeiro segundo. Blocos de 20 ms são o que o relay manda.
+     */
+    it("keeps the queue estimate steady when the device plays at the same pace", () => {
+        const playback = reactNativeRuntime().engine.playPcm();
+        const queue = FakeAudioContext.instances[0].queue;
+
+        for (let i = 0; i < 100; i += 1) {
+            playback.write(relayed(440, 320).buffer as ArrayBuffer);
+            queue.endOldestBuffer();
+        }
+
+        expect(queue.enqueued).toHaveLength(100);
+        expect(playback.bufferedMs()).toBeLessThan(40);
+    });
+
     it("builds the audio graph only when an unofficial call needs it", () => {
         const runtime = reactNativeRuntime();
         expect(FakeAudioContext.instances).toHaveLength(0);

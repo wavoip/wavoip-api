@@ -29,11 +29,22 @@ export class FakeQueueSource {
     stopped = false;
     cleared = 0;
     connectedTo: unknown = null;
-    onBufferEnded: ((event: unknown) => void) | null = null;
+    onBufferEnded: ((event: { bufferId: string; isLastBufferInQueue: boolean }) => void) | null = null;
+    /** Os ids ainda por tocar, na ordem em que entraram. */
+    private readonly ids: string[] = [];
 
     enqueueBuffer(buffer: FakeAudioBuffer): string {
+        const bufferId = `buffer-${this.enqueued.length + 1}`;
         this.enqueued.push(buffer);
-        return `buffer-${this.enqueued.length}`;
+        this.ids.push(bufferId);
+        return bufferId;
+    }
+
+    /** O aparelho terminando de tocar o bloco mais antigo da fila. */
+    endOldestBuffer(): void {
+        const bufferId = this.ids.shift();
+        if (!bufferId) return;
+        this.onBufferEnded?.({ bufferId, isLastBufferInQueue: this.ids.length === 0 });
     }
 
     connect(destination: unknown): void {

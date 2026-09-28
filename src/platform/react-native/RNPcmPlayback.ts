@@ -17,15 +17,15 @@ const MAX_QUEUE_MS = 400;
 export class RNPcmPlayback implements PcmPlayback {
     private readonly resampler: SincResampler;
     private readonly queue: AudioBufferQueueSourceNode;
+    /** Quanto cada bloco enfileirado vale em ms, pelo id que a fila devolveu. */
+    private readonly queuedByBuffer = new Map<string, number>();
     private queuedMs = 0;
 
     constructor(private readonly context: BaseAudioContext) {
         this.resampler = new SincResampler(CALL_RATE, context.sampleRate);
         this.queue = context.createBufferQueueSource();
         this.queue.connect(context.destination);
-        this.queue.onBufferEnded = () => {
-            this.queuedMs = Math.max(0, this.queuedMs - 10);
-        };
+        this.queue.onBufferEnded = (event) => this.settle(event.bufferId);
         this.queue.start();
     }
 
@@ -38,8 +38,23 @@ export class RNPcmPlayback implements PcmPlayback {
         const converted = this.resampler.process(samples);
         if (converted.length === 0) return;
 
-        this.queue.enqueueBuffer(this.bufferOf(converted));
-        this.queuedMs += (samples.length / CALL_RATE) * 1000;
+        const blockMs = (samples.length / CALL_RATE) * 1000;
+        this.queuedByBuffer.set(this.queue.enqueueBuffer(this.bufferOf(converted)), blockMs);
+        this.queuedMs += blockMs;
+    }
+
+    /**
+     * O bloco que acabou de tocar sai da conta pela duração que ele tinha, e não por um
+     * valor fixo: os blocos que voltam do relay não têm todos o mesmo tamanho, e descontar
+     * menos do que se somou faz a conta subir sozinha até o teto — daí em diante `write`
+     * descarta tudo, e a chamada fica picada até o fim.
+     */
+    private settle(bufferId: string): void {
+        const blockMs = this.queuedByBuffer.get(bufferId);
+        if (blockMs === undefined) return;
+
+        this.queuedByBuffer.delete(bufferId);
+        this.queuedMs = Math.max(0, this.queuedMs - blockMs);
     }
 
     bufferedMs(): number {
@@ -50,6 +65,7 @@ export class RNPcmPlayback implements PcmPlayback {
         this.queue.clearBuffers();
         this.queue.stop();
         this.resampler.reset();
+        this.queuedByBuffer.clear();
         this.queuedMs = 0;
     }
 
