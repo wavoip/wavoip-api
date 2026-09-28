@@ -175,6 +175,33 @@ assim mesmo daria voz acelerada ou arrastada, e uma chamada que não conecta é 
 incompreensível. Se você encontrar um aparelho assim, ele é a notícia — abra uma issue.
 {% endhint %}
 
+<details>
+
+<summary>E se um aparelho não honrar a taxa? O caminho pelo grafo, medido e descartado</summary>
+
+Existe uma saída nativa para esse caso, e ela foi testada num aparelho, não imaginada: o
+`AudioRecorder` entra no grafo por um `RecorderAdapterNode`, o `AudioContext` roda na taxa da
+chamada, e um `WorkletNode` devolve o PCM já convertido. Funciona — grafo a 16 kHz, saída
+medida a 15.994 Hz, blocos de 320 frames com sinal de verdade — e a conversão acontece numa
+thread de áudio dedicada, fora da thread de JavaScript.
+
+O que a derruba é a entrega. O PCM ainda precisa chegar à thread de JavaScript, que é onde
+está o WebSocket, e a travessia por `runOnJS` chega com a cauda pior:
+
+| Caminho | Cadência p50 | p95 |
+| --- | --- | --- |
+| `onAudioReady` direto (o que a biblioteca usa) | 20,0 ms | **23,1 ms** |
+| `WorkletNode` + `runOnJS` | 18,5 ms | **31,1 ms** |
+
+Trocar o formato da travessia não ajuda: `Float32Array` e `Array` de números deram a mesma
+coisa, então o custo é o salto entre threads, e não a serialização.
+
+Some-se a isso que o `WorkletNode` exige `react-native-worklets` — mais um módulo nativo e um
+plugin de Babel no projeto de quem integra. É insumo demais para resolver um caso que ainda
+não vimos acontecer. Fica registrado para quem encontrar o aparelho que o justifique.
+
+</details>
+
 ### Por que não converter aqui, medido
 
 O **Hermes**, o motor JavaScript do React Native, interpreta em vez de compilar, e não
