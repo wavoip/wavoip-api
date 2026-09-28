@@ -153,10 +153,12 @@ nativo, já com os bytes de volta. Não vale otimizar.
 
 {% hint style="info" %}
 O áudio passa pela thread de JavaScript porque é lá que esse socket vive. Mandá-lo direto da
-thread de áudio exigiria um socket alcançável de um runtime de worklet, e os runtimes de
-worklet não recebem os bindings de módulo nativo do React Native — seria preciso escrever um
-módulo nativo próprio. Se um dia valer a pena, é exatamente isso que o `openSocket` do runtime
-existe para permitir, sem tocar no núcleo.
+thread de áudio exigiria um socket alcançável de um runtime de worklet, e um runtime de
+worklet recebe exatamente cinco globais — `__DEV__`, `global`, `performance`, `_WORKLET` e
+`__workletsModuleProxy`. Sem `__turboModuleProxy`, nenhum módulo nativo do React Native é
+alcançável de lá; seria preciso instalar o próprio, como o `react-native-audio-api` faz com os
+nós dele. Se um dia valer a pena, é exatamente isso que o `openSocket` do runtime existe para
+permitir, sem tocar no núcleo.
 {% endhint %}
 
 ## Escolher onde a chamada é ouvida
@@ -217,13 +219,18 @@ thread de áudio dedicada, fora da thread de JavaScript.
 O que a derruba é a entrega. O PCM ainda precisa chegar à thread de JavaScript, que é onde
 está o WebSocket, e a travessia por `runOnJS` chega com a cauda pior:
 
-| Caminho | Cadência p50 | p95 |
+| Caminho | Cadência p50 | p95, faixa medida |
 | --- | --- | --- |
-| `onAudioReady` direto (o que a biblioteca usa) | 20,0 ms | **23,1 ms** |
-| `WorkletNode` + `runOnJS` | 18,5 ms | **31,1 ms** |
+| `onAudioReady` direto (o que a biblioteca usa) | 20,0 ms | **22,1 – 23,8 ms** (12 execuções) |
+| `WorkletNode` + `runOnJS` | 19,4 ms | **30,6 – 33,5 ms** (5 execuções) |
+
+As faixas não se tocam, e as últimas execuções foram lado a lado na mesma sessão do app, com o
+aparelho no mesmo estado. No p50 os dois acompanham o bloco de 20 ms; o que piora é a cauda.
 
 Trocar o formato da travessia não ajuda: `Float32Array` e `Array` de números deram a mesma
-coisa, então o custo é o salto entre threads, e não a serialização.
+coisa, então o custo é o salto entre threads, e não a serialização. E o que se ganharia do
+outro lado é pequeno: o trabalho que sairia da thread de JavaScript é a conversão para Int16
+mais o base64 do socket, que somados dão cerca de 0,12 ms por bloco de 20 ms.
 
 Some-se a isso que o `WorkletNode` exige `react-native-worklets` — mais um módulo nativo e um
 plugin de Babel no projeto de quem integra. É insumo demais para resolver um caso que ainda
