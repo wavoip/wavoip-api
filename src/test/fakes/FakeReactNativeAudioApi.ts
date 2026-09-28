@@ -100,12 +100,16 @@ export class FakeAudioContext {
 /** O gravador do aparelho: guarda o que foi pedido e deixa o teste empurrar áudio. */
 export class FakeAudioRecorder {
     static instances: FakeAudioRecorder[] = [];
+    /** A taxa que o próximo gravador vai gravar. `null` é obedecer ao que lhe pedirem. */
+    static deliversAt: number | null = null;
     requested: { sampleRate: number; bufferLength: number; channelCount: number } | null = null;
     started = false;
     stopped = false;
+    private readonly rate: number | null;
     private listener: ((event: { buffer: FakeAudioBuffer }) => void) | null = null;
 
     constructor() {
+        this.rate = FakeAudioRecorder.deliversAt;
         FakeAudioRecorder.instances.push(this);
     }
 
@@ -121,8 +125,14 @@ export class FakeAudioRecorder {
         this.listener = null;
     }
 
+    /**
+     * Abrir o gravador já entrega o primeiro bloco, como no aparelho — é por ele que a
+     * captura descobre em que taxa o aparelho de fato gravou.
+     */
     async start(): Promise<void> {
         this.started = true;
+        const asked = this.requested;
+        if (asked) this.deliver(new Float32Array(asked.bufferLength), this.rate ?? asked.sampleRate);
     }
 
     async stop(): Promise<void> {

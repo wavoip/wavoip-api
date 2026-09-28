@@ -1,3 +1,4 @@
+import type { AudioHandle } from "@/ports/runtime/AudioEnginePort";
 import { FakeRNMediaDevices, type FakeRNTrack } from "@/test/fakes/FakeReactNativeWebrtc";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -217,10 +218,11 @@ describe("RNAudioEngine on the relay path", () => {
     beforeEach(() => {
         FakeAudioRecorder.instances.length = 0;
         FakeAudioContext.instances.length = 0;
+        FakeAudioRecorder.deliversAt = null;
     });
 
     it("asks the device for the format the call speaks", async () => {
-        await reactNativeRuntime().engine.capturePcm(null as never, () => {});
+        await openCapture([]);
 
         expect(FakeAudioRecorder.instances[0].requested).toEqual({
             sampleRate: 16_000,
@@ -230,22 +232,32 @@ describe("RNAudioEngine on the relay path", () => {
         expect(FakeAudioRecorder.instances[0].started).toBe(true);
     });
 
-    /** O ponto todo: a taxa real vem do aparelho, e a saída é 16 kHz de qualquer forma. */
-    it("resamples whatever rate the device actually delivers down to 16kHz", async () => {
+    /**
+     * O ponto todo: o aparelho grava na taxa da chamada, então não há o que converter. Fazer
+     * a conversão em JavaScript custava 11,8 ms por bloco de 20 ms no Hermes.
+     */
+    it("hands the device's audio over without converting it", async () => {
         const frames: Int16Array[] = [];
-        const handle = await reactNativeRuntime().engine.capturePcm(null as never, (pcm) => {
-            frames.push(new Int16Array(pcm));
-        });
+        const handle = await openCapture(frames);
 
-        // 48 kHz, três vezes a taxa da chamada: 1440 amostras viram cerca de 480.
-        FakeAudioRecorder.instances[0].deliver(recorded(440, 1_440, 48_000), 48_000);
+        FakeAudioRecorder.instances[0].deliver(recorded(440, 1_600, 16_000), 16_000);
 
-        const produced = frames.reduce((total, frame) => total + frame.length, 0);
-        expect(produced).toBeGreaterThan(400);
-        expect(produced).toBeLessThan(500);
+        expect(frames.reduce((total, frame) => total + frame.length, 0)).toBe(1_600);
         expect(peakOf(frames)).toBeGreaterThan(1_000);
 
         handle.stop();
+        expect(FakeAudioRecorder.instances[0].stopped).toBe(true);
+    });
+
+    /**
+     * Sem reamostrador, entregar áudio fora da taxa produziria voz acelerada ou arrastada.
+     * Falhar ao abrir diz qual foi a taxa, e uma chamada que não conecta é melhor que uma
+     * incompreensível.
+     */
+    it("fails, naming the rate, when the device records at another one", async () => {
+        FakeAudioRecorder.deliversAt = 44_100;
+
+        await expect(reactNativeRuntime().engine.capturePcm(null as never, () => {})).rejects.toThrow(/44100/);
         expect(FakeAudioRecorder.instances[0].stopped).toBe(true);
     });
 
@@ -255,31 +267,14 @@ describe("RNAudioEngine on the relay path", () => {
      */
     it("mixes the channels when the device records in stereo", async () => {
         const frames: Int16Array[] = [];
-        await reactNativeRuntime().engine.capturePcm(null as never, (pcm) => frames.push(new Int16Array(pcm)));
-        const recorder = FakeAudioRecorder.instances[0];
+        await openCapture(frames);
 
         // Um canal com sinal e outro em silêncio: misturados, o resultado é a metade.
-        recorder.deliverChannels([recorded(440, 1_600, 16_000), new Float32Array(1_600)], 16_000);
+        FakeAudioRecorder.instances[0].deliverChannels([recorded(440, 1_600, 16_000), new Float32Array(1_600)], 16_000);
 
         const pico = peakOf(frames);
         expect(pico).toBeGreaterThan(3_000);
         expect(pico).toBeLessThan(5_000);
-    });
-
-    it("follows the device when it changes rate mid-call", async () => {
-        const frames: Int16Array[] = [];
-        await reactNativeRuntime().engine.capturePcm(null as never, (pcm) => frames.push(new Int16Array(pcm)));
-        const recorder = FakeAudioRecorder.instances[0];
-
-        recorder.deliver(recorded(440, 1_600, 16_000), 16_000);
-        const afterSameRate = frames.reduce((total, f) => total + f.length, 0);
-        recorder.deliver(recorded(440, 4_800, 48_000), 48_000);
-        const afterHigherRate = frames.reduce((total, f) => total + f.length, 0) - afterSameRate;
-
-        // 1600 a 16k passam direto; 4800 a 48k viram ~1600. Os dois chegam como 16 kHz.
-        expect(afterSameRate).toBe(1_600);
-        expect(afterHigherRate).toBeGreaterThan(1_500);
-        expect(afterHigherRate).toBeLessThanOrEqual(1_600);
     });
 
     /**
@@ -348,6 +343,18 @@ describe("RNAudioEngine on the relay path", () => {
         expect(FakeAudioContext.instances).toHaveLength(1);
     });
 });
+
+/**
+ * Abre a captura e descarta o bloco que o gravador entrega ao abrir: ele só serve para a
+ * captura descobrir a taxa, e contá-lo bagunçaria a conta de amostras de cada teste.
+ */
+async function openCapture(frames: Int16Array[]): Promise<AudioHandle> {
+    const handle = await reactNativeRuntime().engine.capturePcm(null as never, (pcm) =>
+        frames.push(new Int16Array(pcm)),
+    );
+    frames.length = 0;
+    return handle;
+}
 
 /** O que o `AudioRecorder` entrega: Float32 entre -1 e 1, como todo grafo de áudio. */
 function recorded(hz: number, samples: number, rate: number): Float32Array {
