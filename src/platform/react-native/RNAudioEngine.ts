@@ -19,16 +19,17 @@ function unmeasuredMeter(stop: () => void): AudioMeter {
 }
 
 /**
- * O áudio de uma chamada oficial no React Native, que é quase todo trabalho do nativo: o
- * `react-native-webrtc` toca a track remota por conta própria, sem grafo de áudio nenhum.
+ * O áudio no React Native, e os dois tipos de chamada se dividem aqui.
  *
+ * Na **oficial** quase tudo é do nativo: o `react-native-webrtc` toca a track remota por
+ * conta própria, sem grafo de áudio nenhum, e por isso os medidores deste caminho não medem.
  * O que sobra, e não é pouco, é a **sessão de áudio do sistema**. Sem ela configurada o iOS
  * mantém a categoria `Ambient`, que obedece ao botão de silencioso: a chamada conecta, o
  * `inbound-rtp` conta pacotes, e o usuário não ouve nada. O `InCallManager` é quem acerta
  * isso, e é por isso que ele é dependência de par deste caminho e não um extra.
  *
- * O caminho do relay não passa por aqui: o runtime não declara `openSocket`, então o núcleo
- * recusa a chamada não oficial com `CALL_TYPE_UNSUPPORTED` antes de abri-la.
+ * Na **não oficial** o áudio passa por este processo, em PCM: o `capturePcm` grava e o
+ * `playPcm` toca, e é só aí que um `AudioContext` é aberto.
  */
 export class RNAudioEngine implements AudioEnginePort {
     /** O nativo não informa a latência até o alto-falante. */
