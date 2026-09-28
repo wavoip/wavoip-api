@@ -111,8 +111,8 @@ nenhum global do navegador é lido.
 
 O adaptador foi executado num Galaxy A55 5G com Android 16, e as medições estão em
 [`docs/platforms/react-native.md`](../../docs/platforms/react-native.md): o `AudioRecorder`
-honra os 16 kHz pedidos, e reamostrar de 16 para 48 kHz na reprodução custa cerca de 11,8 ms
-por bloco de 20 ms.
+honra os 16 kHz pedidos, e a reprodução custa 0,082 ms por bloco de 20 ms, porque quem
+converte a taxa é o sistema e não o JavaScript.
 
 **No iPhone, nada disso foi executado.** O risco que sobra é o da própria plataforma: a sessão
 de áudio com a chamada chegando em segundo plano. Até alguém rodar isso num iPhone, trate o

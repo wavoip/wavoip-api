@@ -173,23 +173,28 @@ Num Galaxy A55 5G o `AudioRecorder` **honra os 16 kHz pedidos**: entrega blocos 
 em um canal, a 15.996 Hz contados no relógio, com cadência de 20 ms (p95 de 22,7 ms). Nesse
 aparelho a captura não reamostra nada — entra 16 kHz, sai 16 kHz.
 
-A reprodução não tem essa sorte: o grafo do aparelho roda a 48 kHz, então cada bloco que volta
-do relay é convertido de 16 para 48 kHz. Aí está o custo:
+Na reprodução, o alto-falante do aparelho roda a 48 kHz. Quem faz essa conversão é a camada de
+áudio do sistema, e não a biblioteca: o `AudioContext` do caminho do relay é aberto **na taxa
+do relay**, e os blocos entram como vieram da rede.
 
-| Trecho de um bloco de 20 ms | Custo |
-| --- | --- |
-| `createBuffer` + `copyToChannel` + `enqueueBuffer` (o nativo) | 0,065 ms |
-| Reamostrar de 16 para 48 kHz e converter para Float32 (o Hermes) | ~11,8 ms |
-| **Total por bloco, com 20 ms de orçamento** | **~11,9 ms** |
+Vale pelo que se economiza. Reamostrando em JavaScript, um bloco de 20 ms custava 11,9 ms no
+Hermes — 60% do orçamento de tempo real só para tocar:
 
-A travessia para o nativo é 0,5% da conta. O resto é aritmética interpretada: são 33 taps por
-amostra **produzida**, e subir de 16 para 48 kHz produz o triplo das amostras que entram.
+| Trecho de um bloco de 20 ms | Reamostrando no Hermes | Com o grafo na taxa do relay |
+| --- | --- | --- |
+| `createBuffer` + `copyToChannel` + `enqueueBuffer` | 0,065 ms | 0,047 ms |
+| Converter Int16 para Float32 | incluído abaixo | 0,035 ms |
+| Reamostrar de 16 para 48 kHz | ~11,8 ms | — |
+| **Total por bloco** | **~11,9 ms** | **0,082 ms** |
 
-{% hint style="warning" %}
-São **60% do orçamento de tempo real gastos só em tocar**, num aparelho de linha média de
-2024, e sem contar a captura — que neste aparelho saiu de graça porque ele grava em 16 kHz.
-Um aparelho que grave em 48 kHz paga também a conversão de descida. Trate a chamada não
-oficial no React Native como funcional, e não como folgada.
+São 33 taps por amostra **produzida**, e subir de 16 para 48 kHz produz o triplo do que entra.
+O Hermes interpreta isso; o sistema faz o mesmo em C++, de graça para nós.
+
+{% hint style="danger" %}
+**Não tente declarar a taxa no buffer em vez de no contexto.** Enfileirar um `AudioBuffer` de
+16 kHz num grafo de 48 kHz não faz o nativo reamostrar: ele toca as amostras na taxa do grafo
+e a voz sai três vezes mais rápida e aguda. Medido — meio segundo de áudio tocou em 190 ms. A
+taxa tem de ser pedida ao `AudioContext`.
 {% endhint %}
 
 {% hint style="info" %}
