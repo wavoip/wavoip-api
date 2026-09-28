@@ -1,5 +1,5 @@
 import { RNPcmCapture } from "@/platform/react-native/RNPcmCapture";
-import { RNPcmPlayback } from "@/platform/react-native/RNPcmPlayback";
+import { RNPcmPlayback, RelayAudio } from "@/platform/react-native/RNPcmPlayback";
 import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
@@ -89,9 +89,15 @@ export class RNAudioEngine implements AudioEnginePort {
         return new RNPcmPlayback(this.audioContext());
     }
 
-    /** Criado na primeira chamada não oficial, e não no construtor: abrir áudio custa. */
+    /**
+     * Criado na primeira chamada não oficial, e não no construtor: abrir áudio custa.
+     *
+     * A taxa é a do relay, e não a do aparelho. Pedi-la aqui empurra a conversão até o
+     * alto-falante para a camada de áudio do sistema, e é o que tira a reamostragem do
+     * JavaScript — a regra é do `RNPcmPlayback`, que também explica o que ela custava.
+     */
     private audioContext(): AudioContext {
-        this.context ??= new AudioContext();
+        this.context ??= new AudioContext({ sampleRate: RelayAudio.rate });
         return this.context;
     }
 }

@@ -1,10 +1,10 @@
 import { SincResampler } from "@/domain/audio/SincResampler";
 import { Pcm } from "@/domain/audio/pcm";
+import { RelayAudio } from "@/platform/react-native/RNPcmPlayback";
 import type { AudioHandle } from "@/ports/runtime/AudioEnginePort";
 import { AudioRecorder } from "react-native-audio-api";
 
-/** O formato que a chamada não oficial fala, dos dois lados do relay. */
-const CALL_RATE = 16_000;
+const CALL_RATE = RelayAudio.rate;
 /** 20 ms por bloco: menos que isso, o recorder do aparelho começa a perder frames. */
 const PREFERRED_FRAMES = CALL_RATE / 50;
 

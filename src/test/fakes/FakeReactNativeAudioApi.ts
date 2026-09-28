@@ -76,7 +76,11 @@ export class FakeAudioContext {
     readonly queue = new FakeQueueSource();
     closed = false;
 
-    constructor(readonly sampleRate = 48_000) {
+    /** O aparelho tem a taxa dele; quem pede outra recebe o que pediu, como no nativo. */
+    readonly sampleRate: number;
+
+    constructor(options?: { sampleRate?: number }) {
+        this.sampleRate = options?.sampleRate ?? 48_000;
         FakeAudioContext.instances.push(this);
     }
 

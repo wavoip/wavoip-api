@@ -282,17 +282,22 @@ describe("RNAudioEngine on the relay path", () => {
         expect(afterHigherRate).toBeLessThanOrEqual(1_600);
     });
 
-    it("plays what comes back at the rate the device's graph runs", () => {
+    /**
+     * Reamostrar em JavaScript custava 11,8 ms por bloco de 20 ms no Hermes. Abrindo o grafo
+     * na taxa do relay, quem converte para o alto-falante é o sistema, e o bloco entra como
+     * veio da rede — mesmo tamanho, mesma taxa.
+     */
+    it("opens the graph at the rate the relay speaks, instead of resampling", () => {
         const playback = reactNativeRuntime().engine.playPcm();
 
         playback.write(relayed(440, 1_600).buffer as ArrayBuffer);
 
         const context = FakeAudioContext.instances[0];
+        expect(context.sampleRate).toBe(16_000);
         expect(context.queue.started).toBe(true);
         expect(context.queue.connectedTo).toBe(context.destination);
-        // 1600 amostras a 16 kHz viram cerca de 4800 no grafo de 48 kHz.
-        expect(context.queue.enqueued[0].length).toBeGreaterThan(4_700);
-        expect(context.queue.enqueued[0].sampleRate).toBe(48_000);
+        expect(context.queue.enqueued[0].length).toBe(1_600);
+        expect(context.queue.enqueued[0].sampleRate).toBe(16_000);
     });
 
     /** Atraso em voz não se recupera: com a fila cheia, descartar é melhor que enfileirar. */
