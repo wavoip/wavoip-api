@@ -247,9 +247,16 @@ o caminho, e ele está provado ponta a ponta.
 ### Por que não converter aqui, medido
 
 O **Hermes**, o motor JavaScript do React Native, interpreta em vez de compilar, e não
-implementa WebAssembly. O mesmo reamostrador sinc leva **0,2 ms por bloco de 20 ms no V8 e
-11,8 ms no Hermes** — 60 vezes mais. No Node isso é 1% do orçamento de tempo real; aqui seriam
-60%, só para tocar.
+implementa WebAssembly. O mesmo reamostrador sinc, no mesmo bloco de 20 ms, custa:
+
+| Conversão | No V8 (Node) | No Hermes (este aparelho) |
+| --- | --- | --- |
+| 16 → 48 kHz, subida da reprodução | 0,196 ms | **11,67 ms** |
+| 48 → 16 kHz, descida que a captura precisaria | 0,070 ms | **3,78 ms** |
+
+São 60 vezes mais, e a assimetria entre as duas linhas é o desenho do filtro: são 33 taps por
+amostra **produzida**, e subir para 48 kHz produz o triplo do que entra. No Node isso é 1% do
+orçamento de tempo real; aqui a subida sozinha seria 60%.
 
 Na reprodução, o alto-falante do aparelho roda a 48 kHz. Quem faz essa conversão é a camada de
 áudio do sistema, e não a biblioteca: o `AudioContext` do caminho do relay é aberto **na taxa
