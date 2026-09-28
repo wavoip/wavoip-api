@@ -202,7 +202,15 @@ call.audio.out.level()   // o seu microfone
 Funciona, e por um caminho diferente do navegador. No React Native o áudio não passa pela
 biblioteca — quem toca e captura é o nativo —, então não há o que medir neste processo. O
 número vem do `audioLevel` que o `getStats()` da própria conexão publica, que é o nível que o
-WebRTC de fato vê. Para quem chama, é a mesma função.
+WebRTC de fato vê. Para quem chama, é a mesma função, e ela continua síncrona: dá para lê-la
+num laço de quadro sem esperar Promise.
+
+{% hint style="info" %}
+**A medida aqui envelhece até 200 ms.** O `getStats()` é assíncrono e `level()` não é, então
+ler o medidor devolve a última medida e pede a próxima. Ler mais rápido que isso não traz
+número novo — e não custa nada, porque a renovação é limitada. No navegador não há esse teto:
+lá o nível sai do grafo de áudio, amostra a amostra.
+{% endhint %}
 
 ## A taxa do áudio: o sistema converte de um lado, a biblioteca do outro
 
@@ -363,7 +371,8 @@ verdade do outro lado:
 | Não oficial (relay) | ✅ | ✅ |
 
 O áudio foi conferido de ouvido, que é a única parte que o relógio não prova — a fila pode
-fechar a conta certinho com nada chegando ao alto-falante.
+fechar a conta certinho com nada chegando ao alto-falante. Os medidores de nível também foram
+vistos se mexendo nas duas direções durante as chamadas.
 
 O iOS continua sem execução em aparelho — em especial a sessão de áudio com a chamada chegando
 em segundo plano, que é o risco próprio da plataforma.
