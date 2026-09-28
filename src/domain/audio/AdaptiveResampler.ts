@@ -1,4 +1,4 @@
-import { SincResampler } from "@/platform/node/SincResampler";
+import { SincResampler } from "@/domain/audio/SincResampler";
 
 /**
  * Um reamostrador que descobre a taxa de entrada em vez de presumi-la.

@@ -232,11 +232,8 @@ describe("RNAudioEngine on the relay path", () => {
         expect(FakeAudioRecorder.instances[0].started).toBe(true);
     });
 
-    /**
-     * O ponto todo: o aparelho grava na taxa da chamada, então não há o que converter. Fazer
-     * a conversão em JavaScript custava 11,8 ms por bloco de 20 ms no Hermes.
-     */
-    it("hands the device's audio over without converting it", async () => {
+    /** O aparelho medido grava na taxa pedida, e aí o reamostrador devolve o bloco intacto. */
+    it("hands the device's audio over untouched when it already records at the call's rate", async () => {
         const frames: Int16Array[] = [];
         const handle = await openCapture(frames);
 
@@ -250,15 +247,37 @@ describe("RNAudioEngine on the relay path", () => {
     });
 
     /**
-     * Sem reamostrador, entregar áudio fora da taxa produziria voz acelerada ou arrastada.
-     * Falhar ao abrir diz qual foi a taxa, e uma chamada que não conecta é melhor que uma
-     * incompreensível.
+     * O aparelho que não honrar a taxa é convertido, e não recusado: descer de 48 para 16 kHz
+     * custa 3,78 ms por bloco de 20 ms no Hermes, medido — caro, e ainda assim melhor que uma
+     * chamada que não conecta.
      */
-    it("fails, naming the rate, when the device records at another one", async () => {
-        FakeAudioRecorder.deliversAt = 44_100;
+    it("resamples the device that records at another rate", async () => {
+        const frames: Int16Array[] = [];
+        await openCapture(frames);
 
-        await expect(reactNativeRuntime().engine.capturePcm(null as never, () => {})).rejects.toThrow(/44100/);
-        expect(FakeAudioRecorder.instances[0].stopped).toBe(true);
+        // 48 kHz, três vezes a taxa da chamada: 1440 amostras viram cerca de 480.
+        FakeAudioRecorder.instances[0].deliver(recorded(440, 1_440, 48_000), 48_000);
+
+        const produced = frames.reduce((total, frame) => total + frame.length, 0);
+        expect(produced).toBeGreaterThan(400);
+        expect(produced).toBeLessThan(500);
+        expect(peakOf(frames)).toBeGreaterThan(1_000);
+    });
+
+    it("follows the device when it changes rate mid-call", async () => {
+        const frames: Int16Array[] = [];
+        await openCapture(frames);
+        const recorder = FakeAudioRecorder.instances[0];
+
+        recorder.deliver(recorded(440, 1_600, 16_000), 16_000);
+        const afterSameRate = frames.reduce((total, f) => total + f.length, 0);
+        recorder.deliver(recorded(440, 4_800, 48_000), 48_000);
+        const afterHigherRate = frames.reduce((total, f) => total + f.length, 0) - afterSameRate;
+
+        // 1600 a 16k passam direto; 4800 a 48k viram ~1600. Os dois chegam como 16 kHz.
+        expect(afterSameRate).toBe(1_600);
+        expect(afterHigherRate).toBeGreaterThan(1_500);
+        expect(afterHigherRate).toBeLessThanOrEqual(1_600);
     });
 
     /**

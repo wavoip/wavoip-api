@@ -1,4 +1,4 @@
-import { SincResampler } from "@/platform/node/SincResampler";
+import { SincResampler } from "@/domain/audio/SincResampler";
 import { describe, expect, it } from "vitest";
 
 const AMPLITUDE = 10_000;

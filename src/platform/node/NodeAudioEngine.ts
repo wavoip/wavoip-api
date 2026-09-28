@@ -1,16 +1,16 @@
+import { AdaptiveResampler } from "@/domain/audio/AdaptiveResampler";
 import { ClipDetector } from "@/domain/audio/ClipDetector";
-import { AdaptiveResampler } from "@/platform/node/AdaptiveResampler";
 import { SpectrumAnalyser } from "@/domain/audio/SpectrumAnalyser";
 import { rmsInt16 } from "@/modules/media/audio-level";
-import type { AudioSink } from "@/platform/node/audioIo";
 import type { SharedAudioSource } from "@/platform/node/SharedAudioSource";
+import type { AudioSink } from "@/platform/node/audioIo";
 import type { AudioEnginePort, AudioHandle, AudioMeter, PcmPlayback } from "@/ports/runtime/AudioEnginePort";
 import type { MicrophonePort } from "@/ports/runtime/MicrophonePort";
 import type { MediaStreamLike } from "@/ports/runtime/PeerConnectionPort";
 
 /** O que a biblioteca fala por dentro, e o que o sumidouro do integrador espera receber. */
 const CALL_RATE = 16_000;
-import { nonstandard, type RTCAudioData } from "@/platform/node/wrtc";
+import { type RTCAudioData, nonstandard } from "@/platform/node/wrtc";
 
 /**
  * Um medidor do PCM que passa: nível a cada frame, espectro só quando alguém pede.

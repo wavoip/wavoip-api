@@ -1,3 +1,4 @@
+import { AdaptiveResampler } from "@/domain/audio/AdaptiveResampler";
 import { Pcm } from "@/domain/audio/pcm";
 import { RelayAudio } from "@/platform/react-native/RNPcmPlayback";
 import type { AudioHandle } from "@/ports/runtime/AudioEnginePort";
@@ -5,8 +6,6 @@ import { AudioRecorder } from "react-native-audio-api";
 
 /** 20 ms por bloco: menos que isso, o recorder do aparelho começa a perder frames. */
 const PREFERRED_FRAMES = RelayAudio.rate / 50;
-/** O gravador entrega a cada 20 ms; passou disto, ele não vai entregar. */
-const FIRST_BLOCK_MS = 2_000;
 
 type RecordedBuffer = {
     sampleRate: number;
@@ -17,66 +16,38 @@ type RecordedBuffer = {
 /**
  * O microfone do aparelho como PCM no formato do relay.
  *
- * Não há reamostragem aqui: a taxa é pedida ao `AudioRecorder` e ele a honra — medido num
- * Galaxy A55, que entregou tanto os 16 kHz da chamada quanto 48 kHz, conforme o que se pediu.
- * Fazer a conversão em JavaScript custaria caro: o mesmo reamostrador leva 0,2 ms por bloco no
- * V8 e 11,8 ms no Hermes, que interpreta em vez de compilar.
+ * A taxa é pedida ao `AudioRecorder`, e num Galaxy A55 ele honra o que se pede — tanto os
+ * 16 kHz da chamada quanto 48 kHz. Quando honra, o `AdaptiveResampler` devolve o bloco
+ * intacto e não custa nada. Quando não honra, ele converte: medido neste aparelho, descer de
+ * 48 para 16 kHz leva 3,78 ms por bloco de 20 ms, contra 0,07 ms no V8 — o Hermes interpreta
+ * em vez de compilar. São 19% do orçamento, e só onde for preciso.
  *
- * Se algum aparelho entregar outra taxa, a captura falha dizendo qual. Seguir adiante daria
- * voz acelerada ou arrastada, e uma chamada que não conecta é melhor que uma incompreensível.
+ * A reamostragem de subida, que a reprodução precisaria, custa três vezes isso e é por isso
+ * que ela não acontece em JavaScript: ver o `RNPcmPlayback`.
  */
 export class RNPcmCapture implements AudioHandle {
     private readonly recorder = new AudioRecorder();
-    private announceRate: ((rate: number) => void) | null = null;
+    private readonly resampler = new AdaptiveResampler(RelayAudio.rate);
 
     constructor(private readonly onFrame: (pcm: ArrayBuffer) => void) {}
 
     async start(): Promise<void> {
-        const delivered = this.firstDeliveredRate();
         this.recorder.onAudioReady(
             { sampleRate: RelayAudio.rate, bufferLength: PREFERRED_FRAMES, channelCount: 1 },
             (event) => this.deliver(event.buffer),
         );
         await this.recorder.start();
-
-        const rate = await delivered;
-        if (rate === RelayAudio.rate) return;
-
-        this.stop();
-        throw new RangeError(`o aparelho gravou em ${rate} Hz, e a chamada fala ${RelayAudio.rate} Hz mono`);
     }
 
     stop(): void {
-        this.announceRate = null;
         this.recorder.clearOnAudioReady();
         void this.recorder.stop();
+        this.resampler.reset();
     }
 
-    /** A taxa do primeiro bloco, ou uma falha se o gravador não entregar bloco nenhum. */
-    private firstDeliveredRate(): Promise<number> {
-        return new Promise((resolve, reject) => {
-            const giveUp = setTimeout(() => {
-                this.stop();
-                reject(new Error(`o microfone não entregou áudio nenhum em ${FIRST_BLOCK_MS} ms`));
-            }, FIRST_BLOCK_MS);
-
-            this.announceRate = (rate) => {
-                clearTimeout(giveUp);
-                this.announceRate = null;
-                resolve(rate);
-            };
-        });
-    }
-
-    /**
-     * O bloco fora da taxa é descartado, e não convertido: o `start` já falhou por ele, e
-     * entregá-lo depois disso seria justamente o áudio torto que a falha existe para evitar.
-     */
+    /** A taxa vem do bloco, e não do que pedimos: o aparelho pode mudá-la no meio da chamada. */
     private deliver(buffer: RecordedBuffer): void {
-        this.announceRate?.(buffer.sampleRate);
-        if (buffer.sampleRate !== RelayAudio.rate) return;
-
-        const pcm = RNPcmCapture.monoOf(buffer);
+        const pcm = this.resampler.process(RNPcmCapture.monoOf(buffer), buffer.sampleRate);
         if (pcm.length > 0) this.onFrame(pcm.buffer as ArrayBuffer);
     }
 

@@ -1,5 +1,5 @@
-import { SincResampler } from "@/platform/node/SincResampler";
 import { parentPort } from "node:worker_threads";
+import { SincResampler } from "@/domain/audio/SincResampler";
 
 /**
  * O outro lado do `WorkerConverter`: um thread que só reamostra.

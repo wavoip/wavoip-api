@@ -121,7 +121,7 @@ conexão. Não há grafo de áudio a montar nem alto-falante a abrir.
 | Sessão de áudio do sistema | `InCallManager`, iniciado quando o áudio do contato chega e encerrado no fim |
 | Viva-voz | `wavoip.audio.selectOutput("speaker")` ou `"earpiece"` |
 | Nível do áudio | `call.audio.in.level()` e `out.level()`, lidos das estatísticas da conexão |
-| Chamada não oficial | `AudioRecorder` captura e `AudioBufferQueueSourceNode` toca, os dois na taxa do relay |
+| Chamada não oficial | `AudioRecorder` captura e `AudioBufferQueueSourceNode` toca; só a captura reamostra, e só se precisar |
 | Transporte da não oficial | o `WebSocket` do React Native, que é o `NativeWebSocketModule` — OkHttp no Android |
 
 {% hint style="info" %}
@@ -190,23 +190,25 @@ biblioteca — quem toca e captura é o nativo —, então não há o que medir 
 número vem do `audioLevel` que o `getStats()` da própria conexão publica, que é o nível que o
 WebRTC de fato vê. Para quem chama, é a mesma função.
 
-## A taxa do áudio: quem converte é o sistema
+## A taxa do áudio: o sistema converte de um lado, a biblioteca do outro
 
-**A biblioteca não reamostra nada no React Native.** Dos dois lados, a taxa é pedida à
-plataforma e a plataforma a entrega:
+Os dois sentidos tratam a taxa de formas diferentes, e o motivo é o custo:
 
-- **Na captura**, o `AudioRecorder` recebe o pedido de 16 kHz e grava em 16 kHz. Num Galaxy
-  A55 5G ele entrega blocos de 320 frames em um canal, a 15.995 Hz contados no relógio, com
-  cadência de 20 ms (p95 de 23,7 ms) — e honra 48 kHz com a mesma fidelidade, quando é isso
-  que se pede.
-- **Na reprodução**, o `AudioContext` é aberto na taxa do relay, e converter para os 48 kHz do
-  alto-falante é trabalho da camada de áudio do sistema.
+- **Na reprodução**, a biblioteca não converte nada: o `AudioContext` é aberto na taxa do
+  relay e passar para os 48 kHz do alto-falante é trabalho da camada de áudio do sistema.
+- **Na captura**, a taxa é pedida ao `AudioRecorder` — num Galaxy A55 5G ele entrega os 16 kHz
+  pedidos, em blocos de 320 frames num canal, a 15.994 Hz contados no relógio, com cadência
+  de 20 ms (p95 de 22,4 ms). Quando o aparelho honra, o reamostrador devolve o bloco intacto e
+  não custa nada. **Quando não honra, a biblioteca converte**, acompanhando a taxa mesmo que
+  ela mude no meio da chamada.
 
-{% hint style="warning" %}
-Se algum aparelho gravar numa taxa diferente da pedida, a chamada não oficial **falha ao
-abrir o microfone**, dizendo qual foi a taxa. Não há conversão de reserva: entregar o áudio
-assim mesmo daria voz acelerada ou arrastada, e uma chamada que não conecta é melhor que uma
-incompreensível. Se você encontrar um aparelho assim, ele é a notícia — abra uma issue.
+{% hint style="info" %}
+**Por que converter num sentido e não no outro.** O filtro faz 33 taps por amostra
+**produzida**, então subir para 48 kHz produz o triplo do que entra e descer para 16 kHz
+produz um terço. Neste aparelho isso é 11,67 ms por bloco de 20 ms na subida contra 3,78 ms na
+descida — 60% do orçamento de tempo real contra 19%. A subida tem saída nativa e não vale
+pagá-la; a descida não tem, e 19% só nos aparelhos que precisarem é um preço aceitável para a
+chamada conectar em vez de falhar.
 {% endhint %}
 
 <details>
