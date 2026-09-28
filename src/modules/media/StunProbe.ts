@@ -1,3 +1,4 @@
+import { IceCandidates } from "@/domain/call/ice";
 import type { PeerConnectionFactory } from "@/ports/runtime/PeerConnectionPort";
 export type StunProbeResult = {
     server: string;
@@ -42,7 +43,9 @@ function probeOne(server: string, timeoutMs: number, createPeer: PeerConnectionF
         };
 
         pc.addEventListener("icecandidate", (event) => {
-            if (event.candidate?.type !== "srflx") return;
+            // O tipo sai da linha SDP: no react-native-webrtc não existe `candidate.type`, e
+            // comparar com ele fazia a sonda julgar todo STUN inalcançável no celular.
+            if (IceCandidates.kindOf(event.candidate) !== "srflx") return;
             finish({ server, reachable: true, latencyMs: Date.now() - startedAt });
         });
 

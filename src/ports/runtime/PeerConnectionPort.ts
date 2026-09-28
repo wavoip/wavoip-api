@@ -18,7 +18,9 @@ export type StatEntry = { readonly type: string; readonly kind?: string; readonl
 export type StatsReport = { values(): Iterable<StatEntry> };
 
 export type PeerConnectionEvents = {
-    icecandidate: { candidate: { type?: string | null } | null };
+    // A linha SDP vem junto porque nem toda plataforma expõe `type`: o react-native-webrtc
+    // não expõe, e é dela que o `IceCandidates.kindOf` tira o tipo.
+    icecandidate: { candidate: { type?: string | null; candidate?: string | null } | null };
     track: { streams: readonly MediaStreamLike[] };
     connectionstatechange: unknown;
     iceconnectionstatechange: unknown;

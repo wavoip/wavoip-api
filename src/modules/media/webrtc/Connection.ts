@@ -4,6 +4,7 @@ import {
     DEFAULT_ICE_GATHERING_TIMEOUT_MS,
     DEFAULT_ICE_SERVERS,
     type IceCandidateKind,
+    IceCandidates,
     type IceConfig,
     type IceDiagnostics,
 } from "@/modules/media/ICEDiagnostics";
@@ -76,10 +77,8 @@ export class RTCConnection extends EventEmitter<RTCConnectionEvents> {
         this.answer = this.answerResolver.promise;
 
         this.pc.addEventListener("icecandidate", (event) => {
-            const candidate = event.candidate;
-            if (!candidate) return;
-            const kind = candidate.type as IceCandidateKind | undefined;
-            if (kind && kind in this.candidatesByType) this.candidatesByType[kind] += 1;
+            const kind = IceCandidates.kindOf(event.candidate);
+            if (kind) this.candidatesByType[kind] += 1;
         });
 
         this.pc.addEventListener("iceconnectionstatechange", () => {

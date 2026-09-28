@@ -1,5 +1,6 @@
 import type { IceServer } from "@/ports/runtime/PeerConnectionPort";
 
+export { IceCandidates } from "@/domain/call/ice";
 export type { ConnectivityIssue, IceCandidateKind, IceDiagnostics } from "@/domain/call/ice";
 
 export type IceConfig = {
