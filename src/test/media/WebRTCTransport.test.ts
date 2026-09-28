@@ -492,6 +492,31 @@ describe("WebRTCTransport on a platform that does not measure audio", () => {
         await transport.stop();
     });
 
+    /**
+     * O teste acima escreve no cache e por isso nunca cobriu quem o preenche: só o `getStats`
+     * preenchia, e quem lê um medidor não chama `getStats`. No React Native, a única
+     * plataforma onde esse cache é a medida, o nível marcava zero a chamada inteira.
+     */
+    it("asks the connection for fresh numbers when the meter is read", async () => {
+        const audio = new FakeAudioRuntime();
+        Object.defineProperty(audio, "engine", { value: new UnmeasuringAudioEngine() });
+        const transport = new WebRTCTransport(audio, "offer-sdp");
+        await startTransport(transport);
+
+        mockPcInstance.getStats = vi.fn().mockResolvedValue(
+            new Map([
+                ["inbound", { type: "inbound-rtp", kind: "audio", audioLevel: 0.42 }],
+                ["source", { type: "media-source", kind: "audio", audioLevel: 0.17 }],
+            ]),
+        );
+
+        transport.audio.in.level();
+        await vi.waitFor(() => expect(transport.audio.in.level()).toBe(0.42));
+        expect(transport.audio.out.level()).toBe(0.17);
+
+        await transport.stop();
+    });
+
     it("still prefers the engine where it does measure", async () => {
         const audio = new FakeAudioRuntime();
         const transport = new WebRTCTransport(audio, "offer-sdp");

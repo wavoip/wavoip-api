@@ -2,13 +2,15 @@ import type { CallAudio } from "@/domain/call/audio";
 
 /** Onde a plataforma não enxerga o áudio, o espectro é vazio — e não uma faixa de zeros. */
 const NO_SPECTRUM = new Uint8Array(0);
-import type { CallStats } from "@/domain/call/stats";
+/** De quanto em quanto a medida do `getStats` é renovada enquanto alguém olha o medidor. */
+const STATS_MAX_AGE_MS = 200;
 import type { MediaPlan } from "@/domain/call/mediaPlan";
+import type { CallStats } from "@/domain/call/stats";
+import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
+import type { Events, ITransport, MediaRuntime, TransportOptions, TransportStatus } from "@/modules/media/ITransport";
 import { RTCAudioPipe } from "@/modules/media/webrtc/AudioPipe";
 import { RTCConnection } from "@/modules/media/webrtc/Connection";
 import { RTCStatsAdapter } from "@/modules/media/webrtc/StatsAdapter";
-import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
-import type { MediaRuntime, Events, ITransport, TransportOptions, TransportStatus } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { PeerConnectionFactory, PeerConnectionLike } from "@/ports/runtime/PeerConnectionPort";
 
@@ -18,6 +20,8 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
     private readonly connection: RTCConnection;
     private readonly audioPipe: RTCAudioPipe;
     private readonly statsAdapter: RTCStatsAdapter;
+    private statsReadAt = 0;
+    private refreshingStats = false;
     private readonly hasRemoteOffer: boolean;
     private startedOnce = false;
     private stoppedOnce = false;
@@ -48,7 +52,7 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
      * `audioLevel` do `getStats()` é a única medida que existe.
      */
     get audio(): CallAudio {
-        const stats = () => this.statsAdapter.snapshot().audio;
+        const stats = () => this.freshAudioStats();
         const pipe = this.audioPipe.audio;
         return {
             in: {
@@ -66,6 +70,27 @@ export class WebRTCTransport extends EventEmitter<Events> implements ITransport 
 
     get stats(): CallStats {
         return this.statsAdapter.snapshot();
+    }
+
+    /**
+     * O nível lido das estatísticas sai de um cache, e o `refresh` que o preenche é assíncrono
+     * — mas `level()` é síncrono de propósito, para caber num laço de quadro. Então a leitura
+     * devolve o que há e pede a próxima medida, que chega a tempo da leitura seguinte.
+     *
+     * Sem isto o medidor marcava zero para sempre no React Native, que é justamente a única
+     * plataforma onde esse cache é a medida: lá o áudio não passa por este processo. Quem lê
+     * um medidor não chama `getStats`, e era só ele que preenchia o cache.
+     */
+    private freshAudioStats(): CallStats["audio"] {
+        const now = Date.now();
+        if (!this.refreshingStats && now - this.statsReadAt >= STATS_MAX_AGE_MS) {
+            this.statsReadAt = now;
+            this.refreshingStats = true;
+            void this.statsAdapter.refresh().finally(() => {
+                this.refreshingStats = false;
+            });
+        }
+        return this.statsAdapter.snapshot().audio;
     }
 
     constructor(runtime: MediaRuntime, offer?: string, options?: TransportOptions) {
