@@ -340,6 +340,10 @@ microfone é risco que não se corre de graça. Quem decide de onde tirar as amo
 
 {% hint style="warning" %}
 **Rodou num Android; num iPhone, ainda não.** As medições desta página vêm de um Galaxy A55 5G
-(Android 16, `arm64-v8a`). O iOS continua sem execução em aparelho — em especial a sessão de
-áudio com a chamada chegando em segundo plano, que é o risco próprio da plataforma.
+(Android 16, `arm64-v8a`), e a reprodução foi conferida de ouvido: o PCM escrito no `playPcm`
+sai pelo alto-falante. Vale dizer que essa é a única parte que o relógio não prova — a fila
+pode fechar a conta certinho com nada chegando ao alto-falante.
+
+O iOS continua sem execução em aparelho — em especial a sessão de áudio com a chamada chegando
+em segundo plano, que é o risco próprio da plataforma.
 {% endhint %}
