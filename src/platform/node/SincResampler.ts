@@ -1,9 +1,12 @@
 /**
  * Reamostrador de razão arbitrária por sinc com janela, em JavaScript puro.
  *
- * É JS puro de propósito, e não o `libsamplerate`: o Hermes não tem WebAssembly, então um
- * reamostrador em WASM serviria ao Node e deixaria o React Native de fora. Aqui ele é regra
- * pura, mora no domínio e os dois usam o mesmo (DEV-277).
+ * É JS puro de propósito, e não o `libsamplerate`: medido em Node com blocos de 20 ms, este
+ * leva 0,070 ms em 48 → 16 kHz contra 0,210 ms do WASM, que ainda paga a travessia da
+ * fronteira a cada bloco. O `docs/platforms/node.md` publica a tabela.
+ *
+ * Mora aqui, e não no domínio, porque o Node é o único que reamostra: o navegador usa o
+ * `libsamplerate` dentro do worklet e o React Native pede a taxa à plataforma (DEV-277).
  *
  * O sinc é escalado pela razão de saída — é isso que faz o filtro anti-aliasing e a
  * reamostragem num passo só. Sem esse escalonamento, reduzir a taxa dobraria toda frequência

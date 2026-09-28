@@ -156,22 +156,31 @@ biblioteca — quem toca e captura é o nativo —, então não há o que medir 
 número vem do `audioLevel` que o `getStats()` da própria conexão publica, que é o nível que o
 WebRTC de fato vê. Para quem chama, é a mesma função.
 
-## A conversão de taxa, e por que ela é em JavaScript
+## A taxa do áudio: quem converte é o sistema
 
-O `AudioRecorder` grava na taxa que o **aparelho** decidir: a taxa pedida é preferência, e a
-documentação dele avisa que varia conforme o hardware. A biblioteca lê a taxa real de cada
-bloco que chega e converte para os 16 kHz do relay; se o aparelho mudar de taxa no meio da
-chamada, ela acompanha.
+**A biblioteca não reamostra nada no React Native.** Dos dois lados, a taxa é pedida à
+plataforma e a plataforma a entrega:
 
-Essa conversão é JavaScript puro, sem WebAssembly, porque o **Hermes** — o motor JavaScript do
-React Native — não implementa WebAssembly. Uma biblioteca compilada como o `libsamplerate`
-serviria ao navegador e ao Node e deixaria o celular de fora.
+- **Na captura**, o `AudioRecorder` recebe o pedido de 16 kHz e grava em 16 kHz. Num Galaxy
+  A55 5G ele entrega blocos de 320 frames em um canal, a 15.995 Hz contados no relógio, com
+  cadência de 20 ms (p95 de 23,7 ms) — e honra 48 kHz com a mesma fidelidade, quando é isso
+  que se pede.
+- **Na reprodução**, o `AudioContext` é aberto na taxa do relay, e converter para os 48 kHz do
+  alto-falante é trabalho da camada de áudio do sistema.
 
-### O que ela custa, medido
+{% hint style="warning" %}
+Se algum aparelho gravar numa taxa diferente da pedida, a chamada não oficial **falha ao
+abrir o microfone**, dizendo qual foi a taxa. Não há conversão de reserva: entregar o áudio
+assim mesmo daria voz acelerada ou arrastada, e uma chamada que não conecta é melhor que uma
+incompreensível. Se você encontrar um aparelho assim, ele é a notícia — abra uma issue.
+{% endhint %}
 
-Num Galaxy A55 5G o `AudioRecorder` **honra os 16 kHz pedidos**: entrega blocos de 320 frames
-em um canal, a 15.996 Hz contados no relógio, com cadência de 20 ms (p95 de 22,7 ms). Nesse
-aparelho a captura não reamostra nada — entra 16 kHz, sai 16 kHz.
+### Por que não converter aqui, medido
+
+O **Hermes**, o motor JavaScript do React Native, interpreta em vez de compilar, e não
+implementa WebAssembly. O mesmo reamostrador sinc leva **0,2 ms por bloco de 20 ms no V8 e
+11,8 ms no Hermes** — 60 vezes mais. No Node isso é 1% do orçamento de tempo real; aqui seriam
+60%, só para tocar.
 
 Na reprodução, o alto-falante do aparelho roda a 48 kHz. Quem faz essa conversão é a camada de
 áudio do sistema, e não a biblioteca: o `AudioContext` do caminho do relay é aberto **na taxa

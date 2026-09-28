@@ -274,7 +274,14 @@ sem o worker, não ligue: você pagaria a ida e volta por frame sem ganhar nada.
 ### O custo em detalhe
 
 Para quem precisa dimensionar: o reamostrador é sinc com janela e tabela pré-computada, em
-JavaScript puro — o mesmo que o React Native vai usar, onde WebAssembly não roda.
+JavaScript puro. O Node é a única plataforma que o usa — o navegador reamostra no worklet com
+o `libsamplerate`, e o React Native pede a taxa à própria plataforma e não converte nada.
+
+JavaScript e não WebAssembly porque medimos os dois: com blocos de 20 ms, converter 48 → 16 kHz
+leva **0,070 ms aqui contra 0,210 ms** no `libsamplerate` compilado, e 16 → 48 kHz leva 0,196 ms
+contra 0,234 ms. O JIT do V8 compila o laço de array tipado para perto do nativo, e o WASM ainda
+paga a travessia da fronteira a cada bloco. Na maior qualidade (`SRC_SINC_BEST_QUALITY`) o
+`libsamplerate` sobe para 1,23 ms, seis vezes o que temos.
 
 O trabalho por amostra é fixo: 33 taps de filtro. O custo total é a taxa de **saída** vezes
 esse número, e a taxa de entrada não entra na conta.
