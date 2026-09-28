@@ -152,13 +152,16 @@ São 0,4% do orçamento de tempo real, e não custam banda: quem fala com a rede
 nativo, já com os bytes de volta. Não vale otimizar.
 
 {% hint style="info" %}
-O áudio passa pela thread de JavaScript porque é lá que esse socket vive. Mandá-lo direto da
-thread de áudio exigiria um socket alcançável de um runtime de worklet, e um runtime de
-worklet recebe exatamente cinco globais — `__DEV__`, `global`, `performance`, `_WORKLET` e
-`__workletsModuleProxy`. Sem `__turboModuleProxy`, nenhum módulo nativo do React Native é
-alcançável de lá; seria preciso instalar o próprio, como o `react-native-audio-api` faz com os
-nós dele. Se um dia valer a pena, é exatamente isso que o `openSocket` do runtime existe para
-permitir, sem tocar no núcleo.
+O áudio passa pela thread de JavaScript porque é lá que esse socket vive: um runtime de worklet
+recebe exatamente cinco globais — `__DEV__`, `global`, `performance`, `_WORKLET` e
+`__workletsModuleProxy` —, sem `__turboModuleProxy`, então nenhum módulo nativo do React Native
+é alcançável de lá.
+
+Um HybridObject do Nitro, porém, é JSI puro e não depende dessa ponte: o
+`react-native-nitro-websockets` tem `sendBinary(ArrayBuffer)` síncrono e **funciona de dentro
+do runtime de áudio** — verificado num aparelho. Não usamos porque a entrega pelo grafo tem
+cauda pior, e não por falta de caminho; os números estão acima. Se um dia a conta virar, é
+exatamente isso que o `openSocket` do runtime existe para permitir, sem tocar no núcleo.
 {% endhint %}
 
 ## Escolher onde a chamada é ouvida
@@ -212,29 +215,32 @@ incompreensível. Se você encontrar um aparelho assim, ele é a notícia — ab
 
 Existe uma saída nativa para esse caso, e ela foi testada num aparelho, não imaginada: o
 `AudioRecorder` entra no grafo por um `RecorderAdapterNode`, o `AudioContext` roda na taxa da
-chamada, e um `WorkletNode` devolve o PCM já convertido. Funciona — grafo a 16 kHz, saída
-medida a 15.994 Hz, blocos de 320 frames com sinal de verdade — e a conversão acontece numa
-thread de áudio dedicada, fora da thread de JavaScript.
+chamada, e um `WorkletNode` devolve o PCM já convertido, numa thread de áudio dedicada.
+Funciona — grafo a 16 kHz, saída medida a 15.994 Hz, blocos de 320 frames com sinal de verdade.
 
-O que a derruba é a entrega. O PCM ainda precisa chegar à thread de JavaScript, que é onde
-está o WebSocket, e a travessia por `runOnJS` chega com a cauda pior:
+Dá até para fechar o caminho inteiro sem nunca tocar a thread de JavaScript: o
+`react-native-nitro-websockets` é um HybridObject do Nitro em C++, com `sendBinary(ArrayBuffer)`
+síncrono, e **ele roda de dentro do runtime de áudio** — testado, com os frames chegando a um
+servidor de verdade.
 
-| Caminho | Cadência p50 | p95, faixa medida |
-| --- | --- | --- |
-| `onAudioReady` direto (o que a biblioteca usa) | 20,0 ms | **22,1 – 23,8 ms** (12 execuções) |
-| `WorkletNode` + `runOnJS` | 19,4 ms | **30,6 – 33,5 ms** (5 execuções) |
+O que derruba a ideia é a regularidade da entrega. Medindo no servidor, com blocos de 20 ms:
 
-As faixas não se tocam, e as últimas execuções foram lado a lado na mesma sessão do app, com o
-aparelho no mesmo estado. No p50 os dois acompanham o bloco de 20 ms; o que piora é a cauda.
+| Caminho | p50 | p95 | Cauda (p95 − p50) |
+| --- | --- | --- | --- |
+| `onAudioReady` → thread de JS → `WebSocket` do RN | 20,0 ms | **26,0 ms** | **6,0 ms** |
+| `WorkletNode` → `sendBinary` do Nitro, sem passar por JS | 19,4 ms | **30,2 ms** | **10,8 ms** |
 
-Trocar o formato da travessia não ajuda: `Float32Array` e `Array` de números deram a mesma
-coisa, então o custo é o salto entre threads, e não a serialização. E o que se ganharia do
-outro lado é pequeno: o trabalho que sairia da thread de JavaScript é a conversão para Int16
-mais o base64 do socket, que somados dão cerca de 0,12 ms por bloco de 20 ms.
+E não é desalinhamento com o quantum de 128 frames do grafo: com 384 frames (3 quanta exatos) a
+cauda foi de 12,2 ms, e com 256 (2 quanta) de 12,0 ms. A dispersão acompanha o caminho pelo
+grafo, seja qual for o tamanho do bloco.
 
-Some-se a isso que o `WorkletNode` exige `react-native-worklets` — mais um módulo nativo e um
-plugin de Babel no projeto de quem integra. É insumo demais para resolver um caso que ainda
-não vimos acontecer. Fica registrado para quem encontrar o aparelho que o justifique.
+O que se ganharia do outro lado é pequeno: sai da thread de JavaScript a conversão para Int16 e
+o base64 do socket, cerca de 0,12 ms por bloco de 20 ms. Trocar 0,12 ms de trabalho por 5 ms de
+cauda não fecha, e ainda custaria três módulos nativos a quem integra —
+`react-native-worklets`, `react-native-nitro-modules` e `react-native-nitro-websockets`.
+
+Fica registrado porque a conclusão pode virar: se um aparelho não honrar a taxa pedida, este é
+o caminho, e ele está provado ponta a ponta.
 
 </details>
 
