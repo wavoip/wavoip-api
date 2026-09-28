@@ -373,7 +373,8 @@ type ErrorCode = DeviceErrorCode | CommandErrorCode | MediaErrorCode | CallFailu
 | | `MEDIA_NEGOTIATION_FAILED` | A negociação de mídia falhou; a exceção original vem em `cause`. |
 | | `UNSUPPORTED_MEDIA_PLAN` | O servidor propôs um transporte que a biblioteca não fala. |
 | | `CALL_TYPE_UNSUPPORTED` | Esta plataforma não carrega chamada desse tipo; `details.type` diz qual. |
-| `CallFailureCode` | `LOCAL_AUDIO_TIMEOUT` | O seu microfone parou de enviar áudio. |
+| `CallFailureCode` | `LOCAL_AUDIO_FAILED` | O seu microfone nunca começou a enviar áudio; a causa vem em `cause`. |
+| | `LOCAL_AUDIO_TIMEOUT` | O seu microfone parou de enviar áudio. |
 | | `REMOTE_AUDIO_TIMEOUT` | O contato parou de enviar áudio. |
 | | `CONNECTION_TIMEOUT` | A chamada perdeu contato com o servidor. |
 | | `ENCRYPTION_FAILED` | Não foi possível estabelecer a chamada com segurança. |

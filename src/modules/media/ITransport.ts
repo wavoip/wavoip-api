@@ -1,7 +1,8 @@
 import type { CallAudio } from "@/domain/call/audio";
-import type { CallStats } from "@/domain/call/stats";
 import type { MediaPlan } from "@/domain/call/mediaPlan";
+import type { CallStats } from "@/domain/call/stats";
 import type { TransportStatus } from "@/domain/call/types";
+import type { CallFailureCode, WavoipError } from "@/domain/shared/errors";
 import type { ConnectivityIssue, IceConfig, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
 import type { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { WavoipRuntime } from "@/ports/WavoipRuntime";
@@ -22,6 +23,8 @@ export type TransportOptions = {
 
 export type Events = {
     statusChanged: [status: TransportStatus];
+    /** A mídia que sobe em segundo plano desistiu, e não há ninguém esperando por ela. */
+    failed: [error: WavoipError<CallFailureCode | "UNKNOWN">];
     peerMuted: [muted: boolean];
     iceDiagnostics: [diag: IceDiagnostics];
     connectivityIssue: [issue: ConnectivityIssue];

@@ -1,6 +1,7 @@
 import type { CallAudio } from "@/domain/call/audio";
 import type { MediaPlan } from "@/domain/call/mediaPlan";
 import type { CallStats } from "@/domain/call/stats";
+import type { CallFailureCode, WavoipError } from "@/domain/shared/errors";
 import type { RelayAddress } from "@/modules/media/ITransport";
 import type { Events, ITransport, MediaRuntime, TransportStatus } from "@/modules/media/ITransport";
 import { WSAudioPipe } from "@/modules/media/relay/AudioPipe";
@@ -8,6 +9,22 @@ import { WSConnection } from "@/modules/media/relay/Connection";
 import { WSStatsAdapter } from "@/modules/media/relay/StatsAdapter";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
 import type { MediaSocketFactory } from "@/ports/runtime/MediaSocketPort";
+
+/** A etapa que falhou ao subir a mídia, presa à causa que a plataforma deu. */
+class MediaStartError extends Error {
+    constructor(
+        readonly code: CallFailureCode,
+        cause: unknown,
+    ) {
+        super(`a mídia do relay não subiu: ${code}`, { cause });
+    }
+
+    /** O que sai no evento. Erro sem etiqueta ainda é falha, e vira `UNKNOWN` em vez de sumir. */
+    static failureOf(error: unknown): WavoipError<CallFailureCode | "UNKNOWN"> {
+        if (error instanceof MediaStartError) return { code: error.code, cause: error.cause };
+        return { code: "UNKNOWN", cause: error };
+    }
+}
 
 export class WebsocketTransport extends EventEmitter<Events> implements ITransport {
     public readonly kind = "ws" as const;
@@ -62,8 +79,17 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
      * a chamada já existe enquanto o `connectionStatus` mostra o relay conectando.
      */
     async accept(): Promise<MediaPlan> {
-        void this.start();
+        this.startWithoutWaiting();
         return { type: "none" };
+    }
+
+    /**
+     * Subir em paralelo tem um preço: o que falha aqui não tem para quem voltar. Quem liga
+     * recebe a falha pelo `await` do `connect`; quem atende recebia `ok` e ficava com uma
+     * chamada de pé e muda para sempre. Por isso a falha vira evento.
+     */
+    private startWithoutWaiting(): void {
+        this.start().catch((error) => this.emit("failed", MediaStartError.failureOf(error)));
     }
 
     /** O outro lado atendeu: a resposta diz onde o relay espera a conexão. */
@@ -77,9 +103,22 @@ export class WebsocketTransport extends EventEmitter<Events> implements ITranspo
         await this.start();
     }
 
+    /**
+     * Cada etapa é etiquetada onde falha: quem atende recebe só o evento, e "a chamada
+     * falhou" sem dizer qual metade manda o integrador depurar o microfone quando o problema
+     * era a resposta do servidor.
+     */
     private async start(): Promise<void> {
-        await this.audioPipe.start();
-        await this.connection.start();
+        try {
+            await this.audioPipe.start();
+        } catch (cause) {
+            throw new MediaStartError("LOCAL_AUDIO_FAILED", cause);
+        }
+        try {
+            await this.connection.start();
+        } catch (cause) {
+            throw new MediaStartError("SERVER_ERROR", cause);
+        }
     }
 
     async stop(): Promise<void> {

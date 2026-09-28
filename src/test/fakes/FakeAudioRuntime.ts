@@ -179,7 +179,12 @@ export class FakeAudioEngine implements AudioEnginePort {
     /** Guarda quem pediu, para o teste provar que o motor abre o microfone e não o pipe. */
     capturedFrom: MicrophonePort | null = null;
 
+    /** Posto pelo teste que quer o microfone recusando abrir, como num aparelho sem permissão. */
+    captureFailure: Error | null = null;
+
     async capturePcm(microphone: MicrophonePort, onFrame: (pcm: ArrayBuffer) => void): Promise<AudioHandle> {
+        if (this.captureFailure) throw this.captureFailure;
+
         const handle = new FakeAudioHandle();
         this.captured.push(handle);
         this.capturedFrom = microphone;

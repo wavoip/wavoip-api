@@ -96,6 +96,20 @@ export class CallSession implements Subscribable<CallSessionEvents> {
         this.status = init.status;
         this.transport = init.transport;
         this.watchIce();
+        this.watchMedia();
+    }
+
+    /**
+     * A mídia que sobe sozinha depois do aceite não tem como devolver uma falha a quem
+     * chamou — o `accept` já respondeu. Sem escutar isto, a chamada ficaria de pé e muda.
+     */
+    private watchMedia(): void {
+        this.transport.on("failed", (error) => {
+            this.status = "FAILED";
+            this.events.emit("failed", error);
+            this.events.emit("status", this.status);
+            void this.stopMedia();
+        });
     }
 
     /**

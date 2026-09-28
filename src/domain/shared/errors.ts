@@ -58,6 +58,8 @@ export type MediaErrorCode =
 
 /** Why a call that was up came down. */
 export type CallFailureCode =
+    /** Your microphone never started sending audio, so the call has nothing to send. */
+    | "LOCAL_AUDIO_FAILED"
     /** Your microphone stopped sending audio. */
     | "LOCAL_AUDIO_TIMEOUT"
     /** The contact stopped sending audio. */

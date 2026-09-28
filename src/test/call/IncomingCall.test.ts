@@ -63,6 +63,26 @@ describe("IncomingCall — accept and reject", () => {
         expect((error?.cause as Error).message).toBe("Permission denied");
     });
 
+    /**
+     * A mídia do relay sobe depois de o `accept` já ter respondido. Sem alguém escutando o
+     * transporte, a desistência dela não chegava a lugar nenhum: quem atendeu ficava com uma
+     * chamada ativa e muda, sem nunca saber por quê.
+     */
+    it("fails the answered call when the media gives up afterwards", async () => {
+        const { offer } = relayOffer();
+        const { data: active } = await offer.accept();
+        const failures: { code: string }[] = [];
+        active?.on("failed", (error) => failures.push(error));
+
+        harness.transports.current.emit("failed", {
+            code: "LOCAL_AUDIO_FAILED",
+            cause: new Error("o aparelho gravou em 44100 Hz"),
+        });
+
+        expect(failures).toEqual([{ code: "LOCAL_AUDIO_FAILED", cause: expect.any(Error) }]);
+        expect(active?.status).toBe("FAILED");
+    });
+
     it("reject tells the server and leaves the routing", async () => {
         const { offer, session } = makeOffer();
 
