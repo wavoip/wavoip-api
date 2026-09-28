@@ -5,30 +5,30 @@ icon: phone-outgoing
 
 # Chamadas Realizadas
 
-Use `wavoip.startCall()` para iniciar uma chamada. O método retorna um objeto `CallOutgoing` que emite eventos conforme o destinatário responde.
+Use `wavoip.startCall()` para iniciar uma chamada. O método retorna um objeto `OutgoingCall` que emite eventos conforme o destinatário responde.
 
 ---
 
 ## Iniciando uma chamada
 
 ```typescript
-const { call, err } = await wavoip.startCall({
+const { data: call, error } = await wavoip.startCall({
     to: "+5511999999999",
 })
 
-if (err) {
-    console.error("Não foi possível iniciar a chamada:", err.message)
-    // err.devices lista quais dispositivos foram tentados e por que cada um falhou
+if (error) {
+    console.error("Não foi possível iniciar a chamada:", error.code)
+    // error.devices lista quais dispositivos foram tentados e por que cada um falhou
     return
 }
 
-// call é um CallOutgoing
-call.on("peerAccept", (active) => {
+// call é um OutgoingCall
+call.on("accepted", (active) => {
     console.log("Chamada conectada!")
     handleActiveCall(active)
 })
 
-call.on("peerReject", () => console.log("Destinatário rejeitou a chamada"))
+call.on("rejected", () => console.log("Destinatário rejeitou a chamada"))
 call.on("unanswered", () => console.log("Sem resposta"))
 ```
 
@@ -43,9 +43,21 @@ call.on("unanswered", () => console.log("Sem resposta"))
 
 ### Valor de retorno
 
-**Sucesso** — `{ call: CallOutgoing; err: null }`
+**Sucesso** — `{ data: OutgoingCall; error: null }`
 
-**Falha** — `{ call: null; err: { message: string; devices: { token: string; reason: string }[] } }`
+**Falha** — `{ data: null; error: StartCallFailure }`, onde `StartCallFailure` é um `WavoipError` com `devices: { token, error }[]`
+
+{% hint style="warning" %}
+**Espere o dispositivo se apresentar antes de ligar.** Logo depois do `new Wavoip(...)` ele está em `BUILDING`, e o servidor ainda não disse se as chamadas dele são oficiais ou não oficiais — sem isso a biblioteca não escolhe o transporte do áudio e recusa a chamada com `DEVICE_NOT_READY`.
+
+```typescript
+const device = wavoip.devices[0]
+
+device.on("statusChanged", (status) => {
+    if (status === "open") enableCallButton()
+})
+```
+{% endhint %}
 
 {% hint style="info" %}
 `startCall` tenta cada dispositivo elegível em sequência. O primeiro dispositivo que iniciar a chamada com sucesso é usado; os demais não são tentados. Use `fromTokens` para controlar quais dispositivos participam.
@@ -53,17 +65,16 @@ call.on("unanswered", () => console.log("Sem resposta"))
 
 ---
 
-## Propriedades do CallOutgoing
+## Propriedades do OutgoingCall
 
 | Propriedade                       | Tipo            | Descrição                                                  |
 | --------------------------------- | --------------- | ---------------------------------------------------------- |
 | `id`                              | `string`        | Identificador único da chamada.                            |
-| `type`                            | `CallType`      | `"official"` ou `"unofficial"`.                            |
+| `type`                            | `CallType`      | `"OFFICIAL"` ou `"UNOFFICIAL"`.                            |
 | `direction`                       | `CallDirection` | Sempre `"OUTGOING"`.                                       |
 | `peer`                            | `CallPeer`      | Telefone, nome de exibição e foto de perfil do destinatário.|
 | `deviceToken`                     | `string`        | Token do dispositivo que está realizando a chamada.        |
 | `status`                          | `CallStatus`    | Estado atual da chamada. Acompanha os eventos do servidor: dentro de qualquer handler já traz o valor novo. |
-| ~~`device_token`~~ **(deprecated)** | `string`      | **Use `deviceToken` no lugar.** Acesso emite `console.warn` único. |
 
 ---
 
@@ -73,43 +84,38 @@ Assine com `call.on(evento, callback)`. Retorna uma função `Unsubscribe`.
 
 | Evento              | Payload             | Descrição                                                                                                       |
 | ------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `peerAccept`        | `CallActive`        | Destinatário atendeu — um `CallActive` é fornecido.                                                             |
-| `peerReject`        | —                   | Destinatário recusou a chamada.                                                                                 |
-| `unanswered`        | —                   | Chamada expirou sem resposta.                                                                                   |
-| `ended`             | —                   | Chamada encerrada — inclusive por cancelamento. Consulte `status` para saber qual fim foi (ver abaixo).           |
-| `status`            | `CallStatus`        | Status da chamada mudou.                                                                                        |
-| `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE realizada antes do par atender.                                                       |
-| `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado durante a chamada. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
+| `ringing`           | —                   | O servidor confirmou que o aparelho do destinatário está tocando. Antes dele, `status` já é `RINGING` porque a chamada saiu — o evento é a confirmação do outro lado. |
+| `answered`          | —                   | Destinatário atendeu. A mídia ainda está subindo; `accepted` vem quando ela sobe, e `failed` se ela não subir. |
+| `accepted`          | `ActiveCall`        | A mídia subiu — a chamada continua no `ActiveCall` que vem no payload.                                          |
+| `rejected`          | —                   | Destinatário recusou a chamada.                                                                                 |
+| `unanswered`        | —                   | Tocou até o fim sem ninguém atender.                                                                            |
+| `failed`            | `OutgoingCallFailure` | A chamada não subiu: falha de mídia local ou do servidor.                                                     |
+| `ended`             | —                   | O servidor encerrou a oferta — um reinício ou uma hibernação do dispositivo, por exemplo.                       |
+| `iceDiagnostics`    | `IceDiagnostics`    | Diagnóstico da coleta ICE, que acontece antes de a chamada existir. Replay em listeners tardios.                 |
+| `connectivityIssue` | `ConnectivityIssue` | Problema de conectividade detectado, inclusive enquanto a chamada ainda toca. Replay em listeners tardios. Veja [Tipos → Diagnóstico ICE](../types.md#diagnostico-ice).|
 
-#### Cancelada ou encerrada?
+#### Cancelar não dispara evento
 
-`ended` é o único evento terminal, e é ele que desfaz a chamada. Para saber **qual**
-fim foi, leia `call.status` dentro do handler, que já traz o desfecho:
+`cancel()` responde no próprio `Result`: se ele voltar sem erro, a chamada foi cancelada, e
+nenhum evento é emitido por isso. Cada desfecho tem o seu evento, e o `ended` aqui significa
+uma coisa só — **o servidor** encerrou a oferta sem que ninguém tenha atendido, recusado ou
+desistido daqui. Acontece quando o dispositivo reinicia ou entra em hibernação no meio.
+
+O `status` está sempre atualizado dentro de qualquer handler, se você quiser lê-lo:
 
 ```typescript
-call.on("ended", () => {
-    // "CANCELLED" quando alguém desistiu antes do atendimento
-    showEndScreen(call.status)
-})
+call.on("rejected", () => showEndScreen(call.status))   // "REJECTED"
 ```
 
-O evento `status` do desfecho também é sempre emitido **antes** do `ended`, para quem
-prefere acompanhar pelo evento.
-
-{% hint style="info" %}
-`CANCELLED` **não** quer dizer "você cancelou": quer dizer que alguém desistiu antes do
-atendimento — pode ter sido o destinatário. Uma instância antiga não informa o desfecho
-e tudo continua chegando como `ENDED`.
-{% endhint %}
-
 ```typescript
-call.on("peerAccept", (active) => {
+call.on("accepted", (active) => {
     // Transicionar para interface de chamada ativa
     active.on("ended", () => showCallEndedScreen())
 })
 
-call.on("peerReject", () => showNotification("Chamada recusada"))
+call.on("rejected", () => showNotification("Chamada recusada"))
 call.on("unanswered", () => showNotification("Sem resposta"))
+call.on("failed", (error) => showNotification(messages[error.code]))
 ```
 
 ---
@@ -121,7 +127,7 @@ call.on("unanswered", () => showNotification("Sem resposta"))
 Silencia ou ativa o microfone para esta chamada.
 
 ```typescript
-await call.mute()    // { err: string | null }
+await call.mute()    // Result<void, CommandFailure>
 await call.unmute()
 ```
 
@@ -132,22 +138,22 @@ await call.unmute()
 Desiste da chamada antes de o destinatário atender — é o equivalente ao CANCEL do SIP.
 
 ```typescript
-const { err } = await call.cancel()
-if (err) console.error("Não foi possível cancelar:", err)
+const { error } = await call.cancel()
+if (error) console.error("Não foi possível cancelar:", error.code)
 ```
 
 Só encerra a chamada e libera o microfone **quando o servidor confirma**. Se o
-destinatário atender no exato instante do clique, o servidor recusa com `IS_NOT_OFFER`
+destinatário atender no exato instante do clique, o servidor recusa com `CALL_ALREADY_ANSWERED`
 e a chamada continua viva e com áudio — cabe à sua interface reabilitar o botão.
 
-Se o ack não chegar em 10s, resolve com `err: "ACK_TIMEOUT"` em vez de ficar pendente
+Se o ack não chegar em 10s, resolve com `error.code === "ACK_TIMEOUT"` em vez de ficar pendente
 para sempre.
 
 {% hint style="warning" %}
 `ACK_TIMEOUT` significa **"não sabemos"**, não "não cancelou". O pacote é descartado
 quando o prazo estoura, então o servidor pode nunca tê-lo recebido e o destinatário
 pode continuar tocando — e atender. Por isso o áudio **não** é liberado nesse caminho:
-trate como chamada possivelmente viva, e continue ouvindo `peerAccept` e `ended`.
+trate como chamada possivelmente viva, e continue ouvindo `accepted` e `ended`.
 {% endhint %}
 
 Em qualquer outra recusa (id desconhecido, erro interno) a chamada já morreu no
@@ -164,39 +170,30 @@ de `CANCELLED` para encerrar a interface.
 
 ---
 
-### `end()`
-
-{% hint style="warning" %}
-**Depreciado.** Use `cancel()` — mesmo comportamento, nome que corresponde ao que
-sempre foi enviado no fio. O acesso emite um `console.warn` único.
-{% endhint %}
-
-```typescript
-await call.end()
-```
-
----
-
 ## Exemplo com fallback entre dispositivos
 
 Use `startCallIterator` para exibir feedback por dispositivo enquanto tenta em sequência:
 
 ```typescript
-const iter = wavoip.startCallIterator({ to: "+5511999999999" })
+const attempts = wavoip.startCallIterator({ to: "+5511999999999" })
 
-// Yield para cada tentativa falha
-for await (const attempt of iter) {
-    console.warn(`Dispositivo ${attempt.token} indisponível: ${attempt.err}`)
+// Cada yield é um dispositivo que não pôde chamar.
+let step = await attempts.next()
+while (!step.done) {
+    console.warn(`Dispositivo ${step.value.token} indisponível:`, step.value.error.code)
     updateUI({ tryingNext: true })
+    step = await attempts.next()
 }
 
-// Resultado final
-const final = await iter.return(undefined)
-if (final.value?.call) {
-    handleOutgoingCall(final.value.call)
-} else {
-    showError("Todos os dispositivos falharam")
-}
+// Terminou: `step.value` é o mesmo Result que o `startCall` devolveria.
+const { data: call, error } = step.value
+if (error) showError(error.code)
+else handleOutgoingCall(call)
 ```
+
+{% hint style="warning" %}
+Não use `for await` aqui. Ele descarta o valor de **retorno** do gerador — que é justamente o
+resultado da chamada — e você fica só com as tentativas que falharam.
+{% endhint %}
 
 Após o destinatário atender, veja [Chamada Ativa](active.md) para gerenciar a chamada em andamento.

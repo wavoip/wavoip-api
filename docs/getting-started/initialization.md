@@ -8,14 +8,13 @@ icon: rocket
 ## Construtor
 
 ```typescript
-import { Wavoip } from "@wavoip/wavoip-api"
+import { Wavoip, webRuntime } from "@wavoip/wavoip-api/web"
 
 const wavoip = new Wavoip({
     tokens: ["token-1", "token-2"],
+    runtime: webRuntime(),    // a plataforma: `webRuntime()` vem de "@wavoip/wavoip-api/web"
     platform?: string,        // opcional — identifica a plataforma do cliente
-    language?: "pt-BR" | "en-US" | "es-ES",
     iceConfig?: IceConfig,    // opcional — sobrescreve servidores STUN/TURN
-    statsTickMs?: number,     // opcional — cadência do evento `stats` (default 200ms)
 })
 ```
 
@@ -23,9 +22,7 @@ const wavoip = new Wavoip({
 | -------------- | --------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tokens`       | `string[]`            | Sim         | Um ou mais tokens de dispositivo Wavoip. Duplicatas são ignoradas.                                                                                                                |
 | `platform`     | `string`              | Não         | Identificador de plataforma enviado ao servidor na conexão.                                                                                                                       |
-| `language`     | `Language`            | Não         | Locale para mensagens de erro internas. Default `"pt-BR"`.                                                                                                                        |
 | `iceConfig`    | `IceConfig`           | Não         | Servidores STUN/TURN e timeout de coleta ICE.                                                                                                                                     |
-| `statsTickMs`  | `number`              | Não         | Intervalo do tick interno que emite os eventos **deprecated** `stats` e `serverStats` (padrão `200`). Não afeta [`CallActive.getStats()`](../calls/active.md#getstats), que é pull e roda na cadência do consumidor. |
 
 Cada token cria uma conexão WebSocket persistente com a infraestrutura Wavoip. A biblioteca começa a se conectar imediatamente na construção — nenhuma chamada explícita a `.connect()` é necessária.
 
@@ -100,19 +97,22 @@ const result = await wavoip.startCall({
 **Sucesso:**
 
 ```typescript
-const { call, err } = result
-// call: CallOutgoing  —  err: null
+const { data: call, error } = result
+// data: OutgoingCall  —  error: null
 ```
 
 **Falha (todos os dispositivos falharam):**
 
 ```typescript
-const { call, err } = result
-// call: null
-// err: { message: string; devices: { token: string; reason: string }[] }
+const { data, error } = result
+// data: null
+// error: StartCallFailure — o código do primeiro dispositivo que falhou,
+//        mais `devices`, com o motivo de cada um na ordem tentada
 ```
 
-Veja [Chamadas Realizadas](../calls/outgoing.md) para a API completa de `CallOutgoing`.
+Sem nenhum dispositivo para tentar, o código é `NO_DEVICES` e `devices` vem vazio.
+
+Veja [Chamadas Realizadas](../calls/outgoing.md) para a API completa de `OutgoingCall`.
 
 ---
 
@@ -121,19 +121,25 @@ Veja [Chamadas Realizadas](../calls/outgoing.md) para a API completa de `CallOut
 Variante de gerador assíncrono de `startCall` que emite cada tentativa de dispositivo antes de retornar o resultado final. Útil para exibir feedback por dispositivo na interface.
 
 ```typescript
-const iter = wavoip.startCallIterator({ to: "+5511999999999" })
+const attempts = wavoip.startCallIterator({ to: "+5511999999999" })
 
-// Cada yield é uma tentativa falha em um dispositivo
-for await (const attempt of iter) {
-    console.warn(`Dispositivo ${attempt.token} falhou:`, attempt.err)
+// Cada yield é um dispositivo que não pôde chamar.
+let step = await attempts.next()
+while (!step.done) {
+    console.warn(`Dispositivo ${step.value.token} indisponível:`, step.value.error.code)
+    step = await attempts.next()
 }
 
-// .return() contém o resultado final
-const result = await iter.return(undefined)
-if (result.value?.call) {
-    const call = result.value.call
-}
+// Terminou: `step.value` é o mesmo Result que o `startCall` devolveria.
+const { data: call, error } = step.value
+if (error) showError(error.code)
+else handleOutgoingCall(call)
 ```
+
+{% hint style="warning" %}
+Não use `for await` aqui. Ele descarta o valor de **retorno** do gerador — que é justamente o
+resultado da chamada — e você fica só com as tentativas que falharam.
+{% endhint %}
 
 {% hint style="info" %}
 `startCall` é mais simples para a maioria dos casos. Use `startCallIterator` apenas quando o progresso por dispositivo importa para o usuário.
@@ -147,7 +153,7 @@ Acorda dispositivos em hibernação. Retorna um array de Promises para que você
 
 ```typescript
 const results = await Promise.all(wavoip.wakeUpDevices())
-// { token: string; waken: boolean }[]
+// { token: string; result: Result<void, DeviceApiFailure> }[]
 ```
 
 Passe um array de tokens para atingir dispositivos específicos; omita para acordar todos.
@@ -159,30 +165,18 @@ Passe um array de tokens para atingir dispositivos específicos; omita para acor
 Variante de gerador assíncrono — emite cada resultado de wake conforme concluído.
 
 ```typescript
-for await (const result of wavoip.wakeUpDevicesIterator()) {
-    console.log(result.token, result.waken ? "acordou" : "falhou")
+for await (const { token, result } of wavoip.wakeUpDevicesIterator()) {
+    console.log(token, result.error ? `falhou: ${result.error.code}` : "acordou")
 }
 ```
 
 ---
 
-### `getMultimediaDevices()`
+### `audio`
 
-Lista todos os microfones e alto-falantes disponíveis.
-
-```typescript
-const devices = wavoip.getMultimediaDevices()
-// MediaDeviceInfo[]
-```
-
----
-
-### `multimedia` (propriedade)
-
-Retorna o microfone e alto-falante ativos no momento.
+Os aparelhos de áudio que a biblioteca enxerga. Veja [Mídia](../media.md).
 
 ```typescript
-const { microphone, speaker } = wavoip.multimedia
-// microphone: MediaDeviceInfo | undefined
-// speaker:    MediaDeviceInfo | undefined
+wavoip.audio.listInputDevices()
+wavoip.audio.currentInput
 ```

@@ -10,6 +10,9 @@
 
 * [Dispositivo](device.md)
 * [Mídia](media.md)
+* [Plataformas](platforms/README.md)
+  * [Node.js](platforms/node.md)
+  * [React Native](platforms/react-native.md)
 
 ## Chamadas
 
@@ -19,5 +22,7 @@
 
 ## Referência
 
+* [Migrando da v2 para a v3](migration.md)
 * [Tipos](types.md)
+* [Diagnóstico de ambiente](diagnostics.md)
 * [Solução de Problemas](troubleshooting.md)

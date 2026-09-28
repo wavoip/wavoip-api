@@ -1,7 +1,8 @@
 import type { ConnectivityIssue, IceDiagnostics } from "@/modules/media/ICEDiagnostics";
-import { WebRTCTransport } from "@/modules/media/WebRTC";
+import { WebRTCTransport } from "@/modules/media/webrtc/Transport";
+import { FakeAudioRuntime } from "@/test/fakes/FakeAudioRuntime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MockAudio, buildMockPeerConnection, makeMockMediaManager } from "./ice-test-helpers";
+import { buildMockPeerConnection } from "./ice-test-helpers";
 
 describe("WebRTCTransport ICE diagnostics", () => {
     const pcFactory = buildMockPeerConnection();
@@ -9,7 +10,6 @@ describe("WebRTCTransport ICE diagnostics", () => {
     beforeEach(() => {
         pcFactory.reset();
         vi.stubGlobal("RTCPeerConnection", pcFactory.MockRTCPeerConnection);
-        vi.stubGlobal("Audio", MockAudio);
         vi.useFakeTimers();
     });
 
@@ -20,8 +20,8 @@ describe("WebRTCTransport ICE diagnostics", () => {
 
     describe("candidate counting", () => {
         it("counts candidates by type from onicecandidate events", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never);
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
 
             const diagPromise = new Promise<IceDiagnostics>((resolve) => {
                 transport.on("iceDiagnostics", resolve);
@@ -46,8 +46,8 @@ describe("WebRTCTransport ICE diagnostics", () => {
 
     describe("iceDiagnostics event", () => {
         it("emits with gatheringTimedOut=false when gathering completes in time", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never);
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
 
             const cb = vi.fn();
             transport.on("iceDiagnostics", cb);
@@ -68,8 +68,8 @@ describe("WebRTCTransport ICE diagnostics", () => {
         });
 
         it("emits with gatheringTimedOut=true when the timeout fires first", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, undefined, { iceConfig: { gatheringTimeoutMs: 200 } });
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio, undefined, { iceConfig: { gatheringTimeoutMs: 200 } });
 
             const cb = vi.fn();
             transport.on("iceDiagnostics", cb);
@@ -86,8 +86,8 @@ describe("WebRTCTransport ICE diagnostics", () => {
         });
 
         it("sets turnReached=true when a relay candidate is gathered", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never);
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
 
             const cb = vi.fn();
             transport.on("iceDiagnostics", cb);
@@ -104,10 +104,75 @@ describe("WebRTCTransport ICE diagnostics", () => {
         });
     });
 
+    describe("selected candidate pair", () => {
+        const statsWithPair = () =>
+            new Map<string, Record<string, unknown>>([
+                [
+                    "cp1",
+                    {
+                        type: "candidate-pair",
+                        id: "cp1",
+                        nominated: true,
+                        state: "succeeded",
+                        localCandidateId: "l1",
+                        remoteCandidateId: "r1",
+                        currentRoundTripTime: 0.042,
+                    },
+                ],
+                ["l1", { type: "local-candidate", id: "l1", candidateType: "srflx" }],
+                ["r1", { type: "remote-candidate", id: "r1", candidateType: "relay" }],
+            ]);
+
+        /** O campo existe no tipo público desde sempre, e ninguém preenchia. */
+        it("reports which pair ICE chose once it connects", async () => {
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
+            const diagnostics = vi.fn();
+            transport.on("iceDiagnostics", diagnostics);
+
+            const offerPromise = transport.createOffer();
+            const pc = pcFactory.last();
+            pc._fireIceCandidate("srflx");
+            await vi.advanceTimersByTimeAsync(5);
+            pc._completeGathering();
+            await offerPromise;
+
+            pc.getStats.mockResolvedValue(statsWithPair());
+            pc._fireIceConnectionState("connected");
+            await vi.waitFor(() => expect(diagnostics).toHaveBeenCalledTimes(2));
+
+            expect(diagnostics.mock.calls[1][0].selectedCandidatePair).toEqual({
+                local: "srflx",
+                remote: "relay",
+                rtt: 42,
+            });
+        });
+
+        it("says nothing when ICE never chooses a pair", async () => {
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
+            const diagnostics = vi.fn();
+            transport.on("iceDiagnostics", diagnostics);
+
+            const offerPromise = transport.createOffer();
+            const pc = pcFactory.last();
+            pc._fireIceCandidate("srflx");
+            await vi.advanceTimersByTimeAsync(5);
+            pc._completeGathering();
+            await offerPromise;
+
+            pc._fireIceConnectionState("connected");
+            await vi.advanceTimersByTimeAsync(10);
+
+            expect(diagnostics).toHaveBeenCalledTimes(1);
+            expect(diagnostics.mock.calls[0][0].selectedCandidatePair).toBeUndefined();
+        });
+    });
+
     describe("connectivityIssue event", () => {
         it("emits STUN_UNREACHABLE when gathering times out without an srflx candidate", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, undefined, { iceConfig: { gatheringTimeoutMs: 200 } });
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio, undefined, { iceConfig: { gatheringTimeoutMs: 200 } });
 
             const issues: ConnectivityIssue[] = [];
             transport.on("connectivityIssue", (i) => issues.push(i));
@@ -121,8 +186,8 @@ describe("WebRTCTransport ICE diagnostics", () => {
         });
 
         it("does not emit STUN_UNREACHABLE when an srflx candidate is gathered before timeout", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never, undefined, { iceConfig: { gatheringTimeoutMs: 200 } });
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio, undefined, { iceConfig: { gatheringTimeoutMs: 200 } });
 
             const issues: ConnectivityIssue[] = [];
             transport.on("connectivityIssue", (i) => issues.push(i));
@@ -139,8 +204,8 @@ describe("WebRTCTransport ICE diagnostics", () => {
         });
 
         it("emits NO_HOST_CANDIDATES when gathering ends without a host candidate", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never);
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
 
             const issues: ConnectivityIssue[] = [];
             transport.on("connectivityIssue", (i) => issues.push(i));
@@ -156,8 +221,8 @@ describe("WebRTCTransport ICE diagnostics", () => {
         });
 
         it("emits ICE_CONNECTION_FAILED when iceConnectionState transitions to failed", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never);
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
 
             const issues: ConnectivityIssue[] = [];
             transport.on("connectivityIssue", (i) => issues.push(i));
@@ -172,9 +237,55 @@ describe("WebRTCTransport ICE diagnostics", () => {
             expect(issues).toContain("ICE_CONNECTION_FAILED");
         });
 
+        /**
+         * Regressão: a janela começava no fim da coleta, então toda chamada que sai levava um
+         * `SYMMETRIC_NAT_SUSPECTED` se o contato demorasse dez segundos para atender — sem
+         * resposta remota não existe verificação de conectividade para falhar.
+         */
+        it("does not suspect symmetric NAT while the peer has not answered", async () => {
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
+
+            const issues: ConnectivityIssue[] = [];
+            transport.on("connectivityIssue", (i) => issues.push(i));
+
+            const offerPromise = transport.createOffer();
+            const pc = pcFactory.last();
+            pc._fireIceCandidate("host");
+            pc._fireIceCandidate("srflx");
+            await vi.advanceTimersByTimeAsync(5);
+            pc._completeGathering();
+            await offerPromise;
+
+            await vi.advanceTimersByTimeAsync(30_000);
+
+            expect(issues).not.toContain("SYMMETRIC_NAT_SUSPECTED");
+        });
+
+        it("suspects symmetric NAT when the answer is in and ICE still does not connect", async () => {
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
+
+            const issues: ConnectivityIssue[] = [];
+            transport.on("connectivityIssue", (i) => issues.push(i));
+
+            const offerPromise = transport.createOffer();
+            const pc = pcFactory.last();
+            pc._fireIceCandidate("host");
+            pc._fireIceCandidate("srflx");
+            await vi.advanceTimersByTimeAsync(5);
+            pc._completeGathering();
+            await offerPromise;
+
+            await transport.connect({ type: "webRTC", sdp: "v=0 remote-answer" });
+            await vi.advanceTimersByTimeAsync(11_000);
+
+            expect(issues).toContain("SYMMETRIC_NAT_SUSPECTED");
+        });
+
         it("does not emit duplicates for the same issue", async () => {
-            const mm = makeMockMediaManager();
-            const transport = new WebRTCTransport(mm as never);
+            const audio = new FakeAudioRuntime();
+            const transport = new WebRTCTransport(audio);
 
             const issues: ConnectivityIssue[] = [];
             transport.on("connectivityIssue", (i) => issues.push(i));

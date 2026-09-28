@@ -1,19 +1,5 @@
 import { type Mock, vi } from "vitest";
 
-export class MockMediaStreamTrack {
-    private listeners = new Map<string, Set<() => void>>();
-    enabled = false;
-
-    addEventListener(event: string, listener: () => void) {
-        if (!this.listeners.has(event)) this.listeners.set(event, new Set());
-        this.listeners.get(event)?.add(listener);
-    }
-
-    dispatchEvent(event: string) {
-        for (const listener of this.listeners.get(event) ?? []) listener();
-    }
-}
-
 /**
  * Diferente de um PC de verdade, nada completa sozinho: o teste conduz o fim da coleta e
  * as transições de ICE pelos helpers `_*`.
@@ -21,11 +7,6 @@ export class MockMediaStreamTrack {
 export class MockRTCPeerConnection {
     _config: RTCConfiguration;
     _iceListenerCounts = { added: 0, removed: 0 };
-
-    ontrack: ((e: RTCTrackEvent) => void) | null = null;
-    onconnectionstatechange: (() => void) | null = null;
-    onicecandidate: ((e: { candidate: RTCIceCandidate | null }) => void) | null = null;
-    oniceconnectionstatechange: (() => void) | null = null;
 
     connectionState: RTCPeerConnectionState = "new";
     iceConnectionState: RTCIceConnectionState = "new";
@@ -59,8 +40,8 @@ export class MockRTCPeerConnection {
         if (event === "icegatheringstatechange") this._iceListenerCounts.removed += 1;
     }
 
-    dispatchEvent(event: string) {
-        for (const listener of this.namedListeners.get(event) ?? []) listener();
+    dispatchEvent(event: string, payload?: unknown) {
+        for (const listener of this.namedListeners.get(event) ?? []) listener(payload);
     }
 
     _completeGathering() {
@@ -69,18 +50,17 @@ export class MockRTCPeerConnection {
     }
 
     _fireIceCandidate(type: RTCIceCandidateType) {
-        this.onicecandidate?.({ candidate: { type } as RTCIceCandidate });
+        this.dispatchEvent("icecandidate", { candidate: { type } });
     }
 
     _fireIceConnectionState(state: RTCIceConnectionState) {
         this.iceConnectionState = state;
-        this.oniceconnectionstatechange?.();
         this.dispatchEvent("iceconnectionstatechange");
     }
 
     _fireConnectionState(state: RTCPeerConnectionState) {
         this.connectionState = state;
-        this.onconnectionstatechange?.();
+        this.dispatchEvent("connectionstatechange");
     }
 }
 
@@ -106,56 +86,4 @@ export function buildMockPeerConnection(): PcFactory {
             instances.length = 0;
         },
     };
-}
-
-export interface MockMediaManager {
-    setMuted: Mock;
-    startMedia: Mock;
-    stopMedia: Mock;
-    audioContext: {
-        createMediaStreamSource: Mock;
-        createAnalyser: Mock;
-        createGain: Mock;
-        destination: object;
-    };
-    _analyser: { fftSize: number; getByteTimeDomainData: Mock; connect: Mock };
-    _stream: MediaStream;
-    _track: MockMediaStreamTrack;
-}
-
-export function makeMockMediaManager(): MockMediaManager {
-    const analyser = {
-        fftSize: 256,
-        getByteTimeDomainData: vi.fn((arr: Uint8Array) => arr.fill(128)),
-        connect: vi.fn(),
-        disconnect: vi.fn(),
-    };
-    const source = { connect: vi.fn(), disconnect: vi.fn() };
-    const audioContext = {
-        createMediaStreamSource: vi.fn().mockReturnValue(source),
-        createAnalyser: vi.fn().mockReturnValue(analyser),
-        createGain: vi.fn().mockReturnValue({ gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() }),
-        destination: {},
-    };
-    const mockTrack = new MockMediaStreamTrack();
-    const mockStream = {
-        getTracks: vi.fn().mockReturnValue([mockTrack]),
-        getAudioTracks: vi.fn().mockReturnValue([mockTrack]),
-        id: "mic-stream",
-    } as unknown as MediaStream;
-
-    return {
-        setMuted: vi.fn(),
-        startMedia: vi.fn().mockResolvedValue(mockStream),
-        stopMedia: vi.fn().mockResolvedValue(undefined),
-        audioContext,
-        _analyser: analyser,
-        _stream: mockStream,
-        _track: mockTrack,
-    };
-}
-
-export class MockAudio {
-    muted = false;
-    srcObject: MediaStream | null = null;
 }

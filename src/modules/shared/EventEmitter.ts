@@ -6,6 +6,11 @@ type EventsDefaultMap = {
 
 export type Unsubscribe = () => void;
 
+/** Quem só deixa escutar: o emissor fica guardado em quem o usa. */
+export interface Subscribable<TEvents extends EventsDefaultMap> {
+    on<T extends keyof TEvents>(event: T, callback: Listener<TEvents, T>): Unsubscribe;
+}
+
 export class EventEmitter<TEvents extends EventsDefaultMap> {
     private listeners = new Map<keyof TEvents, Listener<TEvents, keyof TEvents>[]>();
 

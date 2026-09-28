@@ -1,4 +1,4 @@
-import type { Peer } from "@/modules/device/Call";
+import type { Peer } from "@/domain/call/types";
 
 export type CallPeer = Peer & {
     muted: boolean;

@@ -1,0 +1,19 @@
+{
+    "name": "wavoip-react-native-example",
+    "private": true,
+    "scripts": {
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@wavoip/wavoip-api": "file:../..",
+        "react": "^19.3.0",
+        "react-native": "^0.87.1",
+        "react-native-audio-api": "^0.13.6",
+        "react-native-incall-manager": "^4.3.0",
+        "react-native-webrtc": "^124.0.8"
+    },
+    "devDependencies": {
+        "@types/react": "^19.3.0",
+        "typescript": "^5.8.2"
+    }
+}

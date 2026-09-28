@@ -18,10 +18,9 @@ Os dispositivos são retornados por `wavoip.getDevices()`, `wavoip.addDevices()`
 | `token`            | `string`               | Token único do dispositivo (somente leitura).                                              |
 | `status`           | `DeviceStatus`         | Estado da conta WhatsApp.                                                                  |
 | `connectionStatus` | `ConnectionStatus`     | Estado do WebSocket entre SDK e backend (`connected` / `disconnected` / `reconnecting`).   |
-| `qrCode`           | `string \| undefined`  | String do QR code quando o dispositivo está em `connecting`.                               |
-| `contact`          | `Contact \| undefined` | Número WhatsApp vinculado quando o dispositivo está `open`.                                |
-| `restricted`       | `boolean`              | `true` quando a conta WhatsApp está restrita. Sinal informativo para a UI; o SDK não bloqueia a chamada — o backend decide (uma conta restrita ainda pode ligar para contatos conhecidos). |
-| `restrictedUntil`  | `Date \| null`         | Data em que a restrição expira. `null` quando não há restrição ativa ou data informada.    |
+| `qrCode`           | `string \| null`       | String do QR code quando o dispositivo está em `connecting`.                               |
+| `contact`          | `Contact \| null`      | Número WhatsApp vinculado quando o dispositivo está `open`.                                |
+| `restriction`      | `DeviceRestriction \| null` | Presente enquanto a conta WhatsApp está restrita, com `until` sendo o prazo (`null` quando o servidor não informa). Sinal informativo: o SDK não bloqueia a chamada — o backend decide, e uma conta restrita ainda liga para contatos conhecidos. |
 | `activeCalls`      | `number`               | Quantidade de chamadas ativas no momento (apenas `ACTIVE`; ofertas não contam).            |
 
 ---
@@ -33,9 +32,10 @@ Os dispositivos são retornados por `wavoip.getDevices()`, `wavoip.addDevices()`
 | `close`                      | Conectado, mas sem número WhatsApp vinculado. Pode entrar em hibernação.     |
 | `connecting`                 | QR code pronto — aguardando leitura pelo WhatsApp.                           |
 | `open`                       | Vinculado e pronto para realizar/receber chamadas.                           |
+| `error`                      | Dispositivo em estado de erro; chamadas bloqueadas.                          |
 | `restarting`                 | Dispositivo está reiniciando; novas chamadas estão bloqueadas.               |
 | `hibernating`                | Inativo por 2,5+ minutos. Chame `wakeUp()` para reativar.                   |
-| `BUILDING`                   | Dispositivo inicializando; chamadas indisponíveis.                           |
+| `BUILDING`                   | Dispositivo inicializando; chamadas recusadas com `DEVICE_NOT_READY`.        |
 | `WAITING_PAYMENT`            | Pagamento da conta necessário.                                               |
 | `EXTERNAL_INTEGRATION_ERROR` | Erro de integração externa com o WhatsApp; reinicialização necessária.       |
 
@@ -90,13 +90,15 @@ device.on("connectionStatusChanged", (status: ConnectionStatus) => {
 })
 ```
 
-### `restrictedChanged`
+### `restrictionChanged`
 
-Emitido quando o estado de restrição da conta muda. O segundo argumento é a data em que a restrição expira, quando informada pelo servidor — pode ser `null` em instâncias mais antigas que não enviam essa data.
+Emitido quando a restrição da conta aparece ou some. O payload é a própria restrição, ou `null`
+quando a conta está livre de novo.
 
 ```typescript
-device.on("restrictedChanged", (restricted: boolean, restrictedUntil: Date | null) => {
-    if (restricted && restrictedUntil) console.log("Restrito até:", restrictedUntil)
+device.on("restrictionChanged", (restriction) => {
+    if (!restriction) return hideRestrictionBanner()
+    showRestrictionBanner(restriction.until)   // `null` em instâncias que não informam o prazo
 })
 ```
 
@@ -125,7 +127,7 @@ Instâncias mais antigas do backend não enviam este evento. Nesse caso `device.
 Reinicia o dispositivo Wavoip. Chamadas em andamento são finalizadas antes do reinício.
 
 ```typescript
-await device.restart()
+const { error } = await device.restart()
 ```
 
 ---
@@ -135,18 +137,22 @@ await device.restart()
 Desvincula o número WhatsApp do dispositivo.
 
 ```typescript
-await device.logout()
+const { error } = await device.logout()
 ```
 
 ---
 
 ### `wakeUp()`
 
-Acorda um dispositivo em hibernação. Retorna `true` se o dispositivo respondeu.
+Acorda um dispositivo em hibernação, pela API central — que sabe acordá-lo mesmo quando o
+próprio dispositivo não responde.
 
 ```typescript
-const woken = await device.wakeUp()
+const { error } = await device.wakeUp()
+if (error) console.error(error.code)   // DEVICE_NOT_FOUND, WAKE_UP_RATE_LIMITED, NETWORK_ERROR…
 ```
+
+Acordar quem já estava acordado **não** é erro: o retorno é sucesso nos dois casos.
 
 ---
 
@@ -155,28 +161,28 @@ const woken = await device.wakeUp()
 Solicita um código de pareamento para vincular um número de telefone sem precisar escanear o QR code.
 
 ```typescript
-const result = await device.pairingCode("+5511999999999")
+const { data: pairingCode, error } = await device.pairingCode("+5511999999999")
 
-if (result.err) {
-    console.error(result.err)
+if (error) {
+    console.error(error.code)
 } else {
-    console.log("Código de pareamento:", result.pairingCode)
+    console.log("Código de pareamento:", pairingCode)
 }
 ```
 
-| Campo de retorno | Tipo              | Descrição                                       |
-| ---------------- | ----------------- | ----------------------------------------------- |
-| `pairingCode`    | `string \| null`  | O código a ser inserido no telefone.            |
-| `err`            | `string \| null`  | Mensagem de erro se a solicitação falhou.        |
+| Campo de retorno | Tipo                        | Descrição                                |
+| ---------------- | --------------------------- | ---------------------------------------- |
+| `data`           | `string \| null`            | O código a ser inserido no telefone.     |
+| `error`          | `CommandFailure \| null`    | Por que a solicitação falhou.            |
 
 ---
 
 ## Exemplo completo
 
 ```typescript
-import { Wavoip } from "@wavoip/wavoip-api"
+import { Wavoip, webRuntime } from "@wavoip/wavoip-api/web"
 
-const wavoip = new Wavoip({ tokens: ["meu-token"] })
+const wavoip = new Wavoip({ tokens: ["meu-token"], runtime: webRuntime() })
 
 const [device] = wavoip.getDevices()
 

@@ -43,7 +43,7 @@ export function workletPlugin(): Plugin {
             const outputs = Array.isArray(result) ? result : [result as RollupOutput];
             const chunk = outputs[0].output[0] as OutputChunk;
             const escaped = JSON.stringify(chunk.code);
-            return `export default URL.createObjectURL(new Blob([${escaped}], { type: "application/javascript" }));`;
+            return `export default ${escaped};`;
         },
     };
 }

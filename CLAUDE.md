@@ -25,6 +25,11 @@ documentação sem ler o código. Isso muda as regras de idioma e de comentário
   Prefira nomes com menos de 5 ocorrências no grep do código.
 - Tipos: explícitos. Nada de `any`, `Dict` ou função sem tipo.
 - Sem duplicação. Extraia a lógica compartilhada para uma função ou módulo.
+- Nada de função ou constante exportada solta: agrupe num objeto de nome claro e exporte
+  só ele (`Stats.mergeUnofficial(...)`, `Status.narrow(...)`). Quem lê a chamada vê de onde
+  a funcionalidade vem. Tipo e interface seguem exportados direto.
+- Método estático que constrói a própria classe começa com maiúscula, para se distinguir
+  de método comum: `CallSession.Start(...)`, e não `CallSession.start(...)`.
 - Retorno cedo em vez de `if` aninhado. No máximo 2 níveis de indentação.
 - Mensagem de exceção inclui o valor ofensor e a forma esperada.
 
@@ -51,7 +56,7 @@ Para saber de que lado um comentário está: ele aparece no `dist/index.d.ts` de
   e deve dizer o que a função faz; o que não pode é ficar errado.
 - **A decisão mora aqui; a investigação mora na issue.** Cite a issue ou o PR e siga.
 - **Cada regra tem um dono só.** A regra de reconexão mora no `WSConnection`, o formato
-  do áudio no `AudioWorkletOut`, o bug do Chromium no `RTCAudioPipe`. Os outros lugares
+  do áudio no `AudioWorkletOut`, o bug do Chromium no `WebAudioEngine`. Os outros lugares
   no máximo apontam para ele.
 - **Releia o comentário e o `.md` que a sua mudança tocou.** Não "preserve" nem
   "atualize se mudou o comportamento": releia. Documentação errada é pior que ausente,
@@ -127,3 +132,21 @@ pnpm lint
 pnpm test
 pnpm build
 ```
+
+O `pnpm build` começa pelo `scripts/check-env.mjs`, que quebra se faltar alguma env do
+`src/config/config.ts`. As URLs de produção moram no `.env` versionado; para apontar para
+outro ambiente, use um `.env.local`, que o git ignora e o Vite carrega por cima.
+
+Ele termina no `scripts/check-public-types.mjs`, que compila o `dist/index.d.ts` publicado
+**sem DOM**: um `AnalyserNode` ou um `MediaDeviceInfo` na superfície quebra o build de quem
+instala a biblioteca no React Native, e não o nosso (DEV-277).
+
+O `pnpm lint` também roda `tsc -p tsconfig.core.json`: compila `src/domain/`, `src/ports/` e
+`src/application/` sem DOM e sem `@types/node` (que declara `WebSocket` e `performance`
+globais). São as três camadas que rodam igual no navegador, no React Native e no desktop — o
+domínio é regra pura, e a aplicação só fala com portas. O que depende de plataforma fica atrás
+de uma porta, injetada por quem orquestra (DEV-526).
+
+O único global que o portão declara é o `setTimeout`, em `types/core-globals.d.ts`: ele existe
+em todo runtime, mas o tipo dele só vem junto com o DOM ou com o `@types/node`. O arquivo mora
+fora de `src/` para o build não o enxergar.
