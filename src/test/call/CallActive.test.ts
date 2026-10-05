@@ -1,9 +1,10 @@
 import { CallActiveProxy } from "@/modules/call/CallActive";
+import { MEDIA_RELEASE_TIMEOUT_MS } from "@/modules/shared/mediaRelease";
 import type { CallStats, ServerCallStats } from "@/modules/call/Stats";
 import { Call } from "@/modules/device/Call";
 import type { ITransport, Events as TransportEvents } from "@/modules/media/ITransport";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
 
@@ -40,6 +41,23 @@ function makeMockMediaManager() {
 }
 
 describe("CallActive", () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    // O mesmo defeito do cancelamento (ver CallOutgoing): a resposta não espera a mídia cair.
+    it("answers the end even when the media release never settles", async () => {
+        vi.useFakeTimers();
+        const call = makeCall();
+        const transport = makeMockTransport({ stop: vi.fn(() => new Promise<void>(() => {})) });
+        const active = CallActiveProxy(call, transport, makeMockMediaManager() as never, { onEnd: vi.fn() });
+
+        const pending = active.end();
+        await vi.advanceTimersByTimeAsync(MEDIA_RELEASE_TIMEOUT_MS);
+
+        expect(await pending).toEqual({ err: null });
+    });
+
     describe("getters", () => {
         it("id, type, direction, deviceToken, status proxy to call", () => {
             const call = makeCall();

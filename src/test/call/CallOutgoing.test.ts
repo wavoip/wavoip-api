@@ -1,9 +1,10 @@
 import { CallOutgoingProxy } from "@/modules/call/CallOutgoing";
+import { MEDIA_RELEASE_TIMEOUT_MS } from "@/modules/shared/mediaRelease";
 import { Call } from "@/modules/device/Call";
 import type { DeviceSocket } from "@/modules/device/WebSocket";
 import type { WebRTCTransport } from "@/modules/media/WebRTC";
 import { EventEmitter } from "@/modules/shared/EventEmitter";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const peer = { phone: "5511999999999", displayName: "Test", profilePicture: null };
 
@@ -76,6 +77,11 @@ function makeMockPreBuiltTransport() {
 }
 
 describe("CallOutgoing", () => {
+    // Teste de timer falso que falha no meio não pode levar o resto do arquivo junto.
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
     describe("getters", () => {
         it("status reflects later mutations of call.status", () => {
             const call = makeCall();
@@ -130,6 +136,22 @@ describe("CallOutgoing", () => {
             call.emit("ended");
 
             expect(preBuilt.stop).toHaveBeenCalledOnce();
+        });
+
+        // Regressão: a liberação da mídia termina em AudioContext.suspend(), que pode não
+        // resolver nunca, e a resposta do cancelamento ficava pendurada nela — interface
+        // travada em "cancelando" com a chamada já cancelada no servidor.
+        it("answers the cancellation even when the media release never settles", async () => {
+            vi.useFakeTimers();
+            const call = makeCall();
+            const transport = makeMockPreBuiltTransport();
+            transport.stop = vi.fn(() => new Promise<void>(() => {}));
+            const outgoing = CallOutgoingProxy(call, makeMockSocket(), makeMockMediaManager() as never, transport);
+
+            const pending = outgoing.cancel();
+            await vi.advanceTimersByTimeAsync(MEDIA_RELEASE_TIMEOUT_MS);
+
+            expect(await pending).toEqual({ err: null });
         });
 
         it("stops preBuiltTransport when consumer calls end()", async () => {

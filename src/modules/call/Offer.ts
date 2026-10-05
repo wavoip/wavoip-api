@@ -100,10 +100,16 @@ export function OfferProxy(
         deviceToken: call.deviceToken,
         direction: call.direction,
 
+        /**
+         * O `dispose()` só depois de o aceite dar certo, como no `reject()`: a oferta que
+         * falhou em atender continua tocando, e precisa continuar ouvindo o servidor para
+         * avisar quando ela acabar. Desmontada antes, ela ficava surda, e quem recebeu não
+         * era mais avisado de nada — nem de a chamada ter sido atendida em outro aparelho.
+         */
         async accept(): Promise<{ call: CallActive; err: null } | { call: null; err: string }> {
             try {
-                dispose();
                 const active = await callbacks.onAccept(call);
+                dispose();
                 return { call: active, err: null };
             } catch (e) {
                 return { call: null, err: String(e) };

@@ -104,6 +104,35 @@ describe("Offer", () => {
             expect(result).toEqual({ call: null, err: "Error: WebRTC failed" });
         });
 
+        // Regressão: desmontar a oferta antes de saber o resultado deixava ela surda, e um
+        // aceite que falha não recebia mais o fim da chamada — o toque de quem recebeu não
+        // parava mais.
+        it("keeps listening to the server when the accept fails", async () => {
+            const call = makeCall();
+            const onAccept = vi.fn().mockRejectedValue(Error("WebRTC failed"));
+            const offer = OfferProxy(call, { onAccept, onReject: vi.fn() });
+            const seen: string[] = [];
+            offer.on("acceptedElsewhere", () => seen.push("acceptedElsewhere"));
+
+            await offer.accept();
+            call.emit("accepted");
+
+            expect(seen).toEqual(["acceptedElsewhere"]);
+        });
+
+        it("stops listening once the accept goes through", async () => {
+            const call = makeCall();
+            const onAccept = vi.fn().mockResolvedValue({} as CallActive);
+            const offer = OfferProxy(call, { onAccept, onReject: vi.fn() });
+            const seen: string[] = [];
+            offer.on("ended", () => seen.push("ended"));
+
+            await offer.accept();
+            call.emit("ended");
+
+            expect(seen).toEqual([]);
+        });
+
         it("returns { call: null, err: string } when onAccept throws a string", async () => {
             const call = makeCall();
             

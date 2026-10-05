@@ -8,6 +8,7 @@ import type { MediaManager } from "@/modules/media/MediaManager";
 import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
+import { releaseMedia } from "@/modules/shared/mediaRelease";
 
 export type CallActiveEvents = {
     error: [err: CallFailReason];
@@ -144,7 +145,7 @@ export function CallActiveProxy(
         async end(): Promise<{ err: string | null }> {
             if (disposed) return { err: null };
             callbacks.onEnd(call);
-            await dispose();
+            await releaseMedia(dispose);
             return { err: null };
         },
 

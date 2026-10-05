@@ -10,6 +10,7 @@ import { WebsocketTransport } from "@/modules/media/WebSocket";
 import { warnDeprecated } from "@/modules/shared/deprecation";
 import { EventEmitter, type Unsubscribe } from "@/modules/shared/EventEmitter";
 import { forwardEvents } from "@/modules/shared/forwardEvents";
+import { releaseMedia } from "@/modules/shared/mediaRelease";
 
 /**
  * Socket caído guarda o emit em buffer e o callback nunca roda: sem teto, a Promise fica
@@ -180,7 +181,7 @@ export function CallOutgoingProxy(
                 wss.timeout(ACK_TIMEOUT_MS).emit("call.cancel", call.id, async (timeoutErr, res) => {
                     if (timeoutErr) return resolve({ err: "ACK_TIMEOUT" });
                     if (res.type === "error") {
-                        if (res.result !== CALL_ALREADY_ANSWERED) await dispose();
+                        if (res.result !== CALL_ALREADY_ANSWERED) await releaseMedia(dispose);
                         return resolve({ err: res.result });
                     }
 
@@ -188,7 +189,7 @@ export function CallOutgoingProxy(
                     // transição local que não se aplica quer dizer que os dois discordam, e
                     // a mídia não cai com base num ack que não dá para honrar.
                     if (!call.cancel()) return resolve({ err: "IS_NOT_OFFER" });
-                    await dispose();
+                    await releaseMedia(dispose);
                     resolve({ err: null });
                 });
             });
