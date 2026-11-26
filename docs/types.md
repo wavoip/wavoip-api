@@ -293,6 +293,8 @@ type CallFailReason =
     | "PEER_RX_TIMEOUT"
     | "ACCOUNT_RESTRICTED"
     | "NO_CALL_PERMISSION"
+    | "NOT_PRIMARY_CALL_APP"
+    | "INTEGRATION_FORBIDDEN"
     | "INTERNAL_ERROR"
     | (string & {})
 ```
@@ -306,6 +308,8 @@ type CallFailReason =
 | `PEER_RX_TIMEOUT`     | O usuário parou de enviar áudio. Substitui `AUDIO_TIMEOUT`.                                            |
 | `ACCOUNT_RESTRICTED`  | A conta do WhatsApp está restrita e não pode realizar chamadas.                                        |
 | `NO_CALL_PERMISSION`  | A conta não tem permissão para realizar chamadas.                                                      |
+| `NOT_PRIMARY_CALL_APP` | Outro aplicativo é o principal para chamadas do número (roteamento de conversas ativo no WhatsApp).   |
+| `INTEGRATION_FORBIDDEN` | A Meta não autorizou a chamada, por um motivo que o servidor não soube classificar.                  |
 | `INTERNAL_ERROR`      | Algo deu errado do lado do servidor.                                                                   |
 
 ---

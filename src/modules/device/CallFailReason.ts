@@ -32,6 +32,10 @@ export type CallFailReason =
     | "ACCOUNT_RESTRICTED"
     /** The account is not allowed to place calls. */
     | "NO_CALL_PERMISSION"
+    /** Another app is the primary app for calls on the number (conversation routing is enabled). */
+    | "NOT_PRIMARY_CALL_APP"
+    /** Meta refused the call without a reason the server could classify. */
+    | "INTEGRATION_FORBIDDEN"
     /** Something went wrong on the server side. */
     | "INTERNAL_ERROR"
     | (string & {});
